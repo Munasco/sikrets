@@ -39,7 +39,7 @@ function StackedDiagram() {
       <div className="h-8 border-l border-dashed border-line-strong" />
       <div className="w-full border-[1.7px] border-sage bg-field px-4 py-4 text-center">
         <p className="text-lg text-text">Sikrets</p>
-        <p className="font-mono text-[11px] text-muted">keeps · scopes · rotates</p>
+        <p className="font-mono text-[11px] text-muted">creates · keeps · rotates</p>
       </div>
       <div className="h-8 border-l border-dashed border-line-strong" />
       <div className="grid w-full grid-cols-2 gap-2">
@@ -76,7 +76,7 @@ function WideDiagram() {
       <g transform={`translate(${HUB.x} ${HUB.y})`}>
         <rect width={HUB.w} height={HUB.h} className="fill-field stroke-sage" strokeWidth="1.7" />
         <text x={HUB.w / 2} y="52" textAnchor="middle" className="fill-text" fontSize="22">Sikrets</text>
-        <text x={HUB.w / 2} y="78" textAnchor="middle" className="fill-muted font-mono" fontSize="12">keeps · scopes · rotates</text>
+        <text x={HUB.w / 2} y="78" textAnchor="middle" className="fill-muted font-mono" fontSize="12">creates · keeps · rotates</text>
         <g transform={`translate(${HUB.w / 2 - 8} 92)`} className="stroke-sage" fill="none" strokeWidth="1.5">
           <g className="spin">
             <path d="M14 8a6 6 0 1 1-2-4.5" />

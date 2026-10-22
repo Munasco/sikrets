@@ -13,8 +13,8 @@ const demoUrl = "https://cal.com/munachi-ernest-eze/custom?duration=20"
 const subjects = ["agent.", "app.", "MCP server.", "pipeline."]
 
 const pillars = [
+  { icon: Key01Icon, title: "Provision", body: "Sikrets creates each agent's keys, scoped to what it needs." },
   { icon: SquareLock02Icon, title: "Keep", body: "Encrypted on your device. We only ever hold ciphertext." },
-  { icon: Key01Icon, title: "Provision", body: "Each agent gets its own key, scoped to what it needs." },
   { icon: RefreshIcon, title: "Rotate", body: "Keys renew on schedule. Leaked ones expire on their own." },
 ]
 
@@ -36,7 +36,7 @@ export default function LandingPage() {
             Credential management for the agentic era.
           </h1>
           <p className="mt-6 text-xl md:text-2xl text-text-soft">
-            Scoped, rotating keys for every <RotatingWord words={subjects} />
+            Auto-provisioned, auto-rotated keys for every <RotatingWord words={subjects} />
           </p>
           <div className="mt-10 flex flex-wrap justify-center gap-3">
             <Button size="lg" asChild>
