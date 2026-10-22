@@ -13,7 +13,7 @@ export function RotatingWord({ words, interval = 2200 }: { words: string[]; inte
   }, [words.length, interval])
 
   return (
-    <span className="relative inline-grid align-bottom text-sage" aria-live="polite">
+    <span className="relative inline-grid align-bottom text-left text-sage" aria-live="polite">
       {/* Reserve the width of the longest word so the line doesn't reflow */}
       {words.map((word, i) => (
         <span

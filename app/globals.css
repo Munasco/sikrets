@@ -32,3 +32,23 @@
     @apply bg-ink text-text font-sans antialiased;
   }
 }
+
+/* Hero diagram: dashes drift toward the services, the rotate glyph turns. */
+.flow {
+  stroke-dasharray: 4 6;
+  animation: flow 1.6s linear infinite;
+}
+.spin {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: spin 6s linear infinite;
+}
+@keyframes flow {
+  to { stroke-dashoffset: -20; }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flow, .spin { animation: none; }
+}
