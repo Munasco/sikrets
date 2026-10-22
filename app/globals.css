@@ -1,0 +1,34 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Tennant palette — mirrors tennant-frontend so Sikrets reads as part of the same product. */
+@theme {
+  --color-ink: #0c0e0d;
+  --color-surface: #0e110f;
+  --color-field: #121714;
+  --color-hover: #1a1c1a;
+  --color-line: #252824;
+  --color-line-strong: #485544;
+  --color-sage: #9ca99a;
+  --color-label: #aeb8ab;
+  --color-text: #e2e3e0;
+  --color-text-soft: #c9d0c8;
+  --color-muted: #788377;
+  --color-faint: #626c60;
+  --color-danger: #e5786d;
+
+  --font-sans: var(--font-rethink-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-pt-mono), ui-monospace, monospace;
+}
+
+@layer base {
+  * {
+    @apply border-line outline-sage/50;
+  }
+  html {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-ink text-text font-sans antialiased;
+  }
+}
