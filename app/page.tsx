@@ -65,7 +65,13 @@ export default function LandingPage() {
 
         <section className="border-t border-line">
           <div className="max-w-6xl mx-auto px-6 py-24 text-center space-y-8">
-            <h2 className="text-3xl md:text-4xl text-text">Stop pasting keys into agents.</h2>
+            <div className="space-y-4">
+              <h2 className="text-3xl md:text-4xl text-text">Stop handing raw keys to every tool you use.</h2>
+              <p className="mx-auto max-w-xl text-muted">
+                Coding agents, hosting platforms, CI—they&apos;re built to run your code, not guard your secrets. Give them
+                scoped, rotating keys from Sikrets instead.
+              </p>
+            </div>
             <div className="flex flex-wrap justify-center gap-3">
               <Button size="lg" asChild>
                 <a href={waitlistUrl}>Join the beta</a>
