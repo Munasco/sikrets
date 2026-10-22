@@ -1,36 +1,44 @@
-import Link from "next/link"
 import type { ReactNode } from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { Key01Icon, Plug01Icon, RefreshIcon, SquareLock02Icon, CommandLineIcon, UserGroupIcon } from "@hugeicons/core-free-icons"
+import { Key01Icon, Plug01Icon, RefreshIcon, FingerPrintIcon, ServerStack01Icon, Shield01Icon } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"
 import { Frame } from "@/components/frame"
 import { Wordmark } from "@/components/logo"
 
-const tennantUrl = process.env.NEXT_PUBLIC_TENNANT_URL ?? "https://usetennant.com"
+const tennantUrl = "https://usetennant.com"
+const waitlistUrl = `${tennantUrl}/waitlist`
+const demoUrl = "https://cal.com/munachi-ernest-eze/custom?duration=20"
 
-const pillars = [
+const steps = [
   {
-    icon: Key01Icon,
-    title: "Provision access",
-    body: "Give teammates and services exactly the secrets they need, per project and per environment. Nothing more.",
+    title: "Your real keys stay with Sikrets",
+    body: "OpenAI, Stripe, AWS—the live credentials never leave the broker. Not in your env files, not on your hosting platform.",
   },
   {
-    icon: Plug01Icon,
-    title: "Connect services",
-    body: "Link GitHub, AWS, Stripe and more once. Every project sees its connections in one place.",
+    title: "Your app gets a stand-in",
+    body: "Deploy with a substitute credential instead. On its own, it can't call anything.",
   },
   {
-    icon: RefreshIcon,
-    title: "Rotate credentials",
-    body: "Replace a value and every version is tracked. Rotation is a save, not a scavenger hunt.",
+    title: "Every request proves where it runs",
+    body: "Your app calls through Sikrets with proof of its running workload's identity, not another stored secret.",
+  },
+  {
+    title: "Sikrets verifies, then forwards",
+    body: "Only verified workloads get the real key attached to their request, within the limits you set.",
   },
 ]
 
-const secrets = [
-  { key: "DATABASE_URL", meta: "aws · v4 · 2 hours ago" },
-  { key: "STRIPE_SECRET_KEY", meta: "stripe · v2 · 3 days ago" },
-  { key: "GITHUB_APP_PRIVATE_KEY", meta: "github · v1 · last week" },
-  { key: "RESEND_API_KEY", meta: "custom · v3 · last month" },
+const exposure = [
+  { stolen: "Your stored stand-in credential", result: "Useless without workload proof", safe: true },
+  { stolen: "Your database, env files, CI secrets", result: "No real keys in them to find", safe: true },
+  { stolen: "A short-lived runtime token", result: "Expires in minutes, scoped to your limits", safe: true },
+  { stolen: "Control of your running app itself", result: "Bounded by gateway limits and audit trail", safe: false },
+]
+
+const pillars = [
+  { icon: Key01Icon, title: "Provision access", body: "Decide which application, environment, and service each credential can reach." },
+  { icon: Plug01Icon, title: "Connect services", body: "Link the providers your projects depend on once, and broker every call to them." },
+  { icon: RefreshIcon, title: "Rotate credentials", body: "Swap a real key in one place. Nothing to redeploy, nothing to hunt down." },
 ]
 
 export default function LandingPage() {
@@ -40,11 +48,11 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <Wordmark />
           <nav className="flex items-center gap-2">
-            <Button variant="ghost" asChild>
-              <Link href="/sign-in">Sign in</Link>
+            <Button variant="ghost" className="hidden sm:inline-flex" asChild>
+              <a href="#how-it-works">How it works</a>
             </Button>
             <Button asChild>
-              <Link href="/projects">Open Sikrets</Link>
+              <a href={waitlistUrl}>Join the beta</a>
             </Button>
           </nav>
         </div>
@@ -53,95 +61,98 @@ export default function LandingPage() {
       <main className="flex-1">
         <section className="max-w-6xl mx-auto px-6 pt-20 pb-24 grid gap-16 lg:grid-cols-[1.1fr_1fr] items-center">
           <div className="space-y-8">
-            <p className="font-mono text-xs uppercase tracking-[0.2em] text-sage">Introducing Sikrets</p>
-            <h1 className="text-4xl md:text-6xl leading-[1.05] text-text">
-              A home for your projects&apos; secrets and connections.
-            </h1>
+            <p className="font-mono text-xs uppercase tracking-[0.2em] text-sage">Credential brokering</p>
+            <h1 className="text-4xl md:text-6xl leading-[1.05] text-text">Steal every stored key. They still won&apos;t work.</h1>
             <p className="text-lg text-sage max-w-xl">
-              Provision access, connect services, and rotate credentials—all in one place.
+              Sikrets holds your real API keys and only hands their power to the applications you&apos;ve authorized.
+              A home for your projects&apos; secrets and connections.
             </p>
             <div className="flex flex-wrap gap-3">
               <Button size="lg" asChild>
-                <Link href="/sign-in">Get started</Link>
+                <a href={waitlistUrl}>Join the beta</a>
               </Button>
               <Button size="lg" variant="outline" asChild>
-                <a href="#security">How it&apos;s secured</a>
+                <a href={demoUrl}>Book a demo</a>
               </Button>
             </div>
           </div>
 
-          <Frame className="p-0">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-line">
-              <span className="text-text">acme-api</span>
-              <div className="flex gap-1 text-xs">
-                <span className="px-2 py-1 text-muted">development</span>
-                <span className="px-2 py-1 text-muted">staging</span>
-                <span className="px-2 py-1 border-b-2 border-text text-text">production</span>
-              </div>
-            </div>
-            <div className="divide-y divide-line">
-              {secrets.map((s) => (
-                <div key={s.key} className="flex items-center gap-4 px-5 py-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-mono text-sm text-text truncate">{s.key}</p>
-                    <p className="text-xs text-faint">{s.meta}</p>
-                  </div>
-                  <p className="font-mono text-sm text-label">••••••••••</p>
-                </div>
-              ))}
-            </div>
+          <Frame className="p-6 md:p-8">
+            <FlowDiagram />
           </Frame>
         </section>
 
-        <section className="border-t border-line">
-          <div className="max-w-6xl mx-auto px-6 py-20 grid gap-px bg-line md:grid-cols-3 border border-line">
-            {pillars.map((p) => (
-              <div key={p.title} className="bg-ink p-8 space-y-4">
-                <HugeiconsIcon icon={p.icon} className="h-6 w-6 text-sage" />
-                <h2 className="text-xl text-text">{p.title}</h2>
-                <p className="text-sm text-muted leading-relaxed">{p.body}</p>
-              </div>
-            ))}
+        <section id="how-it-works" className="border-t border-line scroll-mt-8">
+          <div className="max-w-6xl mx-auto px-6 py-20 space-y-12">
+            <div className="max-w-2xl space-y-4">
+              <p className="font-mono text-xs uppercase tracking-[0.2em] text-sage">How it works</p>
+              <h2 className="text-3xl md:text-4xl text-text">Stop replacing one stealable secret with another.</h2>
+            </div>
+            <ol className="grid gap-px bg-line border border-line md:grid-cols-2 lg:grid-cols-4">
+              {steps.map((s, i) => (
+                <li key={s.title} className="bg-ink p-6 space-y-3">
+                  <span className="font-mono text-xs text-faint">0{i + 1}</span>
+                  <h3 className="text-text">{s.title}</h3>
+                  <p className="text-sm text-muted leading-relaxed">{s.body}</p>
+                </li>
+              ))}
+            </ol>
           </div>
         </section>
 
-        <section id="security" className="border-t border-line scroll-mt-8">
-          <div className="max-w-6xl mx-auto px-6 py-20 grid gap-12 lg:grid-cols-2">
+        <section className="border-t border-line">
+          <div className="max-w-6xl mx-auto px-6 py-20 grid gap-12 lg:grid-cols-[1fr_1.2fr] items-start">
             <div className="space-y-4">
-              <p className="font-mono text-xs uppercase tracking-[0.2em] text-sage">Security</p>
-              <h2 className="text-3xl md:text-4xl text-text">Encrypted before it leaves your browser.</h2>
+              <p className="font-mono text-xs uppercase tracking-[0.2em] text-sage">After a breach</p>
+              <h2 className="text-3xl md:text-4xl text-text">What an attacker actually walks away with.</h2>
               <p className="text-muted leading-relaxed">
-                Your vault password never leaves your device. It unlocks a workspace key that encrypts every value with
-                AES-256-GCM, so the server only ever stores ciphertext.
+                Leaked env files and dumped databases are the usual way keys escape. With Sikrets, there&apos;s nothing reusable in them.
               </p>
             </div>
-            <ul className="space-y-6">
-              <Point icon={SquareLock02Icon} title="End-to-end encrypted">
-                Values are encrypted and decrypted on your machine. Key names stay searchable; values don&apos;t.
-              </Point>
-              <Point icon={UserGroupIcon} title="Every change on the record">
-                Creates, rotations and deletions land in an audit log for the workspace.
-              </Point>
-              <Point icon={CommandLineIcon} title="Works where you work">
-                The Tennant CLI syncs infrastructure outputs into the same vault and injects them at runtime.
-              </Point>
-            </ul>
+            <div className="border-[1.7px] border-line divide-y divide-line">
+              <div className="grid grid-cols-2 gap-4 px-5 py-3 font-mono text-xs uppercase tracking-wider text-faint bg-surface">
+                <span>They obtain</span>
+                <span>Result</span>
+              </div>
+              {exposure.map((row) => (
+                <div key={row.stolen} className="grid grid-cols-2 gap-4 px-5 py-4 text-sm">
+                  <span className="text-text">{row.stolen}</span>
+                  <span className={row.safe ? "text-sage" : "text-label"}>{row.result}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="border-t border-line">
+          <div className="max-w-6xl mx-auto px-6 py-20">
+            <div className="grid gap-px bg-line md:grid-cols-3 border border-line">
+              {pillars.map((p) => (
+                <div key={p.title} className="bg-ink p-8 space-y-4">
+                  <HugeiconsIcon icon={p.icon} className="h-6 w-6 text-sage" />
+                  <h2 className="text-xl text-text">{p.title}</h2>
+                  <p className="text-sm text-muted leading-relaxed">{p.body}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 
         <section className="border-t border-line">
           <div className="max-w-6xl mx-auto px-6 py-20">
             <Frame className="p-8 md:p-12 grid gap-8 md:grid-cols-[1fr_auto] items-center">
-              <div className="space-y-4">
-                <h2 className="text-2xl md:text-3xl text-text">No more <span className="font-mono">.env</span> files in Slack.</h2>
-                <pre className="font-mono text-sm text-label bg-field border border-line px-4 py-3 overflow-x-auto">
-                  <span className="text-faint">$ </span>tennant projects sync{"\n"}
-                  <span className="text-faint">$ </span>tennant projects run bun dev
-                </pre>
+              <div className="space-y-3">
+                <h2 className="text-2xl md:text-3xl text-text">Make your next leaked key a non-event.</h2>
+                <p className="text-muted">Sikrets is in private beta. Join with your Tennant account.</p>
               </div>
-              <Button size="lg" asChild>
-                <Link href="/sign-in">Start with your Tennant account</Link>
-              </Button>
+              <div className="flex flex-wrap gap-3">
+                <Button size="lg" asChild>
+                  <a href={waitlistUrl}>Join the beta</a>
+                </Button>
+                <Button size="lg" variant="outline" asChild>
+                  <a href={demoUrl}>Book a demo</a>
+                </Button>
+              </div>
             </Frame>
           </div>
         </section>
@@ -157,8 +168,8 @@ export default function LandingPage() {
             </a>
           </p>
           <div className="flex gap-4 text-faint">
-            <a href="https://usetennant.com/terms" className="hover:text-text">Terms</a>
-            <a href="https://usetennant.com/privacy" className="hover:text-text">Privacy</a>
+            <a href={`${tennantUrl}/terms`} className="hover:text-text">Terms</a>
+            <a href={`${tennantUrl}/privacy`} className="hover:text-text">Privacy</a>
           </div>
         </div>
       </footer>
@@ -166,14 +177,34 @@ export default function LandingPage() {
   )
 }
 
-function Point({ icon, title, children }: { icon: typeof Key01Icon; title: string; children: ReactNode }) {
+function FlowDiagram() {
   return (
-    <li className="flex gap-4">
-      <HugeiconsIcon icon={icon} className="h-5 w-5 text-sage shrink-0 mt-0.5" />
-      <div>
-        <p className="text-text">{title}</p>
-        <p className="text-sm text-muted leading-relaxed">{children}</p>
+    <div className="space-y-3 font-mono text-sm">
+      <Node icon={ServerStack01Icon} label="Your app" detail="stand-in credential + workload proof" />
+      <Arrow />
+      <Node icon={Shield01Icon} label="Sikrets" detail="verifies identity · attaches real key" highlight />
+      <Arrow />
+      <Node icon={Plug01Icon} label="OpenAI · Stripe · AWS" detail="sees a normal, authorized request" />
+      <div className="flex items-center gap-3 pt-4 mt-2 border-t border-line text-xs text-danger">
+        <HugeiconsIcon icon={FingerPrintIcon} className="h-4 w-4 shrink-0" />
+        <span>Copied stand-in, no workload proof → rejected</span>
       </div>
-    </li>
+    </div>
   )
+}
+
+function Node({ icon, label, detail, highlight }: { icon: typeof Key01Icon; label: string; detail: string; highlight?: boolean }) {
+  return (
+    <div className={highlight ? "flex items-center gap-4 border-[1.7px] border-sage bg-field px-4 py-3" : "flex items-center gap-4 border border-line px-4 py-3"}>
+      <HugeiconsIcon icon={icon} className="h-5 w-5 text-sage shrink-0" />
+      <div className="min-w-0">
+        <p className="text-text">{label}</p>
+        <p className="text-xs text-muted">{detail}</p>
+      </div>
+    </div>
+  )
+}
+
+function Arrow(): ReactNode {
+  return <div className="ml-6 h-5 border-l border-dashed border-line-strong" aria-hidden />
 }
