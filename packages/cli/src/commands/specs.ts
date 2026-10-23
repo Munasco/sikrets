@@ -31,6 +31,18 @@ const yesOption: OptionSpec = { name: "yes", type: "boolean", short: "y", descri
 
 export const commands: CommandSpec[] = [
   {
+    name: "init",
+    description: "Create sikrets.json for this project (name, vault, env file, IaC dir, default connections)",
+    arguments: [],
+    options: [
+      { name: "project", type: "string", argument: "NAME", description: "Project name (default: directory name)" },
+      { name: "vault", type: "string", argument: "ssm|keychain", description: "Where secrets live (default: ssm)" },
+      jsonOption,
+    ],
+    examples: ["sikrets init", "sikrets init --project shop --vault keychain"],
+    load: () => import("./init.ts"),
+  },
+  {
     name: "connect",
     description: "Link a provider account. Opens a visible browser; without --email you sign in and Sikrets saves the login to your keychain",
     arguments: [{ name: "provider", required: true }],

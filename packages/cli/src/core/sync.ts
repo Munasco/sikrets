@@ -5,15 +5,15 @@ import type { Env } from "./credentials.ts";
 import { Secret } from "./secret.ts";
 import { state } from "./state.ts";
 import { outputs } from "./terraform.ts";
-import { openVault } from "./vault.ts";
+import { openVault, type VaultName } from "./vault.ts";
 
 /**
  * Copies every resource's Terraform outputs into the vault (all of them, so `run` can inject them)
  * and keeps the non-sensitive ones in state for display. Returns counts only, never values.
  */
-export async function sync(root: string, project: string, env: Env): Promise<{ resources: number; secrets: number; values: number }> {
+export async function sync(root: string, project: string, vaultName: VaultName, env: Env): Promise<{ resources: number; secrets: number; values: number }> {
   const out = await outputs(root, env);
-  const vault = await openVault(project);
+  const vault = await openVault(project, vaultName);
   const s = await state.load(root);
   let secrets = 0;
   let values = 0;

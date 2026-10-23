@@ -20,6 +20,8 @@ export interface AddRequest {
   choose: (question: string, options: readonly string[]) => Promise<string>;
   /** Reads a credential the person pastes (manual recipes). Called only when the change is applied. */
   secret: (prompt: string) => Promise<Secret>;
+  /** Env file stand-ins are written to (from sikrets.json); defaults to .env. */
+  envFile?: string;
 }
 
 export interface AddPlan {
@@ -77,10 +79,10 @@ export async function planAdd(req: AddRequest, ctx: Context): Promise<AddPlan> {
   };
 
   await plan(recipe(req.recipe), req.name, req.inputs, req.use);
-  return { resources: planned, changes: await changesFor(planned, existing, ctx, req.secret) };
+  return { resources: planned, changes: await changesFor(planned, existing, ctx, req.secret, req.envFile ?? ".env") };
 }
 
-async function changesFor(planned: readonly Resource[], existing: readonly Resource[], ctx: Context, read: AddRequest["secret"]): Promise<Change[]> {
+async function changesFor(planned: readonly Resource[], existing: readonly Resource[], ctx: Context, read: AddRequest["secret"], envFile: string): Promise<Change[]> {
   const all = [...existing, ...planned];
   const changes: Change[] = [];
 
@@ -100,8 +102,8 @@ async function changesFor(planned: readonly Resource[], existing: readonly Resou
   const newModules = new Set<string>();
   for (const res of planned) {
     const r = recipe(res.recipe);
-    if (r.strategy === "api") changes.push(...apiChanges(r, res), envFileChange(res));
-    else if (r.strategy === "manual") changes.push(...manualChanges(r, res, read), envFileChange(res));
+    if (r.strategy === "api") changes.push(...apiChanges(r, res), envFileChange(res, envFile));
+    else if (r.strategy === "manual") changes.push(...manualChanges(r, res, read), envFileChange(res, envFile));
     else {
       const [main] = files.module(r);
       if (!newModules.has(r.id) && !(await isGenerated(ctx.root, main))) {
@@ -114,21 +116,19 @@ async function changesFor(planned: readonly Resource[], existing: readonly Resou
   return changes;
 }
 
-export const ENV_FILE = ".env";
-
 /** Writes this resource's keys into the project's .env: stand-ins for secrets, real values for the rest. */
-function envFileChange(res: Resource): Change {
+function envFileChange(res: Resource, file: string): Change {
   const keys = outputKeys(res);
   return {
-    summary: `Write ${keys.map((k) => `${k.key}${k.sensitive ? " (stand-in)" : ""}`).join(", ")} to ${ENV_FILE}`,
+    summary: `Write ${keys.map((k) => `${k.key}${k.sensitive ? " (stand-in)" : ""}`).join(", ")} to ${file}`,
     async apply(c) {
-      const vault = await openVault(c.project);
-      await upsertEnv(c.root, ENV_FILE, await envValues(vault, [{ ...res, applied: true }], false));
+      const vault = await openVault(c.project, c.vault);
+      await upsertEnv(c.root, file, await envValues(vault, [{ ...res, applied: true }], false));
       const standIns = keys.filter((k) => k.sensitive).map((k) => standInKey(k.key));
       return {
         kind: "env.unwrite",
-        summary: `Remove ${keys.map((k) => k.key).join(", ")} from ${ENV_FILE} and drop their stand-ins`,
-        data: { project: c.project, file: ENV_FILE, keys: keys.map((k) => k.key).join(","), standIns: standIns.join(",") },
+        summary: `Remove ${keys.map((k) => k.key).join(", ")} from ${file} and drop their stand-ins`,
+        data: { project: c.project, file: file, keys: keys.map((k) => k.key).join(","), standIns: standIns.join(",") },
       };
     },
   };
@@ -149,7 +149,7 @@ function manualChanges(r: ManualRecipe, res: Resource, read: AddRequest["secret"
         const value = await read(`${spec.description}: `);
         if (!r.pattern.test(value.reveal())) throw new Error(`That doesn't look like ${spec.description.replace(/^an? /i, "an ")}; nothing was stored`);
         await r.verify(value);
-        await (await openVault(c.project)).put(key, value);
+        await (await openVault(c.project, c.vault)).put(key, value);
         c.log(`  Verified with ${r.provider} and stored as ${key}`);
         return { kind: "vault.delete", summary: `Remove ${key} from the vault`, data: { project: c.project, keys: key } };
       },
@@ -183,7 +183,7 @@ function apiChanges(r: ApiRecipe, res: Resource): Change[] {
     {
       summary: `Store ${res.envKeys.join(", ")} in the vault`,
       async apply(c) {
-        const vault = await openVault(c.project);
+        const vault = await openVault(c.project, c.vault);
         for (const [key, spec] of Object.entries(r.outputs)) {
           const value = made().outputs[key];
           if (value === undefined) throw new Error(`${r.id} returned no ${key}`);
@@ -246,7 +246,7 @@ registerUndo("api.destroy", async ({ recipe: id, remoteId }) => {
 
 registerUndo("env.unwrite", async ({ project, file, keys, standIns }, ctx) => {
   await removeEnv(ctx.root, file!, keys!.split(","));
-  const vault = await openVault(project!);
+  const vault = await openVault(project!, ctx.vault);
   for (const key of standIns ? standIns.split(",") : []) await vault.delete(key);
 });
 

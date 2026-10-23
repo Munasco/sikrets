@@ -1,5 +1,6 @@
 import { providerEnv, toProcessEnv, type Env } from "../core/credentials.ts";
-import { projectName, state } from "../core/state.ts";
+import { projectContext } from "../core/config.ts";
+import { state } from "../core/state.ts";
 import { openVault } from "../core/vault.ts";
 
 // Runs a command with this project's values injected as environment variables. Nothing is written
@@ -8,7 +9,8 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   if (!args.length) throw new Error("Usage: sikrets run [--providers] -- <command> [args...]");
   const root = process.cwd();
   const { resources } = await state.load(root);
-  const vault = await openVault(projectName(root));
+  const { ctx } = await projectContext(root, { log: () => {} });
+  const vault = await openVault(ctx.project, ctx.vault);
 
   const env: Env = {};
   for (const r of resources.filter((x) => x.applied)) {

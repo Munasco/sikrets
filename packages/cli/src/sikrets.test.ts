@@ -27,7 +27,7 @@ beforeEach(async () => {
   failCreate = false;
   keychain.clear();
   root = await mkdtemp(path.join(os.tmpdir(), "sikrets-test-"));
-  ctx = { root, project: "demo", dryRun: false, log: () => {} };
+  ctx = { root, project: "demo", vault: "keychain", dryRun: false, log: () => {} };
   process.env.SIKRETS_VAULT = "keychain";
   process.env.UPSTASH_EMAIL = "dev@example.com";
   process.env.UPSTASH_API_KEY = "test-management-key";
@@ -250,7 +250,7 @@ describe("stand-ins", () => {
 
   test("stand-ins are stable, and --real resolves to the real values", async () => {
     await applyPlan("add", (await planAdd(request({}), ctx)).changes, ctx);
-    const vault = await openVault("demo");
+    const vault = await openVault("demo", "keychain");
     const { resources } = await state.load(root);
     const first = await envValues(vault, resources, false);
     const again = await envValues(vault, resources, false);
@@ -266,5 +266,28 @@ describe("stand-ins", () => {
     const b = newStandIn().reveal();
     expect(isStandIn(a)).toBe(true);
     expect(a).not.toBe(b);
+  });
+});
+
+describe("sikrets.json", () => {
+  test("defaults come from the directory; strict validation rejects typos", async () => {
+    const { loadConfig, validateConfig } = await import("./core/config.ts");
+    const c = await loadConfig(root);
+    expect(c).toMatchObject({ vault: "ssm", env: ".env", iac: { tool: "terraform", dir: "iac/terraform" } });
+    expect(() => validateConfig({ projct: "x" }, root)).toThrow("unknown field projct");
+    expect(() => validateConfig({ vault: "s3" }, root)).toThrow('"vault"');
+    expect(() => validateConfig({ env: "../secrets" }, root)).toThrow('"env"');
+    expect(() => validateConfig({ project: "Shop App" }, root)).toThrow('"project"');
+  });
+
+  test("the project name and vault come from sikrets.json", async () => {
+    const { projectContext } = await import("./core/config.ts");
+    await Bun.write(path.join(root, "sikrets.json"), JSON.stringify({ project: "shop", vault: "keychain", env: ".env.local" }));
+    delete process.env.SIKRETS_VAULT;
+    const { config, ctx: c } = await projectContext(root, { log: () => {} });
+    expect([c.project, c.vault, config.env]).toEqual(["shop", "keychain", ".env.local"]);
+    process.env.SIKRETS_VAULT = "ssm"; // per-run override
+    expect((await projectContext(root, { log: () => {} })).ctx.vault).toBe("ssm");
+    process.env.SIKRETS_VAULT = "keychain";
   });
 });

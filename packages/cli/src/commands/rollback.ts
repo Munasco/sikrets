@@ -1,5 +1,6 @@
-import { undoSteps, type Context } from "../core/plan.ts";
-import { journal, projectName, state, type Operation } from "../core/state.ts";
+import { projectContext } from "../core/config.ts";
+import { undoSteps } from "../core/plan.ts";
+import { journal, state, type Operation } from "../core/state.ts";
 import { confirm, log } from "../ui.ts";
 // Modules that register the undo kinds the journal can contain.
 import "../core/add.ts";
@@ -9,7 +10,7 @@ import "./apply.ts";
 
 export async function run(args: string[], opts: Record<string, unknown>) {
   const root = process.cwd();
-  const ctx: Context = { root, project: projectName(root), dryRun: Boolean(opts["dry-run"]), log: (m) => log(opts, m) };
+  const { ctx } = await projectContext(root, { dryRun: Boolean(opts["dry-run"]), log: (m) => log(opts, m) });
   const ops = await journal.load(root);
   const op = args[0] ? ops.find((o) => o.id === args[0]) : ops.filter((o) => !o.rolledBackAt).at(-1);
   if (!op) throw new Error(args[0] ? `No operation ${args[0]} in .sikrets/journal.json` : "Nothing to roll back");

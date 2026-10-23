@@ -1,13 +1,13 @@
 import { planAdd } from "../core/add.ts";
-import { applyPlan, printPlan, type Context } from "../core/plan.ts";
-import { projectName } from "../core/state.ts";
+import { projectContext } from "../core/config.ts";
+import { applyPlan, printPlan } from "../core/plan.ts";
 import { recipe } from "../recipes/index.ts";
 import { Secret } from "../core/secret.ts";
 import { choose, confirm, log, promptHidden } from "../ui.ts";
 
 export async function run(args: string[], opts: Record<string, unknown>) {
   const root = process.cwd();
-  const ctx: Context = { root, project: projectName(root), dryRun: Boolean(opts["dry-run"]), log: (m) => log(opts, m) };
+  const { config, ctx } = await projectContext(root, { dryRun: Boolean(opts["dry-run"]), log: (m) => log(opts, m) });
   const r = recipe(args[0]!);
 
   // Recipe inputs arrive as --set key=value; dependency choices as --use requirement=resource.
@@ -28,6 +28,7 @@ export async function run(args: string[], opts: Record<string, unknown>) {
       },
       // Agents pipe the value in with --value-stdin; people get a hidden prompt. Never an argument,
       // so it can't land in shell history or a process list.
+      envFile: config.env,
       secret: async (prompt) => {
         if (opts["value-stdin"]) return Secret.of((await Bun.stdin.text()).trim());
         if (!process.stdin.isTTY) throw new Error("No terminal to ask in; pipe the value with --value-stdin");

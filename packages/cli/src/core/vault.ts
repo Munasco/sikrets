@@ -62,15 +62,9 @@ async function ssmVault(project: string): Promise<Vault> {
   };
 }
 
-export function vaultName(): VaultName {
-  const chosen = Bun.env.SIKRETS_VAULT ?? "ssm";
-  if (chosen !== "ssm" && chosen !== "keychain") throw new Error(`SIKRETS_VAULT must be "ssm" or "keychain", not "${chosen}"`);
-  return chosen;
-}
+export const openVault = async (project: string, name: VaultName): Promise<Vault> => (name === "ssm" ? ssmVault(project) : keychainVault(project));
 
-export const openVault = async (project: string): Promise<Vault> => (vaultName() === "ssm" ? ssmVault(project) : keychainVault(project));
-
-registerUndo("vault.delete", async ({ project, keys }) => {
-  const vault = await openVault(project!);
+registerUndo("vault.delete", async ({ project, keys }, ctx) => {
+  const vault = await openVault(project!, ctx.vault);
   for (const key of keys!.split(",")) await vault.delete(key);
 });

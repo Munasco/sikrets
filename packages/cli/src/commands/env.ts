@@ -1,5 +1,6 @@
 import { upsertEnv } from "../core/dotenv.ts";
-import { projectName, state } from "../core/state.ts";
+import { projectContext } from "../core/config.ts";
+import { state } from "../core/state.ts";
 import { envValues, outputKeys } from "../core/standin.ts";
 import { openVault } from "../core/vault.ts";
 
@@ -9,11 +10,12 @@ import { openVault } from "../core/vault.ts";
 export async function run(args: string[], opts: Record<string, unknown>) {
   const root = process.cwd();
   const { resources } = await state.load(root);
-  const vault = await openVault(projectName(root));
+  const { config, ctx } = await projectContext(root, { log: () => {} });
+  const vault = await openVault(ctx.project, ctx.vault);
   const applied = resources.filter((r) => r.applied);
 
   if (args[0] === "pull") {
-    const file = typeof opts.file === "string" ? opts.file : ".env";
+    const file = typeof opts.file === "string" ? opts.file : config.env;
     const real = Boolean(opts.real);
     const values = await envValues(vault, applied, real);
     await upsertEnv(root, file, values);

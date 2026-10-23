@@ -1,8 +1,10 @@
+import type { VaultName } from "./vault.ts";
 import { journal, type Operation, type Undo } from "./state.ts";
 
 export interface Context {
   root: string;
   project: string;
+  vault: VaultName;
   dryRun: boolean;
   log: (message: string) => void;
 }
