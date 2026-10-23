@@ -1,0 +1,20 @@
+{
+  "name": "sikrets",
+  "version": "0.0.1",
+  "description": "Sikrets CLI: connect providers, provision and rotate credentials.",
+  "type": "module",
+  "bin": { "sikrets": "./src/index.ts" },
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "build": "bun build --compile --minify --bytecode --external electron --external \"chromium-bidi/*\" src/index.ts --outfile dist/sikrets",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "playwright-core": "1.56.1"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.1",
+    "typescript": "5.9.3"
+  }
+}
