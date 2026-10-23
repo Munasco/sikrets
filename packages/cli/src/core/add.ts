@@ -7,6 +7,7 @@ import { ensureGitignore, isGenerated, removeGenerated, writeGenerated } from ".
 import { registerUndo, type Change, type Context } from "./plan.ts";
 import { Secret } from "./secret.ts";
 import { envValues, outputKeys, standInKey } from "./standin.ts";
+import { after } from "./ttl.ts";
 import { state, type Resource } from "./state.ts";
 import { openVault } from "./vault.ts";
 
@@ -22,6 +23,8 @@ export interface AddRequest {
   secret: (prompt: string) => Promise<Secret>;
   /** Env file stand-ins are written to (from sikrets.json); defaults to .env. */
   envFile?: string;
+  /** Rotation interval for credentials Sikrets provisions (from sikrets.json). */
+  rotateEvery?: string;
 }
 
 export interface AddPlan {
@@ -73,6 +76,8 @@ export async function planAdd(req: AddRequest, ctx: Context): Promise<AddPlan> {
       outputs: {},
       applied: false,
       createdAt: new Date().toISOString(),
+      // Terraform-managed credentials rotate through Terraform; the rest get a due date.
+      ...(r.strategy !== "terraform" && req.rotateEvery ? { rotateBy: after(req.rotateEvery) } : {}),
     };
     planned.push(resource);
     return resource;

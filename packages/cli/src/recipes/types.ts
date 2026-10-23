@@ -58,6 +58,8 @@ export interface ApiRecipe<I extends Record<string, InputSpec> = Record<string, 
   readonly strategy: "api";
   create(env: Env, name: string, inputs: Inputs<I>): Promise<Provisioned>;
   destroy(env: Env, remoteId: string): Promise<void>;
+  /** Issues a new credential for an existing resource and returns the outputs that changed. */
+  rotate?(env: Env, remoteId: string): Promise<Readonly<Record<string, string | Secret>>>;
   /** Month-to-date spend in USD, if the provider reports it per resource. */
   cost?(env: Env, remoteId: string): Promise<number>;
 }

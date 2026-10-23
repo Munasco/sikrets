@@ -2,13 +2,14 @@ import { click, pause, type } from "../../browser/human.ts";
 import { promptHidden } from "../../ui.ts";
 import type { Page } from "playwright-core";
 import type { Provider, Step } from "../types.ts";
+import { PROVIDER_URLS } from "../../constants.ts";
 
 // Upstash only needs the browser once: to mint a Developer API key. Everything after that
 // (create, delete, reset password, billing) goes through api.upstash.com.
 export const upstash: Provider = {
   id: "upstash",
   name: "Upstash",
-  loginUrl: "https://console.upstash.com/login",
+  loginUrl: PROVIDER_URLS.upstash.login,
 
   isLoggedIn: async (page) => {
     const url = new URL(page.url());
@@ -42,7 +43,7 @@ export const upstash: Provider = {
 async function mintApiKey(page: Page, step: Step): Promise<string> {
   try {
       step("Opening Account → Developer API");
-      await page.goto("https://console.upstash.com/account/api", { waitUntil: "domcontentloaded" });
+      await page.goto(PROVIDER_URLS.upstash.apiKeys, { waitUntil: "domcontentloaded" });
       await pause(1500, 400);
       step("Create API Key");
       await click(page, page.getByRole("button", { name: /Create API Key/i }).first());

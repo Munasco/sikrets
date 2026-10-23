@@ -1,10 +1,11 @@
 import { click, pause, type } from "../browser/human.ts";
 import type { Provider } from "./types.ts";
+import { PROVIDER_URLS } from "../constants.ts";
 
 export const openai: Provider = {
   id: "openai",
   name: "OpenAI",
-  loginUrl: "https://platform.openai.com/login",
+  loginUrl: PROVIDER_URLS.openai.login,
 
   isLoggedIn: async (page) => {
     const url = new URL(page.url());

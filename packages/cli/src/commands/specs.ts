@@ -110,6 +110,19 @@ export const commands: CommandSpec[] = [
     load: () => import("./catalog.ts"),
   },
   {
+    name: "rotate",
+    description: "Replace a resource's credential with a new one; stand-ins in the project stay the same",
+    arguments: [{ name: "resource", required: true }],
+    options: [
+      { name: "value-stdin", type: "boolean", description: "Manual recipes: read the replacement credential from stdin" },
+      dryRunOption,
+      yesOption,
+      jsonOption,
+    ],
+    examples: ["sikrets rotate cache --dry-run", "sikrets rotate cache --yes", "pbpaste | sikrets rotate anthropic --value-stdin"],
+    load: () => import("./rotate.ts"),
+  },
+  {
     name: "rollback",
     description: "Undo an add: delete what it created, remove its credentials and generated files",
     arguments: [{ name: "operation", required: false }],

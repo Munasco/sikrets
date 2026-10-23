@@ -1,11 +1,12 @@
 import type { Env } from "../core/credentials.ts";
 import { Secret } from "../core/secret.ts";
 import { defineApiRecipe } from "./types.ts";
+import { PROVIDER_URLS, USER_AGENT } from "../constants.ts";
 
 // Upstash Developer API (https://api.upstash.com/v2, basic auth email:apiKey). The API key is minted
 // once in the console by `sikrets connect upstash`; everything here is plain API calls.
 
-const API = "https://api.upstash.com/v2";
+const API = PROVIDER_URLS.upstash.api;
 
 function auth(env: Env): string {
   const email = env.UPSTASH_EMAIL;
@@ -17,7 +18,7 @@ function auth(env: Env): string {
 async function call<T>(env: Env, method: "GET" | "POST" | "DELETE", route: string, body?: unknown): Promise<T> {
   const res = await fetch(`${API}${route}`, {
     method,
-    headers: { Authorization: auth(env), "Content-Type": "application/json", "User-Agent": "sikrets-cli" },
+    headers: { Authorization: auth(env), "Content-Type": "application/json", "User-Agent": USER_AGENT },
     body: body === undefined ? undefined : JSON.stringify(body),
     signal: AbortSignal.timeout(30_000),
   });
@@ -69,6 +70,13 @@ export const redis = defineApiRecipe({
   },
 
   destroy: (env, id) => call<void>(env, "DELETE", `/redis/database/${encodeURIComponent(id)}`),
+
+  // Resetting the password issues a new REST token; the old one stops working immediately.
+  async rotate(env, id) {
+    const db = await call<Database>(env, "POST", `/redis/reset-password/${encodeURIComponent(id)}`);
+    if (!db.rest_token) throw new Error("Upstash reset the password but returned no REST token");
+    return { rest_token: Secret.of(db.rest_token) };
+  },
 
   async cost(env, id) {
     const s = await call<{ total_monthly_billing?: number }>(env, "GET", `/redis/stats/${encodeURIComponent(id)}`);

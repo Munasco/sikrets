@@ -1,7 +1,9 @@
 import path from "node:path";
 import { readJson, writeJson } from "./fs.ts";
 import type { Context } from "./plan.ts";
+import { parseDuration } from "./ttl.ts";
 import type { VaultName } from "./vault.ts";
+import { DEFAULTS, ENV, FILES, IAC_DIR, SCHEMA_URL } from "../constants.ts";
 
 // sikrets.json: the committed, hand-editable project file (like vercel.json). Machine-written
 // state stays in .sikrets/. Validation is strict so a typo fails loudly instead of being ignored.
@@ -16,20 +18,22 @@ export interface ProjectConfig {
   readonly iac: { readonly tool: "terraform"; readonly dir: string };
   /** Which named connection to use per provider when there are several. */
   readonly connections: Readonly<Record<string, string>>;
+  /** How often provisioned credentials should be rotated, e.g. "30d". */
+  readonly rotateEvery: string;
 }
 
-export const CONFIG_FILE = "sikrets.json";
-export const SCHEMA_URL = "https://sikrets.usetennant.com/schema.json";
+export const CONFIG_FILE = FILES.config;
 const PROJECT = /^[a-z0-9][a-z0-9-]{0,62}$/;
-const KEYS = ["$schema", "project", "vault", "env", "iac", "connections"] as const;
+const KEYS = ["$schema", "project", "vault", "env", "iac", "connections", "rotateEvery"] as const;
 
 export const defaultConfig = (root: string): ProjectConfig => ({
   $schema: SCHEMA_URL,
   project: path.basename(path.resolve(root)).toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/^-+/, "") || "project",
-  vault: "ssm",
-  env: ".env",
-  iac: { tool: "terraform", dir: "iac/terraform" },
+  vault: DEFAULTS.vault,
+  env: DEFAULTS.envFile,
+  iac: { tool: "terraform", dir: IAC_DIR },
   connections: {},
+  rotateEvery: DEFAULTS.rotateEvery,
 });
 
 function fail(message: string): never {
@@ -48,6 +52,11 @@ export function validateConfig(raw: unknown, root: string): ProjectConfig {
   if (typeof c.connections !== "object" || c.connections === null || Object.values(c.connections).some((v) => typeof v !== "string")) {
     fail(`"connections" must map provider ids to connection names`);
   }
+  try {
+    parseDuration(c.rotateEvery);
+  } catch {
+    fail(`"rotateEvery" must be a duration like 7d or 30d`);
+  }
   return c;
 }
 
@@ -64,9 +73,9 @@ export const writeConfig = (root: string, config: ProjectConfig) => writeJson(pa
 
 /** SIKRETS_VAULT overrides the project's vault for one run (e.g. keychain for local experiments). */
 export function effectiveVault(config: ProjectConfig): VaultName {
-  const override = Bun.env.SIKRETS_VAULT;
+  const override = Bun.env[ENV.vault];
   if (override === undefined) return config.vault;
-  if (override !== "ssm" && override !== "keychain") throw new Error(`SIKRETS_VAULT must be "ssm" or "keychain", not "${override}"`);
+  if (override !== "ssm" && override !== "keychain") throw new Error(`${ENV.vault} must be "ssm" or "keychain", not "${override}"`);
   return override;
 }
 

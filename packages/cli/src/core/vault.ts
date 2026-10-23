@@ -1,6 +1,7 @@
 import { awsClientConfig } from "../providers/aws.ts";
 import { registerUndo } from "./plan.ts";
 import { Secret } from "./secret.ts";
+import { keychainVaultService, SSM_PREFIX } from "../constants.ts";
 
 // Where provisioned credentials live. Until the Sikrets platform vault ships, the default is AWS
 // SSM Parameter Store (SecureString, KMS-encrypted, IAM-controlled, shared by everyone on the
@@ -23,7 +24,7 @@ const checkKey = (key: string) => {
 };
 
 function keychainVault(project: string): Vault {
-  const service = `dev.sikrets.vault.${project}`;
+  const service = keychainVaultService(project);
   return {
     name: "keychain",
     put: (key, value) => Bun.secrets.set({ service, name: checkKey(key), value: value.reveal() }),
@@ -38,7 +39,7 @@ function keychainVault(project: string): Vault {
 async function ssmVault(project: string): Promise<Vault> {
   const { SSMClient, PutParameterCommand, GetParameterCommand, DeleteParameterCommand, ParameterNotFound } = await import("@aws-sdk/client-ssm");
   const client = new SSMClient(await awsClientConfig());
-  const path = (key: string) => `/sikrets/${project}/${checkKey(key)}`;
+  const path = (key: string) => `${SSM_PREFIX}/${project}/${checkKey(key)}`;
   return {
     name: "ssm",
     put: async (key, value) =>

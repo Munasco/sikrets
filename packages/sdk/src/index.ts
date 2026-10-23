@@ -10,6 +10,8 @@
 //      app's own credentials (an IAM role in production, your AWS profile locally).
 // Values are cached briefly so a rotated key is picked up without a restart.
 
+import { DEFAULT_TTL_MS, DEFAULT_VAULT, ENV, KEY_PATTERN, keychainVaultService, SSM_PREFIX, STAND_IN_PATTERN } from "./constants.ts";
+
 export type VaultName = "ssm" | "keychain";
 
 export interface SikretsOptions {
@@ -47,14 +49,14 @@ export interface Sikrets {
   clear(): void;
 }
 
-const KEY = /^[A-Z][A-Z0-9_]{0,127}$/;
-export const isStandIn = (value: string) => /^sk-sikrets-[A-Za-z0-9]{32}$/.test(value);
+export const isStandIn = (value: string) => STAND_IN_PATTERN.test(value);
 
 function defaultProject(env: SikretsOptions["env"]): string {
-  if (env?.SIKRETS_PROJECT) return env.SIKRETS_PROJECT;
+  const named = env?.[ENV.project];
+  if (named) return named;
   const cwd = typeof process !== "undefined" ? process.cwd() : "";
   const name = cwd.split(/[\\/]/).filter(Boolean).at(-1);
-  if (!name) throw new Error("sikrets: set SIKRETS_PROJECT so the SDK knows which project's vault to read");
+  if (!name) throw new Error(`sikrets: set ${ENV.project} so the SDK knows which project's vault to read`);
   return name;
 }
 
@@ -63,7 +65,7 @@ function vaultFetch(name: VaultName): (project: string, key: string) => Promise<
     return async (project, key) => {
       const bun = (globalThis as { Bun?: { secrets: { get(o: { service: string; name: string }): Promise<string | null> } } }).Bun;
       if (!bun) throw new Error("the keychain vault needs Bun; use the ssm vault under Node");
-      return (await bun.secrets.get({ service: `dev.sikrets.vault.${project}`, name: key })) ?? undefined;
+      return (await bun.secrets.get({ service: keychainVaultService(project), name: key })) ?? undefined;
     };
   }
   let client: Promise<{ get(path: string): Promise<string | undefined> }> | undefined;
@@ -84,14 +86,14 @@ function vaultFetch(name: VaultName): (project: string, key: string) => Promise<
         },
       };
     })());
-  return async (project, key) => (await ssm()).get(`/sikrets/${project}/${key}`);
+  return async (project, key) => (await ssm()).get(`${SSM_PREFIX}/${project}/${key}`);
 }
 
 export function createSikrets(opts: SikretsOptions = {}): Sikrets {
   const env = opts.env ?? (typeof process !== "undefined" ? process.env : {});
-  const ttl = opts.ttlMs ?? 5 * 60_000;
+  const ttl = opts.ttlMs ?? DEFAULT_TTL_MS;
   const now = opts.now ?? Date.now;
-  const vault = (opts.vault ?? (env.SIKRETS_VAULT as VaultName | undefined) ?? "ssm") satisfies VaultName;
+  const vault = (opts.vault ?? (env[ENV.vault] as VaultName | undefined) ?? DEFAULT_VAULT) satisfies VaultName;
   const fetchValue = opts.fetch ?? vaultFetch(vault);
   let project: string | undefined = opts.project;
   const cache = new Map<string, { value: string; until: number }>();
@@ -119,7 +121,7 @@ export function createSikrets(opts: SikretsOptions = {}): Sikrets {
 
   return {
     get(key) {
-      if (!KEY.test(key)) return Promise.reject(new SikretsError("invalid-key", key, "keys are UPPER_SNAKE_CASE"));
+      if (!KEY_PATTERN.test(key)) return Promise.reject(new SikretsError("invalid-key", key, "keys are UPPER_SNAKE_CASE"));
       // Concurrent callers for the same key share one vault request.
       let pending = inflight.get(key);
       if (!pending) {

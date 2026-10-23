@@ -6,4 +6,6 @@ export const site = {
     "Auto-provisioned, auto-rotated keys for every agent, app, MCP server and pipeline. Stop handing raw API keys to tools that aren't built to guard them.",
   tennantUrl: "https://usetennant.com",
   twitter: "@tennantcloud",
+  waitlistUrl: "https://usetennant.com/waitlist",
+  demoUrl: "https://cal.com/munachi-ernest-eze/custom?duration=20",
 }

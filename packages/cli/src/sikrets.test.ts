@@ -52,6 +52,11 @@ beforeEach(async () => {
       databases[db.database_id] = db;
       return json(db);
     }
+    if (method === "POST" && url.pathname.startsWith("/v2/redis/reset-password/")) {
+      const db = databases[url.pathname.split("/").pop()!]!;
+      db.rest_token = "tok_rotated_value";
+      return json(db);
+    }
     if (method === "DELETE" && url.pathname.startsWith("/v2/redis/database/")) {
       delete databases[url.pathname.split("/").pop()!];
       return new Response("", { status: 200 });
@@ -303,5 +308,51 @@ describe("activity", () => {
     expect(lastUsed(entries).get("CACHE_REDIS_REST_TOKEN")).toBe(entries[1]!.at);
     expect(await Bun.file(path.join(root, ".sikrets/activity.jsonl")).text()).not.toContain("tok_live");
     expect((await Bun.file(path.join(root, ".gitignore")).text()).split("\n")).toContain(".sikrets/activity.jsonl");
+  });
+});
+
+describe("rotate", () => {
+  test("replaces the real token, keeps the stand-in, sets the next due date", async () => {
+    await Bun.write(path.join(root, "sikrets.json"), JSON.stringify({ project: "demo" }));
+    await applyPlan("add", (await planAdd(request({ rotateEvery: "30d" }), ctx)).changes, ctx);
+    const before = await Bun.file(path.join(root, ".env")).text();
+    const { run } = await import("./commands/rotate.ts");
+    const cwd = process.cwd();
+    process.chdir(root);
+    try {
+      await run(["cache"], { yes: true, json: true });
+    } finally {
+      process.chdir(cwd);
+    }
+    expect(keychain.get("dev.sikrets.vault.demo/CACHE_REDIS_REST_TOKEN")).toBe("tok_rotated_value");
+    expect(await Bun.file(path.join(root, ".env")).text()).toBe(before); // stand-ins unchanged
+    const [res] = (await state.load(root)).resources;
+    expect(res!.lastRotatedAt).toBeString();
+    expect(Date.parse(res!.rotateBy!) - Date.now()).toBeGreaterThan(29 * 86_400_000);
+    const { readActivity } = await import("./core/activity.ts");
+    expect((await readActivity(root)).at(-1)).toMatchObject({ kind: "rotate", keys: ["CACHE_REDIS_REST_TOKEN"] });
+  });
+
+  test("Terraform resources are refused with guidance", async () => {
+    await applyPlan("add", (await planAdd(request({ recipe: "aws/vpc", name: "main" }), ctx)).changes, ctx);
+    const { state: st } = await import("./core/state.ts");
+    const [vpc] = (await st.load(root)).resources;
+    await st.upsert(root, { ...vpc!, applied: true });
+    const { run } = await import("./commands/rotate.ts");
+    const cwd = process.cwd();
+    process.chdir(root);
+    try {
+      await expect(run(["main"], { yes: true })).rejects.toThrow("managed by Terraform");
+    } finally {
+      process.chdir(cwd);
+    }
+  });
+
+  test("durations are strict", async () => {
+    const { parseDuration, until } = await import("./core/ttl.ts");
+    expect(parseDuration("30d")).toBe(30 * 86_400_000);
+    for (const bad of ["30", "1 day", "0d", "-2h"]) expect(() => parseDuration(bad)).toThrow();
+    expect(until(new Date(Date.now() + 6 * 86_400_000 + 1000).toISOString())).toBe("in 6d");
+    expect(until(new Date(Date.now() - 2 * 86_400_000).toISOString())).toBe("overdue by 2d");
   });
 });

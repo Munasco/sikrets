@@ -3,8 +3,8 @@ import { projectContext } from "../core/config.ts";
 import { record } from "../core/activity.ts";
 import { applyPlan, printPlan } from "../core/plan.ts";
 import { recipe } from "../recipes/index.ts";
-import { Secret } from "../core/secret.ts";
-import { choose, confirm, log, promptHidden } from "../ui.ts";
+import { choose, confirm, log } from "../ui.ts";
+import { readSecretInput } from "./secret-input.ts";
 
 export async function run(args: string[], opts: Record<string, unknown>) {
   const root = process.cwd();
@@ -27,14 +27,9 @@ export async function run(args: string[], opts: Record<string, unknown>) {
         if (!interactive) throw new Error(`${question} Pass --use to pick one of: ${options.join(", ")}`);
         return choose(question, options);
       },
-      // Agents pipe the value in with --value-stdin; people get a hidden prompt. Never an argument,
-      // so it can't land in shell history or a process list.
       envFile: config.env,
-      secret: async (prompt) => {
-        if (opts["value-stdin"]) return Secret.of((await Bun.stdin.text()).trim());
-        if (!process.stdin.isTTY) throw new Error("No terminal to ask in; pipe the value with --value-stdin");
-        return Secret.of(await promptHidden(prompt));
-      },
+      rotateEvery: config.rotateEvery,
+      secret: (prompt) => readSecretInput(opts, prompt),
     },
     ctx,
   );

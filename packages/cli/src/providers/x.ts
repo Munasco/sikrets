@@ -1,11 +1,12 @@
 import { click, pause, type } from "../browser/human.ts";
 import type { Provider } from "./types.ts";
+import { PROVIDER_URLS } from "../constants.ts";
 
 // x.com is the canary for bot detection: if this flow gets through, gentler dashboards will too.
 export const x: Provider = {
   id: "x",
   name: "X",
-  loginUrl: "https://x.com/i/flow/login",
+  loginUrl: PROVIDER_URLS.x.login,
 
   isLoggedIn: async (page) => /^https:\/\/(www\.)?x\.com\/home/.test(page.url()),
 

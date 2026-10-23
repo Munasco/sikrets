@@ -1,11 +1,12 @@
 import path from "node:path";
 import { readJson, writePrivate } from "./core/fs.ts";
+import { ENV, FILES, KEYCHAIN_SERVICE, USER_DIR } from "./constants.ts";
 
-export const configDir = () => Bun.env.SIKRETS_CONFIG_DIR || path.join(Bun.env.HOME ?? "", ".sikrets");
+export const configDir = () => Bun.env[ENV.configDir] || path.join(Bun.env.HOME ?? "", USER_DIR);
 
 // Passwords live in the OS keychain (Keychain on macOS, libsecret on Linux, Credential Manager
 // on Windows) via Bun.secrets. They are never written to disk by Sikrets.
-const SERVICE = "dev.sikrets";
+const SERVICE = KEYCHAIN_SERVICE;
 
 export const keychain = {
   set: (provider: string, account: string, value: string) => Bun.secrets.set({ service: `${SERVICE}.${provider}`, name: account, value }),
@@ -21,7 +22,7 @@ export interface Connection {
   connectedAt: string;
 }
 
-const connectionsFile = () => path.join(configDir(), "connections.json");
+const connectionsFile = () => path.join(configDir(), FILES.connections);
 
 export const listConnections = () => readJson<Connection[]>(connectionsFile(), []);
 

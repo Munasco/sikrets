@@ -3,12 +3,13 @@ import os from "node:os";
 import path from "node:path";
 import { ensureGitignore } from "./files.ts";
 import { readText } from "./fs.ts";
+import { FILES, PROJECT_DIR } from "../constants.ts";
 
 // Project activity log: what happened, who did it, which key *names* were involved. Never values.
 // One JSON object per line in .sikrets/activity.jsonl (git-ignored: it holds usernames and command
 // names). Bun.write has no append mode, so this uses node:fs appendFile.
 
-export type ActivityKind = "add" | "rollback" | "apply" | "env.pull" | "run";
+export type ActivityKind = "add" | "rollback" | "apply" | "env.pull" | "run" | "rotate";
 
 export interface Activity {
   at: string;
@@ -24,12 +25,12 @@ export interface Activity {
   ms?: number;
 }
 
-const FILE = path.join(".sikrets", "activity.jsonl");
-const LOG_IGNORE = ".sikrets/activity.jsonl";
+const FILE = path.join(PROJECT_DIR, FILES.activity);
+const LOG_IGNORE = `${PROJECT_DIR}/${FILES.activity}`;
 
 export async function record(root: string, entry: Omit<Activity, "at" | "user">): Promise<void> {
   const full: Activity = { at: new Date().toISOString(), user: os.userInfo().username, ...entry };
-  await mkdir(path.join(root, ".sikrets"), { recursive: true });
+  await mkdir(path.join(root, PROJECT_DIR), { recursive: true });
   await ensureGitignore(root, [LOG_IGNORE]);
   await appendFile(path.join(root, FILE), JSON.stringify(full) + "\n");
 }

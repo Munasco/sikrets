@@ -2,10 +2,11 @@ import path from "node:path";
 import { IAC_DIR } from "../iac/terraform.ts";
 import { toProcessEnv, type Env } from "./credentials.ts";
 import { Secret } from "./secret.ts";
+import { ENV } from "../constants.ts";
 
 /** Terraform or OpenTofu, whichever is installed (SIKRETS_TERRAFORM overrides). */
 export function terraformBinary(): string {
-  const bin = Bun.env.SIKRETS_TERRAFORM ?? Bun.which("terraform") ?? Bun.which("tofu");
+  const bin = Bun.env[ENV.terraform] ?? Bun.which("terraform") ?? Bun.which("tofu");
   if (!bin) throw new Error("Terraform isn't installed. Install it (brew install hashicorp/tap/terraform) or OpenTofu (brew install opentofu)");
   return bin;
 }

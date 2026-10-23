@@ -1,6 +1,7 @@
 import type { Resource } from "../core/state.ts";
 import { terraformRecipe } from "../recipes/index.ts";
 import { moduleSlug, tfIdent, type TerraformRecipe } from "../recipes/types.ts";
+import { IAC_DIR } from "../constants.ts";
 
 // Layout under iac/terraform/ — additive, so each add only creates files and rollback only removes
 // its own:
@@ -8,7 +9,7 @@ import { moduleSlug, tfIdent, type TerraformRecipe } from "../recipes/types.ts";
 //   <resource>.tf                   module call + outputs for one resource
 //   modules/<recipe>/{main,variables,outputs}.tf   shared by every resource of that recipe
 
-export const IAC_DIR = "iac/terraform";
+export { IAC_DIR };
 export const files = {
   versions: `${IAC_DIR}/versions.tf`,
   root: (name: string) => `${IAC_DIR}/${name}.tf`,

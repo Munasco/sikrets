@@ -8,8 +8,7 @@ import { HeroDiagram } from "@/components/hero-diagram"
 import { site } from "@/lib/site"
 
 const tennantUrl = site.tennantUrl
-const waitlistUrl = `${tennantUrl}/waitlist`
-const demoUrl = "https://cal.com/munachi-ernest-eze/custom?duration=20"
+const { waitlistUrl, demoUrl } = site
 
 const jsonLd = {
   "@context": "https://schema.org",

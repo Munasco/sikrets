@@ -1,4 +1,5 @@
 import { defineTerraformRecipe } from "./types.ts";
+import { MANAGED_BY_TAG } from "../constants.ts";
 
 // AWS recipes. Credentials come from your AWS profile (`sikrets connect aws`), never from files.
 
@@ -26,12 +27,12 @@ variable "cidr" { type = string }
 resource "aws_vpc" "this" {
   cidr_block           = var.cidr
   enable_dns_hostnames = true
-  tags                 = { Name = var.name, ManagedBy = "sikrets" }
+  tags                 = { Name = var.name, ManagedBy = "${MANAGED_BY_TAG}" }
 }
 
 resource "aws_internet_gateway" "this" {
   vpc_id = aws_vpc.this.id
-  tags   = { Name = var.name, ManagedBy = "sikrets" }
+  tags   = { Name = var.name, ManagedBy = "${MANAGED_BY_TAG}" }
 }
 
 resource "aws_subnet" "public" {
@@ -39,7 +40,7 @@ resource "aws_subnet" "public" {
   cidr_block              = cidrsubnet(var.cidr, 8, 0)
   availability_zone       = data.aws_availability_zones.available.names[0]
   map_public_ip_on_launch = true
-  tags                    = { Name = "\${var.name}-public", ManagedBy = "sikrets" }
+  tags                    = { Name = "\${var.name}-public", ManagedBy = "${MANAGED_BY_TAG}" }
 }
 
 resource "aws_route_table" "public" {
@@ -48,7 +49,7 @@ resource "aws_route_table" "public" {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.this.id
   }
-  tags = { Name = "\${var.name}-public", ManagedBy = "sikrets" }
+  tags = { Name = "\${var.name}-public", ManagedBy = "${MANAGED_BY_TAG}" }
 }
 
 resource "aws_route_table_association" "public" {
@@ -108,7 +109,7 @@ resource "aws_security_group" "this" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-  tags = { Name = var.name, ManagedBy = "sikrets" }
+  tags = { Name = var.name, ManagedBy = "${MANAGED_BY_TAG}" }
 }
 
 resource "aws_iam_role" "this" {
@@ -140,7 +141,7 @@ resource "aws_instance" "this" {
     volume_size = var.disk
     encrypted   = true
   }
-  tags = { Name = var.name, ManagedBy = "sikrets" }
+  tags = { Name = var.name, ManagedBy = "${MANAGED_BY_TAG}" }
 }
 `,
     outputs: `output "instance_id" { value = aws_instance.this.id }

@@ -1,6 +1,7 @@
 import path from "node:path";
 import { readJson, readText, remove, writeJson } from "./fs.ts";
 import { registerUndo, type Context } from "./plan.ts";
+import { FILES } from "../constants.ts";
 
 // Generated IaC belongs to the project, like shadcn components. sikrets.lock records the hash of
 // what Sikrets last wrote, so it can tell when someone has edited a file and never overwrites or
@@ -11,7 +12,7 @@ interface Lock {
   files: Record<string, string>;
 }
 
-const lockFile = (root: string) => path.join(root, "sikrets.lock");
+const lockFile = (root: string) => path.join(root, FILES.lock);
 const hash = (text: string) => new Bun.CryptoHasher("sha256").update(text).digest("hex");
 const readLock = (root: string) => readJson<Lock>(lockFile(root), { version: 1, files: {} });
 
