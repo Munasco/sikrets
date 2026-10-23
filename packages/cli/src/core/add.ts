@@ -2,9 +2,11 @@ import { files, GITIGNORE, moduleTf, rootTf, versionsTf } from "../iac/terraform
 import { recipe, terraformRecipe } from "../recipes/index.ts";
 import { envPrefix, resolveInputs, RESOURCE_NAME, type ApiRecipe, type ManualRecipe, type Provisioned, type Recipe, type TerraformRecipe } from "../recipes/types.ts";
 import { providerEnv } from "./credentials.ts";
+import { removeEnv, upsertEnv } from "./dotenv.ts";
 import { ensureGitignore, isGenerated, removeGenerated, writeGenerated } from "./files.ts";
 import { registerUndo, type Change, type Context } from "./plan.ts";
 import { Secret } from "./secret.ts";
+import { envValues, outputKeys, standInKey } from "./standin.ts";
 import { state, type Resource } from "./state.ts";
 import { openVault } from "./vault.ts";
 
@@ -98,8 +100,8 @@ async function changesFor(planned: readonly Resource[], existing: readonly Resou
   const newModules = new Set<string>();
   for (const res of planned) {
     const r = recipe(res.recipe);
-    if (r.strategy === "api") changes.push(...apiChanges(r, res));
-    else if (r.strategy === "manual") changes.push(...manualChanges(r, res, read));
+    if (r.strategy === "api") changes.push(...apiChanges(r, res), envFileChange(res));
+    else if (r.strategy === "manual") changes.push(...manualChanges(r, res, read), envFileChange(res));
     else {
       const [main] = files.module(r);
       if (!newModules.has(r.id) && !(await isGenerated(ctx.root, main))) {
@@ -110,6 +112,26 @@ async function changesFor(planned: readonly Resource[], existing: readonly Resou
     }
   }
   return changes;
+}
+
+export const ENV_FILE = ".env";
+
+/** Writes this resource's keys into the project's .env: stand-ins for secrets, real values for the rest. */
+function envFileChange(res: Resource): Change {
+  const keys = outputKeys(res);
+  return {
+    summary: `Write ${keys.map((k) => `${k.key}${k.sensitive ? " (stand-in)" : ""}`).join(", ")} to ${ENV_FILE}`,
+    async apply(c) {
+      const vault = await openVault(c.project);
+      await upsertEnv(c.root, ENV_FILE, await envValues(vault, [{ ...res, applied: true }], false));
+      const standIns = keys.filter((k) => k.sensitive).map((k) => standInKey(k.key));
+      return {
+        kind: "env.unwrite",
+        summary: `Remove ${keys.map((k) => k.key).join(", ")} from ${ENV_FILE} and drop their stand-ins`,
+        data: { project: c.project, file: ENV_FILE, keys: keys.map((k) => k.key).join(","), standIns: standIns.join(",") },
+      };
+    },
+  };
 }
 
 /** The person creates the credential in the dashboard; it is checked, then stored. Nothing is stored if a check fails. */
@@ -220,6 +242,12 @@ registerUndo("api.destroy", async ({ recipe: id, remoteId }) => {
   const r = recipe(id!);
   if (r.strategy !== "api") throw new Error(`${id} isn't an API recipe`);
   await r.destroy(await providerEnv([r.provider]), remoteId!);
+});
+
+registerUndo("env.unwrite", async ({ project, file, keys, standIns }, ctx) => {
+  await removeEnv(ctx.root, file!, keys!.split(","));
+  const vault = await openVault(project!);
+  for (const key of standIns ? standIns.split(",") : []) await vault.delete(key);
 });
 
 registerUndo("state.remove", async ({ name }, ctx) => state.remove(ctx.root, name!));

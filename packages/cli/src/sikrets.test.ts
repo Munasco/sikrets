@@ -5,6 +5,8 @@ import path from "node:path";
 import { planAdd, type AddRequest } from "./core/add.ts";
 import { applyPlan, undoSteps, type Context } from "./core/plan.ts";
 import { Secret } from "./core/secret.ts";
+import { envValues, isStandIn } from "./core/standin.ts";
+import { openVault } from "./core/vault.ts";
 import { state } from "./core/state.ts";
 import { recipe } from "./recipes/index.ts";
 import { resolveInputs } from "./recipes/types.ts";
@@ -104,6 +106,7 @@ describe("API recipes (upstash/redis)", () => {
       'Create upstash/redis "cache" at upstash',
       "Store CACHE_REDIS_REST_URL, CACHE_REDIS_REST_TOKEN in the vault",
       'Record "cache" in .sikrets/state.json',
+      "Write CACHE_REDIS_REST_URL, CACHE_REDIS_REST_TOKEN (stand-in) to .env",
     ]);
     expect(plan.changes[0]!.cost).toBe("pay as you go, capped at $20/mo");
     expect(fetchCalls).toBe(0);
@@ -223,5 +226,45 @@ describe("manual recipes (anthropic/api-key)", () => {
     await expect(applyPlan("add", (await planAdd(paste("sk-ant-api03-revokedrevokedrevoked99"), ctx)).changes, ctx)).rejects.toThrow("rejected this key");
     expect(keychain.size).toBe(0);
     expect((await state.load(root)).resources).toHaveLength(0);
+  });
+});
+
+describe("stand-ins", () => {
+  const dotenv = () => Bun.file(path.join(root, ".env")).text();
+
+  test("add writes a stand-in to .env, never the real token; rollback removes only its lines", async () => {
+    await Bun.write(path.join(root, ".env"), "# mine\nPORT=3000\n");
+    const op = await applyPlan("add", (await planAdd(request({}), ctx)).changes, ctx);
+    const text = await dotenv();
+    expect(text).toContain("PORT=3000");
+    expect(text).toContain('CACHE_REDIS_REST_URL="https://happy-fox-123.upstash.io"');
+    expect(text).not.toContain("tok_live_secret_value");
+    const token = /CACHE_REDIS_REST_TOKEN="([^"]+)"/.exec(text)![1]!;
+    expect(isStandIn(token)).toBe(true);
+    expect((await Bun.file(path.join(root, ".gitignore")).text()).split("\n")).toContain(".env");
+
+    await undoSteps(op, ctx);
+    expect(await dotenv()).toBe("# mine\nPORT=3000\n");
+    expect(keychain.size).toBe(0); // real token and stand-in both gone
+  });
+
+  test("stand-ins are stable, and --real resolves to the real values", async () => {
+    await applyPlan("add", (await planAdd(request({}), ctx)).changes, ctx);
+    const vault = await openVault("demo");
+    const { resources } = await state.load(root);
+    const first = await envValues(vault, resources, false);
+    const again = await envValues(vault, resources, false);
+    expect(first.get("CACHE_REDIS_REST_TOKEN")!.reveal()).toBe(again.get("CACHE_REDIS_REST_TOKEN")!.reveal());
+    const real = await envValues(vault, resources, true);
+    expect(real.get("CACHE_REDIS_REST_TOKEN")!.reveal()).toBe("tok_live_secret_value");
+    expect(real.get("CACHE_REDIS_REST_URL")!.reveal()).toBe(first.get("CACHE_REDIS_REST_URL")!.reveal());
+  });
+
+  test("stand-ins are random and well-formed", async () => {
+    const { newStandIn } = await import("./core/standin.ts");
+    const a = newStandIn().reveal();
+    const b = newStandIn().reveal();
+    expect(isStandIn(a)).toBe(true);
+    expect(a).not.toBe(b);
   });
 });

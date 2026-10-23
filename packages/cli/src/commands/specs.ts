@@ -81,8 +81,12 @@ export const commands: CommandSpec[] = [
     name: "env",
     description: "List which values this project has (names only), or `env pull` them into a git-ignored .env",
     arguments: [{ name: "pull", required: false }],
-    options: [{ name: "file", type: "string", argument: "FILE", description: "Where `env pull` writes (default: .env)" }, jsonOption],
-    examples: ["sikrets env", "sikrets env pull --file .env.local"],
+    options: [
+      { name: "file", type: "string", argument: "FILE", description: "Where `env pull` writes (default: .env)" },
+      { name: "real", type: "boolean", short: "r", description: "Write real secrets instead of stand-ins" },
+      jsonOption,
+    ],
+    examples: ["sikrets env", "sikrets env pull", "sikrets env pull --real --file .env.local"],
     load: () => import("./env.ts"),
   },
   {
