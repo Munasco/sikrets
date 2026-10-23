@@ -1,13 +1,48 @@
 import "./globals.css"
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Rethink_Sans, PT_Mono } from "next/font/google"
 import type { ReactNode } from "react"
+import { site } from "@/lib/site"
 
 export const metadata: Metadata = {
-  title: "Sikrets by Tennant — make stolen keys useless",
-  description:
-    "Sikrets is a credential broker. Your real API keys stay with Sikrets; your apps get stand-ins that only work from your authorized application.",
-  metadataBase: new URL("https://sikrets.usetennant.com"),
+  metadataBase: new URL(site.url),
+  title: { default: site.title, template: `%s — ${site.name}` },
+  description: site.description,
+  applicationName: site.name,
+  authors: [{ name: "Tennant", url: site.tennantUrl }],
+  creator: "Tennant",
+  publisher: "Tennant",
+  keywords: [
+    "credential management",
+    "secrets management",
+    "API key rotation",
+    "automatic secret rotation",
+    "AI agent security",
+    "non-human identities",
+    "MCP server credentials",
+    "dynamic secrets",
+  ],
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    url: site.url,
+    siteName: site.name,
+    title: site.title,
+    description: site.description,
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    site: site.twitter,
+    title: site.title,
+    description: site.description,
+  },
+  robots: { index: true, follow: true },
+}
+
+export const viewport: Viewport = {
+  themeColor: "#0c0e0d",
+  colorScheme: "dark",
 }
 
 const rethinkSans = Rethink_Sans({

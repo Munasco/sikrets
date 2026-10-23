@@ -5,10 +5,22 @@ import { Frame } from "@/components/frame"
 import { Wordmark } from "@/components/logo"
 import { RotatingWord } from "@/components/rotating-word"
 import { HeroDiagram } from "@/components/hero-diagram"
+import { site } from "@/lib/site"
 
-const tennantUrl = "https://usetennant.com"
+const tennantUrl = site.tennantUrl
 const waitlistUrl = `${tennantUrl}/waitlist`
 const demoUrl = "https://cal.com/munachi-ernest-eze/custom?duration=20"
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: site.name,
+  url: site.url,
+  description: site.description,
+  applicationCategory: "SecurityApplication",
+  operatingSystem: "Web",
+  publisher: { "@type": "Organization", name: "Tennant", url: site.tennantUrl },
+}
 
 const subjects = ["agent.", "app.", "MCP server.", "pipeline."]
 
@@ -21,6 +33,7 @@ const pillars = [
 export default function LandingPage() {
   return (
     <div className="min-h-screen flex flex-col">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <header className="border-b border-line">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <Wordmark />
