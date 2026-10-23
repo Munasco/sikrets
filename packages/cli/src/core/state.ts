@@ -1,5 +1,5 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { readJson, writeJson } from "./fs.ts";
 
 // Project state lives in <project>/.sikrets/ and holds no secret values, so it can be committed.
 // state.json  — resources Sikrets has provisioned for this project (drives `cost`, `env pull`)
@@ -34,20 +34,6 @@ export interface Operation {
 }
 
 const dir = (root: string) => path.join(root, ".sikrets");
-
-async function readJson<T>(file: string, fallback: T): Promise<T> {
-  try {
-    return JSON.parse(await readFile(file, "utf8"));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return fallback;
-    throw error;
-  }
-}
-
-async function writeJson(file: string, value: unknown) {
-  await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(file, JSON.stringify(value, null, 2) + "\n");
-}
 
 export const projectName = (root: string) => path.basename(path.resolve(root));
 

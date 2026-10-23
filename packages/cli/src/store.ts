@@ -1,8 +1,7 @@
-import { mkdir, readFile, writeFile, chmod } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
+import { readJson, writePrivate } from "./core/fs.ts";
 
-export const configDir = () => process.env.SIKRETS_CONFIG_DIR || path.join(os.homedir(), ".sikrets");
+export const configDir = () => Bun.env.SIKRETS_CONFIG_DIR || path.join(Bun.env.HOME ?? "", ".sikrets");
 
 // Passwords live in the OS keychain (Keychain on macOS, libsecret on Linux, Credential Manager
 // on Windows) via Bun.secrets. They are never written to disk by Sikrets.
@@ -24,19 +23,10 @@ export interface Connection {
 
 const connectionsFile = () => path.join(configDir(), "connections.json");
 
-export async function listConnections(): Promise<Connection[]> {
-  try {
-    return JSON.parse(await readFile(connectionsFile(), "utf8"));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
-    throw error;
-  }
-}
+export const listConnections = () => readJson<Connection[]>(connectionsFile(), []);
 
 export async function saveConnection(connection: Connection) {
   const all = (await listConnections()).filter((c) => c.provider !== connection.provider);
   all.push(connection);
-  await mkdir(configDir(), { recursive: true, mode: 0o700 });
-  await writeFile(connectionsFile(), JSON.stringify(all, null, 2) + "\n", { mode: 0o600 });
-  await chmod(connectionsFile(), 0o600);
+  await writePrivate(connectionsFile(), JSON.stringify(all, null, 2) + "\n");
 }
