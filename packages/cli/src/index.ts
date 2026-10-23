@@ -47,20 +47,26 @@ async function main(argv = process.argv.slice(2)) {
     throw new Error(`Unknown command "${name}".${hint ? ` Did you mean "${hint}"?` : ""} Run sikrets --help`);
   }
 
+  // For passthrough commands, everything after `--` belongs to the child command.
+  const split = spec.passthrough ? rest.indexOf("--") : -1;
+  const own = split >= 0 ? rest.slice(0, split) : rest;
+  const passed = split >= 0 ? rest.slice(split + 1) : [];
+
   const { values, positionals } = parseArgs({
-    args: rest,
+    args: own,
     allowPositionals: true,
     options: {
       help: { type: "boolean", short: "h" },
-      ...Object.fromEntries(spec.options.map((o) => [o.name, { type: o.type, ...(o.short ? { short: o.short } : {}) }])),
+      ...Object.fromEntries(spec.options.map((o) => [o.name, { type: o.type, multiple: o.multiple ?? false, ...(o.short ? { short: o.short } : {}) }])),
     },
   });
   if (values.help) return console.log(help(spec));
-  const missing = spec.arguments.slice(positionals.length).find((a) => a.required);
-  if (missing) throw new Error(`Missing <${missing.name}>. Usage: ${usage(spec)}`);
+  const args = spec.passthrough ? [...positionals, ...passed] : positionals;
+  const missing = spec.arguments.slice(args.length).find((a) => a.required);
+  if (missing) throw new Error(`Missing <${missing.name}>. Usage: ${usage(spec)}${spec.passthrough ? " -- …" : ""}`);
 
   const { run } = await spec.load();
-  await run(positionals, values as Record<string, string | boolean | undefined>);
+  await run(args, values);
 }
 
 main().catch((error) => {

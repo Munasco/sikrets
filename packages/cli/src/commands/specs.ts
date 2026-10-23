@@ -5,6 +5,8 @@
 export interface OptionSpec {
   name: string;
   type: "string" | "boolean";
+  /** Repeatable flag, collected into an array. */
+  multiple?: boolean;
   short?: string;
   argument?: string;
   description: string;
@@ -17,7 +19,9 @@ export interface CommandSpec {
   arguments: { name: string; required: boolean }[];
   options: OptionSpec[];
   examples: string[];
-  load: () => Promise<{ run: (args: string[], opts: Record<string, string | boolean | undefined>) => Promise<void> }>;
+  /** Everything after `--` is passed through untouched (for `run`). */
+  passthrough?: boolean;
+  load: () => Promise<{ run: (args: string[], opts: Record<string, unknown>) => Promise<void> }>;
 }
 
 export const jsonOption: OptionSpec = { name: "json", type: "boolean", description: "Machine-readable output on stdout (for agents)" };
@@ -33,6 +37,8 @@ export const commands: CommandSpec[] = [
     options: [
       { name: "email", type: "string", argument: "EMAIL", description: "Sign in for me with this email (password is prompted)" },
       { name: "password-stdin", type: "boolean", description: "Read the password from stdin instead of prompting" },
+      { name: "renew", type: "boolean", description: "Mint a fresh API key even if one is already stored" },
+      { name: "profile", type: "string", argument: "PROFILE", description: "AWS only: which AWS CLI profile to use" },
       jsonOption,
     ],
     examples: ["sikrets connect openai", "sikrets connect openai --email me@acme.dev", "printf %s \"$PW\" | sikrets connect openai --email me@acme.dev --password-stdin --json"],
@@ -40,19 +46,51 @@ export const commands: CommandSpec[] = [
   },
   {
     name: "add",
-    description: "Provision a service for this project, store its credentials and generate its IaC",
+    description: "Add a service to this project: plans it, provisions or declares it, and records how to undo it",
     arguments: [{ name: "provider/service", required: true }],
     options: [
-      { name: "name", type: "string", argument: "NAME", description: "Resource name (default: cache)" },
-      { name: "region", type: "string", argument: "REGION", description: "Primary region (default: us-east-1)" },
-      { name: "plan", type: "string", argument: "PLAN", description: "free, payg, fixed_250mb, … (default: free)" },
-      { name: "budget", type: "string", argument: "USD", description: "Monthly spend cap for pay-as-you-go plans" },
+      { name: "name", type: "string", argument: "NAME", description: "Resource name (default: the service name)" },
+      { name: "set", type: "string", multiple: true, argument: "KEY=VALUE", description: "Set a recipe input, e.g. --set region=eu-west-1" },
+      { name: "use", type: "string", multiple: true, argument: "NEED=NAME", description: "Satisfy a dependency with an existing resource" },
       dryRunOption,
       yesOption,
       jsonOption,
     ],
-    examples: ["sikrets add upstash/redis --dry-run", "sikrets add upstash/redis --name cache --plan payg --budget 20 --yes --json"],
+    examples: ["sikrets add upstash/redis --dry-run", "sikrets add aws/ec2 --name web --set size=t4g.micro", "sikrets add aws/ec2 --name worker --use network=main --yes --json"],
     load: () => import("./add.ts"),
+  },
+  {
+    name: "apply",
+    description: "Create everything declared in iac/terraform, then publish its outputs to the vault",
+    arguments: [],
+    options: [{ ...dryRunOption, description: "Run terraform plan only" }, { ...yesOption, description: "Don't ask terraform for approval" }, jsonOption],
+    examples: ["sikrets apply --dry-run", "sikrets apply --yes"],
+    load: () => import("./apply.ts"),
+  },
+  {
+    name: "run",
+    description: "Run a command with this project's values as environment variables (nothing written, nothing printed)",
+    arguments: [{ name: "command", required: true }],
+    options: [{ name: "providers", type: "boolean", description: "Also inject provider admin credentials (for terraform)" }],
+    examples: ["sikrets run -- bun dev", "sikrets run --providers -- terraform plan"],
+    passthrough: true,
+    load: () => import("./run.ts"),
+  },
+  {
+    name: "env",
+    description: "List which values this project has (names only), or `env pull` them into a git-ignored .env",
+    arguments: [{ name: "pull", required: false }],
+    options: [{ name: "file", type: "string", argument: "FILE", description: "Where `env pull` writes (default: .env)" }, jsonOption],
+    examples: ["sikrets env", "sikrets env pull --file .env.local"],
+    load: () => import("./env.ts"),
+  },
+  {
+    name: "catalog",
+    description: "Search the provider catalog and see what can be added",
+    arguments: [{ name: "query", required: false }],
+    options: [jsonOption],
+    examples: ["sikrets catalog", "sikrets catalog redis", "sikrets catalog --json"],
+    load: () => import("./catalog.ts"),
   },
   {
     name: "rollback",
@@ -64,7 +102,7 @@ export const commands: CommandSpec[] = [
   },
   {
     name: "cost",
-    description: "Month-to-date spend for everything Sikrets provisioned in this project",
+    description: "Spend for everything in this project: live where the provider reports it, otherwise estimated",
     arguments: [],
     options: [jsonOption],
     examples: ["sikrets cost", "sikrets cost --json"],

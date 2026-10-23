@@ -1,0 +1,2002 @@
+[
+ {
+  "id": "aws",
+  "name": "aws",
+  "terraform": "hashicorp/aws",
+  "tier": "official",
+  "description": "terraform-provider-aws",
+  "downloads": 8116472370,
+  "repository": "https://github.com/hashicorp/terraform-provider-aws",
+  "curated": true
+ },
+ {
+  "id": "confluent",
+  "name": "confluent",
+  "terraform": "confluentinc/confluent",
+  "tier": "partner",
+  "description": "Terraform Provider for Confluent",
+  "downloads": 581112251,
+  "repository": "https://github.com/confluentinc/terraform-provider-confluent",
+  "curated": true
+ },
+ {
+  "id": "cloudflare",
+  "name": "cloudflare",
+  "terraform": "cloudflare/cloudflare",
+  "tier": "partner",
+  "description": "",
+  "downloads": 366381842,
+  "repository": "https://github.com/cloudflare/terraform-provider-cloudflare",
+  "curated": true
+ },
+ {
+  "id": "grafana",
+  "name": "grafana",
+  "terraform": "grafana/grafana",
+  "tier": "partner",
+  "description": "Terraform Grafana provider",
+  "downloads": 231858385,
+  "repository": "https://github.com/grafana/terraform-provider-grafana",
+  "curated": true
+ },
+ {
+  "id": "mongodbatlas",
+  "name": "mongodbatlas",
+  "terraform": "mongodb/mongodbatlas",
+  "tier": "partner-premier",
+  "description": "",
+  "downloads": 97167185,
+  "repository": "https://github.com/mongodb/terraform-provider-mongodbatlas",
+  "curated": true
+ },
+ {
+  "id": "auth0",
+  "name": "auth0",
+  "terraform": "auth0/auth0",
+  "tier": "partner",
+  "description": "The Auth0 Terraform Provider is the official plugin for managing Auth0 tenant configuration through the Terraform tool.",
+  "downloads": 59874196,
+  "repository": "https://github.com/auth0/terraform-provider-auth0",
+  "curated": true
+ },
+ {
+  "id": "sentry",
+  "name": "sentry",
+  "terraform": "jianyuan/sentry",
+  "tier": "community",
+  "description": "",
+  "downloads": 27628183,
+  "repository": "https://github.com/jianyuan/terraform-provider-sentry",
+  "curated": true
+ },
+ {
+  "id": "launchdarkly",
+  "name": "launchdarkly",
+  "terraform": "launchdarkly/launchdarkly",
+  "tier": "partner",
+  "description": "LaunchDarkly Terraform provider",
+  "downloads": 27101692,
+  "repository": "https://github.com/launchdarkly/terraform-provider-launchdarkly",
+  "curated": true
+ },
+ {
+  "id": "ec",
+  "name": "ec",
+  "terraform": "elastic/ec",
+  "tier": "partner",
+  "description": "",
+  "downloads": 26510785,
+  "repository": "https://github.com/elastic/terraform-provider-ec",
+  "curated": true
+ },
+ {
+  "id": "aiven",
+  "name": "aiven",
+  "terraform": "aiven/aiven",
+  "tier": "partner",
+  "description": "Aiven Terraform Provider",
+  "downloads": 19654678,
+  "repository": "https://github.com/aiven/terraform-provider-aiven",
+  "curated": true
+ },
+ {
+  "id": "digitalocean",
+  "name": "digitalocean",
+  "terraform": "digitalocean/digitalocean",
+  "tier": "partner",
+  "description": "Terraform DigitalOcean provider",
+  "downloads": 16007422,
+  "repository": "https://github.com/digitalocean/terraform-provider-digitalocean",
+  "curated": true
+ },
+ {
+  "id": "heroku",
+  "name": "heroku",
+  "terraform": "heroku/heroku",
+  "tier": "partner",
+  "description": "",
+  "downloads": 10800244,
+  "repository": "https://github.com/heroku/terraform-provider-heroku",
+  "curated": true
+ },
+ {
+  "id": "vercel",
+  "name": "vercel",
+  "terraform": "vercel/vercel",
+  "tier": "partner",
+  "description": "Terraform Vercel Provider",
+  "downloads": 10577555,
+  "repository": "https://github.com/vercel/terraform-provider-vercel",
+  "curated": true
+ },
+ {
+  "id": "twilio",
+  "name": "twilio",
+  "terraform": "twilio/twilio",
+  "tier": "community",
+  "description": "Terraform Twilio provider",
+  "downloads": 6172680,
+  "repository": "https://github.com/twilio/terraform-provider-twilio",
+  "curated": true
+ },
+ {
+  "id": "neon",
+  "name": "neon",
+  "terraform": "kislerdm/neon",
+  "tier": "community",
+  "description": "Terraform provider to manage Neon SaaS resources",
+  "downloads": 1464171,
+  "repository": "https://github.com/kislerdm/terraform-provider-neon",
+  "curated": true
+ },
+ {
+  "id": "supabase",
+  "name": "supabase",
+  "terraform": "supabase/supabase",
+  "tier": "community",
+  "description": "",
+  "downloads": 1199059,
+  "repository": "https://github.com/supabase/terraform-provider-supabase",
+  "curated": true
+ },
+ {
+  "id": "planetscale",
+  "name": "planetscale",
+  "terraform": "planetscale/planetscale",
+  "tier": "community",
+  "description": "Terraform provider for PlanetScale",
+  "downloads": 785541,
+  "repository": "https://github.com/planetscale/terraform-provider-planetscale",
+  "curated": true
+ },
+ {
+  "id": "stripe",
+  "name": "stripe",
+  "terraform": "stripe/stripe",
+  "tier": "partner",
+  "description": "About Terraform SDK for the Stripe API",
+  "downloads": 604357,
+  "repository": "https://github.com/stripe/terraform-provider-stripe",
+  "curated": true
+ },
+ {
+  "id": "upstash",
+  "name": "upstash",
+  "terraform": "upstash/upstash",
+  "tier": "community",
+  "description": "",
+  "downloads": 418827,
+  "repository": "https://github.com/upstash/terraform-provider-upstash",
+  "curated": true
+ },
+ {
+  "id": "posthog",
+  "name": "posthog",
+  "terraform": "posthog/posthog",
+  "tier": "community",
+  "description": "",
+  "downloads": 416632,
+  "repository": "https://github.com/PostHog/terraform-provider-posthog",
+  "curated": true
+ },
+ {
+  "id": "render",
+  "name": "render",
+  "terraform": "render-oss/render",
+  "tier": "partner",
+  "description": "Source code for the official Render Terraform provider",
+  "downloads": 352966,
+  "repository": "https://github.com/render-oss/terraform-provider-render",
+  "curated": true
+ },
+ {
+  "id": "pinecone",
+  "name": "pinecone",
+  "terraform": "pinecone-io/pinecone",
+  "tier": "partner",
+  "description": "",
+  "downloads": 236060,
+  "repository": "https://github.com/pinecone-io/terraform-provider-pinecone",
+  "curated": true
+ },
+ {
+  "id": "railway",
+  "name": "railway",
+  "terraform": "terraform-community-providers/railway",
+  "tier": "community",
+  "description": "",
+  "downloads": 217379,
+  "repository": "https://github.com/terraform-community-providers/terraform-provider-railway",
+  "curated": true
+ },
+ {
+  "id": "openai",
+  "name": "openai",
+  "terraform": "jianyuan/openai",
+  "tier": "community",
+  "description": "",
+  "downloads": 145180,
+  "repository": "https://github.com/jianyuan/terraform-provider-openai",
+  "curated": true
+ },
+ {
+  "id": "fly",
+  "name": "fly",
+  "terraform": "fly-apps/fly",
+  "tier": "partner",
+  "description": "Terraform provider for the Fly.io API",
+  "downloads": 125724,
+  "repository": "https://github.com/fly-apps/terraform-provider-fly",
+  "curated": true
+ },
+ {
+  "id": "netlify",
+  "name": "netlify",
+  "terraform": "netlify/netlify",
+  "tier": "partner",
+  "description": "",
+  "downloads": 84862,
+  "repository": "https://github.com/netlify/terraform-provider-netlify",
+  "curated": true
+ },
+ {
+  "id": "koyeb",
+  "name": "koyeb",
+  "terraform": "koyeb/koyeb",
+  "tier": "partner",
+  "description": "Terraform Koyeb provider",
+  "downloads": 31222,
+  "repository": "https://github.com/koyeb/terraform-provider-koyeb",
+  "curated": true
+ },
+ {
+  "id": "turso",
+  "name": "turso",
+  "terraform": "celest-dev/turso",
+  "tier": "community",
+  "description": "Terraform provider for Turso",
+  "downloads": 26126,
+  "repository": "https://github.com/celest-dev/terraform-provider-turso",
+  "curated": true
+ },
+ {
+  "id": "prisma-postgres",
+  "name": "prisma-postgres",
+  "terraform": "prisma/prisma-postgres",
+  "tier": "community",
+  "description": "Prisma Postgres Terraform Provider",
+  "downloads": 814,
+  "repository": "https://github.com/prisma/terraform-provider-prisma-postgres",
+  "curated": true
+ },
+ {
+  "id": "algolia",
+  "name": "algolia",
+  "terraform": "algolia/algolia",
+  "tier": "community",
+  "description": "Terraform Provider for Algolia",
+  "downloads": 290,
+  "repository": "https://github.com/algolia/terraform-provider-algolia",
+  "curated": true
+ },
+ {
+  "id": "google",
+  "name": "google",
+  "terraform": "hashicorp/google",
+  "tier": "official",
+  "description": "Lifecycle management of GCP resources, including Compute Engine, Cloud Storage, Cloud SDK, Cloud SQL, GKE, BigQuery, Cloud Functions and more.",
+  "downloads": 2687965626,
+  "repository": "https://github.com/hashicorp/terraform-provider-google",
+  "curated": false
+ },
+ {
+  "id": "azurerm",
+  "name": "azurerm",
+  "terraform": "hashicorp/azurerm",
+  "tier": "official",
+  "description": "Lifecycle management of Microsoft Azure using the Azure Resource Manager APIs.",
+  "downloads": 2073201982,
+  "repository": "https://github.com/hashicorp/terraform-provider-azurerm",
+  "curated": false
+ },
+ {
+  "id": "kubernetes",
+  "name": "kubernetes",
+  "terraform": "hashicorp/kubernetes",
+  "tier": "official",
+  "description": "Management of all Kubernetes resources, including Deployments, Services, Custom Resources (CRs and CRDs), Policies, Quotas and more.",
+  "downloads": 1738326254,
+  "repository": "https://github.com/hashicorp/terraform-provider-kubernetes",
+  "curated": false
+ },
+ {
+  "id": "vault",
+  "name": "vault",
+  "terraform": "hashicorp/vault",
+  "tier": "official",
+  "description": "Allows Terraform to read from, write to, and configure Hashicorp Vault.",
+  "downloads": 966322105,
+  "repository": "https://github.com/hashicorp/terraform-provider-vault",
+  "curated": false
+ },
+ {
+  "id": "azuread",
+  "name": "azuread",
+  "terraform": "hashicorp/azuread",
+  "tier": "official",
+  "description": "Manage users, groups, service principals, and applications in Azure Active Directory using the Microsoft Graph API.",
+  "downloads": 819119666,
+  "repository": "https://github.com/hashicorp/terraform-provider-azuread",
+  "curated": false
+ },
+ {
+  "id": "helm",
+  "name": "helm",
+  "terraform": "hashicorp/helm",
+  "tier": "official",
+  "description": "Manage installed Charts in your Kubernetes cluster, in the same way Helm does, through Terraform",
+  "downloads": 795958030,
+  "repository": "https://github.com/hashicorp/terraform-provider-helm",
+  "curated": false
+ },
+ {
+  "id": "datadog",
+  "name": "datadog",
+  "terraform": "DataDog/datadog",
+  "tier": "partner",
+  "description": "",
+  "downloads": 593398304,
+  "repository": "https://github.com/DataDog/terraform-provider-datadog",
+  "curated": false
+ },
+ {
+  "id": "github",
+  "name": "github",
+  "terraform": "integrations/github",
+  "tier": "partner",
+  "description": "",
+  "downloads": 399012465,
+  "repository": "https://github.com/integrations/terraform-provider-github",
+  "curated": false
+ },
+ {
+  "id": "azapi",
+  "name": "azapi",
+  "terraform": "Azure/azapi",
+  "tier": "partner",
+  "description": "",
+  "downloads": 312457776,
+  "repository": "https://github.com/Azure/terraform-provider-azapi",
+  "curated": false
+ },
+ {
+  "id": "databricks",
+  "name": "databricks",
+  "terraform": "databricks/databricks",
+  "tier": "partner",
+  "description": "",
+  "downloads": 233796013,
+  "repository": "https://github.com/databricks/terraform-provider-databricks",
+  "curated": false
+ },
+ {
+  "id": "gitlab",
+  "name": "gitlab",
+  "terraform": "gitlabhq/gitlab",
+  "tier": "partner",
+  "description": "",
+  "downloads": 196116548,
+  "repository": "https://github.com/gitlabhq/terraform-provider-gitlab",
+  "curated": false
+ },
+ {
+  "id": "pagerduty",
+  "name": "pagerduty",
+  "terraform": "PagerDuty/pagerduty",
+  "tier": "partner",
+  "description": "",
+  "downloads": 159182994,
+  "repository": "https://github.com/PagerDuty/terraform-provider-pagerduty",
+  "curated": false
+ },
+ {
+  "id": "newrelic",
+  "name": "newrelic",
+  "terraform": "newrelic/newrelic",
+  "tier": "partner",
+  "description": "",
+  "downloads": 156352958,
+  "repository": "https://github.com/newrelic/terraform-provider-newrelic",
+  "curated": false
+ },
+ {
+  "id": "oci",
+  "name": "oci",
+  "terraform": "oracle/oci",
+  "tier": "partner",
+  "description": "Interact with the many resources supported by the Oracle Cloud Infrastructure via the OCI provider APIs.",
+  "downloads": 135434188,
+  "repository": "https://github.com/oracle/terraform-provider-oci",
+  "curated": false
+ },
+ {
+  "id": "consul",
+  "name": "consul",
+  "terraform": "hashicorp/consul",
+  "tier": "official",
+  "description": "Exposes resources used to interact with a Consul cluster, such as adding external services or working with the key/value store",
+  "downloads": 115313176,
+  "repository": "https://github.com/hashicorp/terraform-provider-consul",
+  "curated": false
+ },
+ {
+  "id": "okta",
+  "name": "okta",
+  "terraform": "okta/okta",
+  "tier": "partner",
+  "description": "",
+  "downloads": 108550567,
+  "repository": "https://github.com/okta/terraform-provider-okta",
+  "curated": false
+ },
+ {
+  "id": "azuredevops",
+  "name": "azuredevops",
+  "terraform": "microsoft/azuredevops",
+  "tier": "partner",
+  "description": "",
+  "downloads": 93506306,
+  "repository": "https://github.com/microsoft/terraform-provider-azuredevops",
+  "curated": false
+ },
+ {
+  "id": "artifactory",
+  "name": "artifactory",
+  "terraform": "jfrog/artifactory",
+  "tier": "partner",
+  "description": "",
+  "downloads": 85039913,
+  "repository": "https://github.com/jfrog/terraform-provider-artifactory",
+  "curated": false
+ },
+ {
+  "id": "snowflake",
+  "name": "snowflake",
+  "terraform": "snowflakedb/snowflake",
+  "tier": "partner",
+  "description": "",
+  "downloads": 81625749,
+  "repository": "https://github.com/snowflakedb/terraform-provider-snowflake",
+  "curated": false
+ },
+ {
+  "id": "vsphere",
+  "name": "vsphere",
+  "terraform": "vmware/vsphere",
+  "tier": "partner",
+  "description": "",
+  "downloads": 74006333,
+  "repository": "https://github.com/vmware/terraform-provider-vsphere",
+  "curated": false
+ },
+ {
+  "id": "elasticstack",
+  "name": "elasticstack",
+  "terraform": "elastic/elasticstack",
+  "tier": "partner",
+  "description": "Configure and manage Elasticstack components such as Elasticsearch, Kibana and more, as code, on Elastic Cloud or on premises.",
+  "downloads": 70577857,
+  "repository": "https://github.com/elastic/terraform-provider-elasticstack",
+  "curated": false
+ },
+ {
+  "id": "alicloud",
+  "name": "alicloud",
+  "terraform": "aliyun/alicloud",
+  "tier": "partner",
+  "description": "",
+  "downloads": 69109181,
+  "repository": "https://github.com/aliyun/terraform-provider-alicloud",
+  "curated": false
+ },
+ {
+  "id": "coder",
+  "name": "coder",
+  "terraform": "coder/coder",
+  "tier": "partner",
+  "description": "Coder is a self-hosted remote development platform.",
+  "downloads": 66692797,
+  "repository": "https://github.com/coder/terraform-provider-coder",
+  "curated": false
+ },
+ {
+  "id": "rancher2",
+  "name": "rancher2",
+  "terraform": "rancher/rancher2",
+  "tier": "partner",
+  "description": "",
+  "downloads": 55195107,
+  "repository": "https://github.com/rancher/terraform-provider-rancher2",
+  "curated": false
+ },
+ {
+  "id": "nomad",
+  "name": "nomad",
+  "terraform": "hashicorp/nomad",
+  "tier": "official",
+  "description": "Exposes resources to interact with a HashiCorp Nomad cluster.",
+  "downloads": 51333612,
+  "repository": "https://github.com/hashicorp/terraform-provider-nomad",
+  "curated": false
+ },
+ {
+  "id": "tencentcloud",
+  "name": "tencentcloud",
+  "terraform": "tencentcloudstack/tencentcloud",
+  "tier": "partner",
+  "description": "",
+  "downloads": 46128328,
+  "repository": "https://github.com/tencentcloudstack/terraform-provider-tencentcloud",
+  "curated": false
+ },
+ {
+  "id": "sumologic",
+  "name": "sumologic",
+  "terraform": "SumoLogic/sumologic",
+  "tier": "partner",
+  "description": "",
+  "downloads": 41938718,
+  "repository": "https://github.com/SumoLogic/terraform-provider-sumologic",
+  "curated": false
+ },
+ {
+  "id": "ovh",
+  "name": "ovh",
+  "terraform": "ovh/ovh",
+  "tier": "partner",
+  "description": "",
+  "downloads": 40670536,
+  "repository": "https://github.com/ovh/terraform-provider-ovh",
+  "curated": false
+ },
+ {
+  "id": "ibm",
+  "name": "ibm",
+  "terraform": "IBM-Cloud/ibm",
+  "tier": "official",
+  "description": "",
+  "downloads": 32698558,
+  "repository": "https://github.com/IBM-Cloud/terraform-provider-ibm",
+  "curated": false
+ },
+ {
+  "id": "azurecaf",
+  "name": "azurecaf",
+  "terraform": "aztfmod/azurecaf",
+  "tier": "partner",
+  "description": "",
+  "downloads": 31008196,
+  "repository": "https://github.com/aztfmod/terraform-provider-azurecaf",
+  "curated": false
+ },
+ {
+  "id": "infoblox",
+  "name": "infoblox",
+  "terraform": "infobloxopen/infoblox",
+  "tier": "partner",
+  "description": "",
+  "downloads": 30081775,
+  "repository": "https://github.com/infobloxopen/terraform-provider-infoblox",
+  "curated": false
+ },
+ {
+  "id": "modtm",
+  "name": "modtm",
+  "terraform": "Azure/modtm",
+  "tier": "partner",
+  "description": "",
+  "downloads": 27589970,
+  "repository": "https://github.com/Azure/terraform-provider-modtm",
+  "curated": false
+ },
+ {
+  "id": "ns1",
+  "name": "ns1",
+  "terraform": "ns1-terraform/ns1",
+  "tier": "partner",
+  "description": "",
+  "downloads": 26266548,
+  "repository": "https://github.com/ns1-terraform/terraform-provider-ns1",
+  "curated": false
+ },
+ {
+  "id": "groundcover",
+  "name": "groundcover",
+  "terraform": "groundcover-com/groundcover",
+  "tier": "partner",
+  "description": "",
+  "downloads": 25645983,
+  "repository": "https://github.com/groundcover-com/terraform-provider-groundcover",
+  "curated": false
+ },
+ {
+  "id": "spotinst",
+  "name": "spotinst",
+  "terraform": "spotinst/spotinst",
+  "tier": "partner",
+  "description": "",
+  "downloads": 25515870,
+  "repository": "https://github.com/spotinst/terraform-provider-spotinst",
+  "curated": false
+ },
+ {
+  "id": "dynatrace",
+  "name": "dynatrace",
+  "terraform": "dynatrace-oss/dynatrace",
+  "tier": "partner",
+  "description": "",
+  "downloads": 25076544,
+  "repository": "https://github.com/dynatrace-oss/terraform-provider-dynatrace",
+  "curated": false
+ },
+ {
+  "id": "fastly",
+  "name": "fastly",
+  "terraform": "fastly/fastly",
+  "tier": "partner",
+  "description": "",
+  "downloads": 23742027,
+  "repository": "https://github.com/fastly/terraform-provider-fastly",
+  "curated": false
+ },
+ {
+  "id": "buildkite",
+  "name": "buildkite",
+  "terraform": "buildkite/buildkite",
+  "tier": "partner",
+  "description": "",
+  "downloads": 21616581,
+  "repository": "https://github.com/buildkite/terraform-provider-buildkite",
+  "curated": false
+ },
+ {
+  "id": "hcloud",
+  "name": "hcloud",
+  "terraform": "hetznercloud/hcloud",
+  "tier": "partner",
+  "description": "",
+  "downloads": 20755720,
+  "repository": "https://github.com/hetznercloud/terraform-provider-hcloud",
+  "curated": false
+ },
+ {
+  "id": "rollbar",
+  "name": "rollbar",
+  "terraform": "rollbar/rollbar",
+  "tier": "partner",
+  "description": "",
+  "downloads": 20747067,
+  "repository": "https://github.com/rollbar/terraform-provider-rollbar",
+  "curated": false
+ },
+ {
+  "id": "signalfx",
+  "name": "signalfx",
+  "terraform": "splunk-terraform/signalfx",
+  "tier": "partner",
+  "description": "",
+  "downloads": 19834826,
+  "repository": "https://github.com/splunk-terraform/terraform-provider-signalfx",
+  "curated": false
+ },
+ {
+  "id": "linode",
+  "name": "linode",
+  "terraform": "linode/linode",
+  "tier": "partner",
+  "description": "",
+  "downloads": 18666029,
+  "repository": "https://github.com/linode/terraform-provider-linode",
+  "curated": false
+ },
+ {
+  "id": "zitadel",
+  "name": "zitadel",
+  "terraform": "zitadel/zitadel",
+  "tier": "partner",
+  "description": "",
+  "downloads": 18148812,
+  "repository": "https://github.com/zitadel/terraform-provider-zitadel",
+  "curated": false
+ },
+ {
+  "id": "sdm",
+  "name": "sdm",
+  "terraform": "strongdm/sdm",
+  "tier": "partner",
+  "description": "",
+  "downloads": 17307295,
+  "repository": "https://github.com/strongdm/terraform-provider-sdm",
+  "curated": false
+ },
+ {
+  "id": "akamai",
+  "name": "akamai",
+  "terraform": "akamai/akamai",
+  "tier": "partner",
+  "description": "",
+  "downloads": 16690790,
+  "repository": "https://github.com/akamai/terraform-provider-akamai",
+  "curated": false
+ },
+ {
+  "id": "sysdig",
+  "name": "sysdig",
+  "terraform": "sysdiglabs/sysdig",
+  "tier": "partner",
+  "description": "",
+  "downloads": 16559574,
+  "repository": "https://github.com/sysdiglabs/terraform-provider-sysdig",
+  "curated": false
+ },
+ {
+  "id": "vcd",
+  "name": "vcd",
+  "terraform": "vmware/vcd",
+  "tier": "partner",
+  "description": "",
+  "downloads": 15139903,
+  "repository": "https://github.com/vmware/terraform-provider-vcd",
+  "curated": false
+ },
+ {
+  "id": "cosign",
+  "name": "cosign",
+  "terraform": "chainguard-dev/cosign",
+  "tier": "partner",
+  "description": "",
+  "downloads": 14571535,
+  "repository": "https://github.com/chainguard-dev/terraform-provider-cosign",
+  "curated": false
+ },
+ {
+  "id": "lacework",
+  "name": "lacework",
+  "terraform": "lacework/lacework",
+  "tier": "partner",
+  "description": "",
+  "downloads": 14036765,
+  "repository": "https://github.com/lacework/terraform-provider-lacework",
+  "curated": false
+ },
+ {
+  "id": "boundary",
+  "name": "boundary",
+  "terraform": "hashicorp/boundary",
+  "tier": "official",
+  "description": "Manage Boundary's identity-based access controls for resources provisioned with Terraform.",
+  "downloads": 13685805,
+  "repository": "https://github.com/hashicorp/terraform-provider-boundary",
+  "curated": false
+ },
+ {
+  "id": "apko",
+  "name": "apko",
+  "terraform": "chainguard-dev/apko",
+  "tier": "partner",
+  "description": "",
+  "downloads": 13517654,
+  "repository": "https://github.com/chainguard-dev/terraform-provider-apko",
+  "curated": false
+ },
+ {
+  "id": "chainguard",
+  "name": "chainguard",
+  "terraform": "chainguard-dev/chainguard",
+  "tier": "partner",
+  "description": "",
+  "downloads": 13323084,
+  "repository": "https://github.com/chainguard-dev/terraform-provider-chainguard",
+  "curated": false
+ },
+ {
+  "id": "coralogix",
+  "name": "coralogix",
+  "terraform": "coralogix/coralogix",
+  "tier": "partner",
+  "description": "",
+  "downloads": 13121888,
+  "repository": "https://github.com/coralogix/terraform-provider-coralogix",
+  "curated": false
+ },
+ {
+  "id": "prismacloud",
+  "name": "prismacloud",
+  "terraform": "PaloAltoNetworks/prismacloud",
+  "tier": "partner",
+  "description": "",
+  "downloads": 11805641,
+  "repository": "https://github.com/PaloAltoNetworks/terraform-provider-prismacloud",
+  "curated": false
+ },
+ {
+  "id": "statuscake",
+  "name": "statuscake",
+  "terraform": "StatusCakeDev/statuscake",
+  "tier": "partner",
+  "description": "",
+  "downloads": 11788666,
+  "repository": "https://github.com/StatusCakeDev/terraform-provider-statuscake",
+  "curated": false
+ },
+ {
+  "id": "avi",
+  "name": "avi",
+  "terraform": "vmware/avi",
+  "tier": "partner",
+  "description": "",
+  "downloads": 11547410,
+  "repository": "https://github.com/vmware/terraform-provider-avi",
+  "curated": false
+ },
+ {
+  "id": "clickhouse",
+  "name": "clickhouse",
+  "terraform": "ClickHouse/clickhouse",
+  "tier": "partner",
+  "description": "",
+  "downloads": 10852765,
+  "repository": "https://github.com/ClickHouse/terraform-provider-clickhouse",
+  "curated": false
+ },
+ {
+  "id": "fivetran",
+  "name": "fivetran",
+  "terraform": "fivetran/fivetran",
+  "tier": "partner",
+  "description": "",
+  "downloads": 10326793,
+  "repository": "https://github.com/fivetran/terraform-provider-fivetran",
+  "curated": false
+ },
+ {
+  "id": "aci",
+  "name": "aci",
+  "terraform": "CiscoDevNet/aci",
+  "tier": "partner",
+  "description": "",
+  "downloads": 10202162,
+  "repository": "https://github.com/CiscoDevNet/terraform-provider-aci",
+  "curated": false
+ },
+ {
+  "id": "platform",
+  "name": "platform",
+  "terraform": "jfrog/platform",
+  "tier": "partner",
+  "description": "",
+  "downloads": 10191717,
+  "repository": "https://github.com/jfrog/terraform-provider-platform",
+  "curated": false
+ },
+ {
+  "id": "castai",
+  "name": "castai",
+  "terraform": "castai/castai",
+  "tier": "partner",
+  "description": "",
+  "downloads": 10106664,
+  "repository": "https://github.com/CastAI/terraform-provider-castai",
+  "curated": false
+ },
+ {
+  "id": "vra",
+  "name": "vra",
+  "terraform": "vmware/vra",
+  "tier": "partner",
+  "description": "",
+  "downloads": 9729167,
+  "repository": "https://github.com/vmware/terraform-provider-vra",
+  "curated": false
+ },
+ {
+  "id": "gcorelabs",
+  "name": "gcorelabs",
+  "terraform": "G-Core/gcorelabs",
+  "tier": "partner",
+  "description": "",
+  "downloads": 9440362,
+  "repository": "https://github.com/G-Core/terraform-provider-gcorelabs",
+  "curated": false
+ },
+ {
+  "id": "imagetest",
+  "name": "imagetest",
+  "terraform": "chainguard-dev/imagetest",
+  "tier": "partner",
+  "description": "",
+  "downloads": 9389280,
+  "repository": "https://github.com/chainguard-dev/terraform-provider-imagetest",
+  "curated": false
+ },
+ {
+  "id": "msgraph",
+  "name": "msgraph",
+  "terraform": "microsoft/msgraph",
+  "tier": "partner",
+  "description": "",
+  "downloads": 8789569,
+  "repository": "https://github.com/microsoft/terraform-provider-msgraph",
+  "curated": false
+ },
+ {
+  "id": "synthetics",
+  "name": "synthetics",
+  "terraform": "splunk/synthetics",
+  "tier": "partner",
+  "description": "",
+  "downloads": 8652511,
+  "repository": "https://github.com/splunk/terraform-provider-synthetics",
+  "curated": false
+ },
+ {
+  "id": "bigip",
+  "name": "bigip",
+  "terraform": "F5Networks/bigip",
+  "tier": "partner",
+  "description": "",
+  "downloads": 8590834,
+  "repository": "https://github.com/F5Networks/terraform-provider-bigip",
+  "curated": false
+ },
+ {
+  "id": "netapp-cloudmanager",
+  "name": "netapp-cloudmanager",
+  "terraform": "NetApp/netapp-cloudmanager",
+  "tier": "partner",
+  "description": "",
+  "downloads": 8365792,
+  "repository": "https://github.com/NetApp/terraform-provider-netapp-cloudmanager",
+  "curated": false
+ },
+ {
+  "id": "gcore",
+  "name": "gcore",
+  "terraform": "G-Core/gcore",
+  "tier": "partner",
+  "description": "",
+  "downloads": 8164513,
+  "repository": "https://github.com/G-Core/terraform-provider-gcore",
+  "curated": false
+ },
+ {
+  "id": "temporalcloud",
+  "name": "temporalcloud",
+  "terraform": "temporalio/temporalcloud",
+  "tier": "partner",
+  "description": "",
+  "downloads": 8137230,
+  "repository": "https://github.com/temporalio/terraform-provider-temporalcloud",
+  "curated": false
+ },
+ {
+  "id": "dnsimple",
+  "name": "dnsimple",
+  "terraform": "dnsimple/dnsimple",
+  "tier": "partner",
+  "description": "",
+  "downloads": 8134142,
+  "repository": "https://github.com/dnsimple/terraform-provider-dnsimple",
+  "curated": false
+ },
+ {
+  "id": "dockerless",
+  "name": "dockerless",
+  "terraform": "nullstone-io/dockerless",
+  "tier": "partner",
+  "description": "",
+  "downloads": 8105190,
+  "repository": "https://github.com/nullstone-io/terraform-provider-dockerless",
+  "curated": false
+ },
+ {
+  "id": "equinix",
+  "name": "equinix",
+  "terraform": "equinix/equinix",
+  "tier": "partner",
+  "description": "",
+  "downloads": 7911925,
+  "repository": "https://github.com/equinix/terraform-provider-equinix",
+  "curated": false
+ },
+ {
+  "id": "venafi",
+  "name": "venafi",
+  "terraform": "Venafi/venafi",
+  "tier": "partner",
+  "description": "",
+  "downloads": 7893721,
+  "repository": "https://github.com/Venafi/terraform-provider-venafi",
+  "curated": false
+ },
+ {
+  "id": "hpegl",
+  "name": "hpegl",
+  "terraform": "HPE/hpegl",
+  "tier": "partner",
+  "description": "",
+  "downloads": 7888572,
+  "repository": "https://github.com/HPE/terraform-provider-hpegl",
+  "curated": false
+ },
+ {
+  "id": "rediscloud",
+  "name": "rediscloud",
+  "terraform": "RedisLabs/rediscloud",
+  "tier": "partner",
+  "description": "",
+  "downloads": 7651105,
+  "repository": "https://github.com/RedisLabs/terraform-provider-rediscloud",
+  "curated": false
+ },
+ {
+  "id": "incident",
+  "name": "incident",
+  "terraform": "incident-io/incident",
+  "tier": "partner",
+  "description": "",
+  "downloads": 7645546,
+  "repository": "https://github.com/incident-io/terraform-provider-incident",
+  "curated": false
+ },
+ {
+  "id": "genesyscloud",
+  "name": "genesyscloud",
+  "terraform": "MyPureCloud/genesyscloud",
+  "tier": "partner",
+  "description": "",
+  "downloads": 7625170,
+  "repository": "https://github.com/MyPureCloud/terraform-provider-genesyscloud",
+  "curated": false
+ },
+ {
+  "id": "nsxt",
+  "name": "nsxt",
+  "terraform": "vmware/nsxt",
+  "tier": "partner",
+  "description": "",
+  "downloads": 7547943,
+  "repository": "https://github.com/vmware/terraform-provider-nsxt",
+  "curated": false
+ },
+ {
+  "id": "fortios",
+  "name": "fortios",
+  "terraform": "fortinetdev/fortios",
+  "tier": "partner",
+  "description": "",
+  "downloads": 7189820,
+  "repository": "https://github.com/fortinetdev/terraform-provider-fortios",
+  "curated": false
+ },
+ {
+  "id": "spectrocloud",
+  "name": "spectrocloud",
+  "terraform": "spectrocloud/spectrocloud",
+  "tier": "partner",
+  "description": "",
+  "downloads": 6963754,
+  "repository": "https://github.com/spectrocloud/terraform-provider-spectrocloud",
+  "curated": false
+ },
+ {
+  "id": "airbyte",
+  "name": "airbyte",
+  "terraform": "airbytehq/airbyte",
+  "tier": "partner",
+  "description": "",
+  "downloads": 6832127,
+  "repository": "https://github.com/airbytehq/terraform-provider-airbyte",
+  "curated": false
+ },
+ {
+  "id": "astra",
+  "name": "astra",
+  "terraform": "datastax/astra",
+  "tier": "partner",
+  "description": "",
+  "downloads": 6441759,
+  "repository": "https://github.com/datastax/terraform-provider-astra",
+  "curated": false
+ },
+ {
+  "id": "zpa",
+  "name": "zpa",
+  "terraform": "zscaler/zpa",
+  "tier": "partner",
+  "description": "",
+  "downloads": 6381008,
+  "repository": "https://github.com/zscaler/terraform-provider-zpa",
+  "curated": false
+ },
+ {
+  "id": "vultr",
+  "name": "vultr",
+  "terraform": "vultr/vultr",
+  "tier": "partner",
+  "description": "",
+  "downloads": 6131635,
+  "repository": "https://github.com/vultr/terraform-provider-vultr",
+  "curated": false
+ },
+ {
+  "id": "upcloud",
+  "name": "upcloud",
+  "terraform": "UpCloudLtd/upcloud",
+  "tier": "partner",
+  "description": "",
+  "downloads": 6046274,
+  "repository": "https://github.com/UpCloudLtd/terraform-provider-upcloud",
+  "curated": false
+ },
+ {
+  "id": "civo",
+  "name": "civo",
+  "terraform": "civo/civo",
+  "tier": "partner",
+  "description": "",
+  "downloads": 5992531,
+  "repository": "https://github.com/civo/terraform-provider-civo",
+  "curated": false
+ },
+ {
+  "id": "opennebula",
+  "name": "opennebula",
+  "terraform": "OpenNebula/opennebula",
+  "tier": "partner",
+  "description": "",
+  "downloads": 5968736,
+  "repository": "https://github.com/OpenNebula/terraform-provider-opennebula",
+  "curated": false
+ },
+ {
+  "id": "exoscale",
+  "name": "exoscale",
+  "terraform": "exoscale/exoscale",
+  "tier": "partner",
+  "description": "",
+  "downloads": 5731986,
+  "repository": "https://github.com/exoscale/terraform-provider-exoscale",
+  "curated": false
+ },
+ {
+  "id": "dome9",
+  "name": "dome9",
+  "terraform": "dome9/dome9",
+  "tier": "partner",
+  "description": "",
+  "downloads": 5495883,
+  "repository": "https://github.com/dome9/terraform-provider-dome9",
+  "curated": false
+ },
+ {
+  "id": "splunk",
+  "name": "splunk",
+  "terraform": "splunk/splunk",
+  "tier": "partner",
+  "description": "",
+  "downloads": 5355958,
+  "repository": "https://github.com/splunk/terraform-provider-splunk",
+  "curated": false
+ },
+ {
+  "id": "aviatrix",
+  "name": "aviatrix",
+  "terraform": "AviatrixSystems/aviatrix",
+  "tier": "partner",
+  "description": "",
+  "downloads": 5353360,
+  "repository": "https://github.com/AviatrixSystems/terraform-provider-aviatrix",
+  "curated": false
+ },
+ {
+  "id": "ad",
+  "name": "ad",
+  "terraform": "hashicorp/ad",
+  "tier": "official",
+  "description": "An experimental provider that enables management of Active Directory resources like Users, Groups, and Group Policy Objects",
+  "downloads": 5319125,
+  "repository": "https://github.com/hashicorp/terraform-provider-ad",
+  "curated": false
+ },
+ {
+  "id": "honeycombio",
+  "name": "honeycombio",
+  "terraform": "honeycombio/honeycombio",
+  "tier": "partner",
+  "description": "",
+  "downloads": 5273179,
+  "repository": "https://github.com/honeycombio/terraform-provider-honeycombio",
+  "curated": false
+ },
+ {
+  "id": "nutanix",
+  "name": "nutanix",
+  "terraform": "nutanix/nutanix",
+  "tier": "partner",
+  "description": "",
+  "downloads": 5136926,
+  "repository": "https://github.com/nutanix/terraform-provider-nutanix",
+  "curated": false
+ },
+ {
+  "id": "iterative",
+  "name": "iterative",
+  "terraform": "iterative/iterative",
+  "tier": "partner",
+  "description": "",
+  "downloads": 4782917,
+  "repository": "https://github.com/iterative/terraform-provider-iterative",
+  "curated": false
+ },
+ {
+  "id": "logzio",
+  "name": "logzio",
+  "terraform": "logzio/logzio",
+  "tier": "partner",
+  "description": "",
+  "downloads": 4766948,
+  "repository": "https://github.com/logzio/terraform-provider-logzio",
+  "curated": false
+ },
+ {
+  "id": "project",
+  "name": "project",
+  "terraform": "jfrog/project",
+  "tier": "partner",
+  "description": "",
+  "downloads": 4649183,
+  "repository": "https://github.com/jfrog/terraform-provider-project",
+  "curated": false
+ },
+ {
+  "id": "wavefront",
+  "name": "wavefront",
+  "terraform": "vmware/wavefront",
+  "tier": "partner",
+  "description": "",
+  "downloads": 4389839,
+  "repository": "https://github.com/vmware/terraform-provider-wavefront",
+  "curated": false
+ },
+ {
+  "id": "instaclustr",
+  "name": "instaclustr",
+  "terraform": "instaclustr/instaclustr",
+  "tier": "partner",
+  "description": "Lifecycle management of Instaclustr managed services including Cassandra, Kafka, Redis, Elasticsearch and more.",
+  "downloads": 4310218,
+  "repository": "https://github.com/instaclustr/terraform-provider-instaclustr",
+  "curated": false
+ },
+ {
+  "id": "checkpoint",
+  "name": "checkpoint",
+  "terraform": "CheckPointSW/checkpoint",
+  "tier": "partner",
+  "description": "",
+  "downloads": 3845861,
+  "repository": "https://github.com/CheckPointSW/terraform-provider-checkpoint",
+  "curated": false
+ },
+ {
+  "id": "ansible",
+  "name": "ansible",
+  "terraform": "ansible/ansible",
+  "tier": "partner",
+  "description": "Enables execution of community Ansible automation so users can run Ansible playbooks and roles on infrastructure provisioned by Terraform.",
+  "downloads": 3782387,
+  "repository": "https://github.com/ansible/terraform-provider-ansible",
+  "curated": false
+ },
+ {
+  "id": "cockroach",
+  "name": "cockroach",
+  "terraform": "cockroachdb/cockroach",
+  "tier": "partner",
+  "description": "",
+  "downloads": 3634095,
+  "repository": "https://github.com/cockroachdb/terraform-provider-cockroach",
+  "curated": false
+ },
+ {
+  "id": "citrixadc",
+  "name": "citrixadc",
+  "terraform": "citrix/citrixadc",
+  "tier": "partner",
+  "description": "",
+  "downloads": 3585114,
+  "repository": "https://github.com/citrix/terraform-provider-citrixadc",
+  "curated": false
+ },
+ {
+  "id": "coderd",
+  "name": "coderd",
+  "terraform": "coder/coderd",
+  "tier": "partner",
+  "description": "",
+  "downloads": 3545209,
+  "repository": "https://github.com/coder/terraform-provider-coderd",
+  "curated": false
+ },
+ {
+  "id": "rke",
+  "name": "rke",
+  "terraform": "rancher/rke",
+  "tier": "partner",
+  "description": "",
+  "downloads": 3515516,
+  "repository": "https://github.com/rancher/terraform-provider-rke",
+  "curated": false
+ },
+ {
+  "id": "better-uptime",
+  "name": "better-uptime",
+  "terraform": "BetterStackHQ/better-uptime",
+  "tier": "partner",
+  "description": "",
+  "downloads": 3501307,
+  "repository": "https://github.com/BetterStackHQ/terraform-provider-better-uptime",
+  "curated": false
+ },
+ {
+  "id": "checkly",
+  "name": "checkly",
+  "terraform": "checkly/checkly",
+  "tier": "partner",
+  "description": "",
+  "downloads": 3376503,
+  "repository": "https://github.com/checkly/terraform-provider-checkly",
+  "curated": false
+ },
+ {
+  "id": "opal",
+  "name": "opal",
+  "terraform": "opalsecurity/opal",
+  "tier": "partner",
+  "description": "",
+  "downloads": 3210448,
+  "repository": "https://github.com/opalsecurity/terraform-provider-opal",
+  "curated": false
+ },
+ {
+  "id": "fabric",
+  "name": "fabric",
+  "terraform": "microsoft/fabric",
+  "tier": "partner",
+  "description": "",
+  "downloads": 3135829,
+  "repository": "https://github.com/microsoft/terraform-provider-fabric",
+  "curated": false
+ },
+ {
+  "id": "timescale",
+  "name": "timescale",
+  "terraform": "timescale/timescale",
+  "tier": "partner",
+  "description": "",
+  "downloads": 3005954,
+  "repository": "https://github.com/timescale/terraform-provider-timescale",
+  "curated": false
+ },
+ {
+  "id": "mso",
+  "name": "mso",
+  "terraform": "CiscoDevNet/mso",
+  "tier": "partner",
+  "description": "",
+  "downloads": 2938888,
+  "repository": "https://github.com/CiscoDevNet/terraform-provider-mso",
+  "curated": false
+ },
+ {
+  "id": "intersight",
+  "name": "intersight",
+  "terraform": "CiscoDevNet/intersight",
+  "tier": "partner",
+  "description": "",
+  "downloads": 2764224,
+  "repository": "https://github.com/CiscoDevNet/terraform-provider-intersight",
+  "curated": false
+ },
+ {
+  "id": "xray",
+  "name": "xray",
+  "terraform": "jfrog/xray",
+  "tier": "partner",
+  "description": "",
+  "downloads": 2616662,
+  "repository": "https://github.com/jfrog/terraform-provider-xray",
+  "curated": false
+ },
+ {
+  "id": "vmc",
+  "name": "vmc",
+  "terraform": "vmware/vmc",
+  "tier": "partner",
+  "description": "",
+  "downloads": 2419406,
+  "repository": "https://github.com/vmware/terraform-provider-vmc",
+  "curated": false
+ },
+ {
+  "id": "turbot",
+  "name": "turbot",
+  "terraform": "turbot/turbot",
+  "tier": "partner",
+  "description": "",
+  "downloads": 2327731,
+  "repository": "https://github.com/turbot/terraform-provider-turbot",
+  "curated": false
+ },
+ {
+  "id": "site24x7",
+  "name": "site24x7",
+  "terraform": "site24x7/site24x7",
+  "tier": "partner",
+  "description": "",
+  "downloads": 2282696,
+  "repository": "https://github.com/site24x7/terraform-provider-site24x7",
+  "curated": false
+ },
+ {
+  "id": "secretsmanager",
+  "name": "secretsmanager",
+  "terraform": "Keeper-Security/secretsmanager",
+  "tier": "partner",
+  "description": "",
+  "downloads": 2258809,
+  "repository": "https://github.com/Keeper-Security/terraform-provider-secretsmanager",
+  "curated": false
+ },
+ {
+  "id": "netapp-gcp",
+  "name": "netapp-gcp",
+  "terraform": "NetApp/netapp-gcp",
+  "tier": "partner",
+  "description": "",
+  "downloads": 2209960,
+  "repository": "https://github.com/NetApp/terraform-provider-netapp-gcp",
+  "curated": false
+ },
+ {
+  "id": "sigsci",
+  "name": "sigsci",
+  "terraform": "signalsciences/sigsci",
+  "tier": "partner",
+  "description": "",
+  "downloads": 2151918,
+  "repository": "https://github.com/signalsciences/terraform-provider-sigsci",
+  "curated": false
+ },
+ {
+  "id": "metal",
+  "name": "metal",
+  "terraform": "equinix/metal",
+  "tier": "partner",
+  "description": "Equinix Metal - Global, Automated Bare Metal Server Provider",
+  "downloads": 2134066,
+  "repository": "https://github.com/equinix/terraform-provider-metal",
+  "curated": false
+ },
+ {
+  "id": "prefect",
+  "name": "prefect",
+  "terraform": "PrefectHQ/prefect",
+  "tier": "partner",
+  "description": "",
+  "downloads": 2095693,
+  "repository": "https://github.com/PrefectHQ/terraform-provider-prefect",
+  "curated": false
+ },
+ {
+  "id": "vra7",
+  "name": "vra7",
+  "terraform": "vmware/vra7",
+  "tier": "partner",
+  "description": "",
+  "downloads": 1913936,
+  "repository": "https://github.com/vmware/terraform-provider-vra7",
+  "curated": false
+ },
+ {
+  "id": "vantage",
+  "name": "vantage",
+  "terraform": "vantage-sh/vantage",
+  "tier": "partner",
+  "description": "",
+  "downloads": 1893581,
+  "repository": "https://github.com/vantage-sh/terraform-provider-vantage",
+  "curated": false
+ },
+ {
+  "id": "azurestack",
+  "name": "azurestack",
+  "terraform": "hashicorp/azurestack",
+  "tier": "official",
+  "description": "Manage resources in Azure Stack via the Azure Resource Manager APIs",
+  "downloads": 1873982,
+  "repository": "https://github.com/hashicorp/terraform-provider-azurestack",
+  "curated": false
+ },
+ {
+  "id": "circonus",
+  "name": "circonus",
+  "terraform": "circonus-labs/circonus",
+  "tier": "partner",
+  "description": "",
+  "downloads": 1855285,
+  "repository": "https://github.com/circonus-labs/terraform-provider-circonus",
+  "curated": false
+ },
+ {
+  "id": "pingone",
+  "name": "pingone",
+  "terraform": "pingidentity/pingone",
+  "tier": "partner",
+  "description": "",
+  "downloads": 1765837,
+  "repository": "https://github.com/pingidentity/terraform-provider-pingone",
+  "curated": false
+ },
+ {
+  "id": "crowdstrike",
+  "name": "crowdstrike",
+  "terraform": "CrowdStrike/crowdstrike",
+  "tier": "partner",
+  "description": "",
+  "downloads": 1763355,
+  "repository": "https://github.com/CrowdStrike/terraform-provider-crowdstrike",
+  "curated": false
+ },
+ {
+  "id": "onelogin",
+  "name": "onelogin",
+  "terraform": "onelogin/onelogin",
+  "tier": "partner",
+  "description": "",
+  "downloads": 1648320,
+  "repository": "https://github.com/onelogin/terraform-provider-onelogin",
+  "curated": false
+ },
+ {
+  "id": "logicmonitor",
+  "name": "logicmonitor",
+  "terraform": "logicmonitor/logicmonitor",
+  "tier": "partner",
+  "description": "",
+  "downloads": 1627037,
+  "repository": "https://github.com/logicmonitor/terraform-provider-logicmonitor",
+  "curated": false
+ },
+ {
+  "id": "ise",
+  "name": "ise",
+  "terraform": "CiscoDevNet/ise",
+  "tier": "partner",
+  "description": "",
+  "downloads": 1552587,
+  "repository": "https://github.com/CiscoDevNet/terraform-provider-ise",
+  "curated": false
+ },
+ {
+  "id": "octopusdeploy",
+  "name": "octopusdeploy",
+  "terraform": "OctopusDeploy/octopusdeploy",
+  "tier": "partner",
+  "description": "",
+  "downloads": 1528973,
+  "repository": "https://github.com/OctopusDeploy/terraform-provider-octopusdeploy",
+  "curated": false
+ },
+ {
+  "id": "volterra",
+  "name": "volterra",
+  "terraform": "volterraedge/volterra",
+  "tier": "partner",
+  "description": "",
+  "downloads": 1527597,
+  "repository": "https://github.com/volterraedge/terraform-provider-volterra",
+  "curated": false
+ },
+ {
+  "id": "b2",
+  "name": "b2",
+  "terraform": "Backblaze/b2",
+  "tier": "partner",
+  "description": "",
+  "downloads": 1525483,
+  "repository": "https://github.com/Backblaze/terraform-provider-b2",
+  "curated": false
+ },
+ {
+  "id": "dme",
+  "name": "dme",
+  "terraform": "DNSMadeEasy/dme",
+  "tier": "partner",
+  "description": "",
+  "downloads": 1512813,
+  "repository": "https://github.com/DNSMadeEasy/terraform-provider-dme",
+  "curated": false
+ },
+ {
+  "id": "buddy",
+  "name": "buddy",
+  "terraform": "buddy/buddy",
+  "tier": "partner",
+  "description": "",
+  "downloads": 1455490,
+  "repository": "https://github.com/buddy/terraform-provider-buddy",
+  "curated": false
+ },
+ {
+  "id": "netskope",
+  "name": "netskope",
+  "terraform": "netskopeoss/netskope",
+  "tier": "partner",
+  "description": "",
+  "downloads": 1441768,
+  "repository": "https://github.com/netskopeoss/terraform-provider-netskope",
+  "curated": false
+ },
+ {
+  "id": "ultradns",
+  "name": "ultradns",
+  "terraform": "ultradns/ultradns",
+  "tier": "partner",
+  "description": "",
+  "downloads": 1438100,
+  "repository": "https://github.com/ultradns/terraform-provider-ultradns",
+  "curated": false
+ },
+ {
+  "id": "clickhousedbops",
+  "name": "clickhousedbops",
+  "terraform": "ClickHouse/clickhousedbops",
+  "tier": "partner",
+  "description": "",
+  "downloads": 1310138,
+  "repository": "https://github.com/ClickHouse/terraform-provider-clickhousedbops",
+  "curated": false
+ },
+ {
+  "id": "zia",
+  "name": "zia",
+  "terraform": "zscaler/zia",
+  "tier": "partner",
+  "description": "",
+  "downloads": 1233292,
+  "repository": "https://github.com/zscaler/terraform-provider-zia",
+  "curated": false
+ },
+ {
+  "id": "ciphertrust",
+  "name": "ciphertrust",
+  "terraform": "ThalesGroup/ciphertrust",
+  "tier": "partner",
+  "description": "",
+  "downloads": 1232654,
+  "repository": "https://github.com/ThalesGroup/terraform-provider-ciphertrust",
+  "curated": false
+ },
+ {
+  "id": "envbuilder",
+  "name": "envbuilder",
+  "terraform": "coder/envbuilder",
+  "tier": "partner",
+  "description": "",
+  "downloads": 1210431,
+  "repository": "https://github.com/coder/terraform-provider-envbuilder",
+  "curated": false
+ },
+ {
+  "id": "cloudscale",
+  "name": "cloudscale",
+  "terraform": "cloudscale-ch/cloudscale",
+  "tier": "partner",
+  "description": "",
+  "downloads": 1202460,
+  "repository": "https://github.com/cloudscale-ch/terraform-provider-cloudscale",
+  "curated": false
+ },
+ {
+  "id": "kestra",
+  "name": "kestra",
+  "terraform": "kestra-io/kestra",
+  "tier": "partner",
+  "description": "",
+  "downloads": 1166628,
+  "repository": "https://github.com/kestra-io/terraform-provider-kestra",
+  "curated": false
+ },
+ {
+  "id": "astro",
+  "name": "astro",
+  "terraform": "astronomer/astro",
+  "tier": "partner",
+  "description": "The official Astro provider to configure and manage your Astro infrastructure through an API.",
+  "downloads": 1086346,
+  "repository": "https://github.com/astronomer/terraform-provider-astro",
+  "curated": false
+ },
+ {
+  "id": "scp",
+  "name": "scp",
+  "terraform": "splunk/scp",
+  "tier": "partner",
+  "description": "",
+  "downloads": 1079822,
+  "repository": "https://github.com/splunk/terraform-provider-scp",
+  "curated": false
+ },
+ {
+  "id": "oktapam",
+  "name": "oktapam",
+  "terraform": "okta/oktapam",
+  "tier": "partner",
+  "description": "",
+  "downloads": 1073470,
+  "repository": "https://github.com/okta/terraform-provider-oktapam",
+  "curated": false
+ },
+ {
+  "id": "alz",
+  "name": "alz",
+  "terraform": "Azure/alz",
+  "tier": "partner",
+  "description": "",
+  "downloads": 1060123,
+  "repository": "https://github.com/Azure/terraform-provider-alz",
+  "curated": false
+ },
+ {
+  "id": "uptime",
+  "name": "uptime",
+  "terraform": "uptime-com/uptime",
+  "tier": "partner",
+  "description": "",
+  "downloads": 1045052,
+  "repository": "https://github.com/uptime-com/terraform-provider-uptime",
+  "curated": false
+ },
+ {
+  "id": "rhcs",
+  "name": "rhcs",
+  "terraform": "terraform-redhat/rhcs",
+  "tier": "partner",
+  "description": "",
+  "downloads": 1025053,
+  "repository": "https://github.com/terraform-redhat/terraform-provider-rhcs",
+  "curated": false
+ },
+ {
+  "id": "opslevel",
+  "name": "opslevel",
+  "terraform": "OpsLevel/opslevel",
+  "tier": "partner",
+  "description": "",
+  "downloads": 1017480,
+  "repository": "https://github.com/OpsLevel/terraform-provider-opslevel",
+  "curated": false
+ },
+ {
+  "id": "meraki",
+  "name": "meraki",
+  "terraform": "CiscoDevNet/meraki",
+  "tier": "partner",
+  "description": "",
+  "downloads": 921226,
+  "repository": "https://github.com/CiscoDevNet/terraform-provider-meraki",
+  "curated": false
+ },
+ {
+  "id": "oktaasa",
+  "name": "oktaasa",
+  "terraform": "oktadeveloper/oktaasa",
+  "tier": "partner",
+  "description": "",
+  "downloads": 896338,
+  "repository": "https://github.com/oktadeveloper/terraform-provider-oktaasa",
+  "curated": false
+ },
+ {
+  "id": "rafay",
+  "name": "rafay",
+  "terraform": "RafaySystems/rafay",
+  "tier": "partner",
+  "description": "",
+  "downloads": 886702,
+  "repository": "https://github.com/RafaySystems/terraform-provider-rafay",
+  "curated": false
+ },
+ {
+  "id": "bloxone",
+  "name": "bloxone",
+  "terraform": "infobloxopen/bloxone",
+  "tier": "partner",
+  "description": "",
+  "downloads": 800520,
+  "repository": "https://github.com/infobloxopen/terraform-provider-bloxone",
+  "curated": false
+ },
+ {
+  "id": "bluecat",
+  "name": "bluecat",
+  "terraform": "bluecatlabs/bluecat",
+  "tier": "partner",
+  "description": "",
+  "downloads": 722737,
+  "repository": "https://github.com/bluecatlabs/terraform-provider-bluecat",
+  "curated": false
+ },
+ {
+  "id": "rundeck",
+  "name": "rundeck",
+  "terraform": "rundeck/rundeck",
+  "tier": "partner",
+  "description": "",
+  "downloads": 721182,
+  "repository": "https://github.com/rundeck/terraform-provider-rundeck",
+  "curated": false
+ },
+ {
+  "id": "ilert",
+  "name": "ilert",
+  "terraform": "iLert/ilert",
+  "tier": "partner",
+  "description": "",
+  "downloads": 707245,
+  "repository": "https://github.com/iLert/terraform-provider-ilert",
+  "curated": false
+ },
+ {
+  "id": "hcs",
+  "name": "hcs",
+  "terraform": "hashicorp/hcs",
+  "tier": "official",
+  "description": "HashiCorp Consul Service (HCS) on Azure enables your team to provision HashiCorp-managed Consul clusters directly through the Azure Marketplace.",
+  "downloads": 660535,
+  "repository": "https://github.com/hashicorp/terraform-provider-hcs",
+  "curated": false
+ },
+ {
+  "id": "nobl9",
+  "name": "nobl9",
+  "terraform": "nobl9/nobl9",
+  "tier": "partner",
+  "description": "",
+  "downloads": 633395,
+  "repository": "https://github.com/nobl9/terraform-provider-nobl9",
+  "curated": false
+ },
+ {
+  "id": "ncloud",
+  "name": "ncloud",
+  "terraform": "NaverCloudPlatform/ncloud",
+  "tier": "partner",
+  "description": "",
+  "downloads": 619012,
+  "repository": "https://github.com/NaverCloudPlatform/terraform-provider-ncloud",
+  "curated": false
+ },
+ {
+  "id": "cloudsmith",
+  "name": "cloudsmith",
+  "terraform": "cloudsmith-io/cloudsmith",
+  "tier": "partner",
+  "description": "",
+  "downloads": 617866,
+  "repository": "https://github.com/cloudsmith-io/terraform-provider-cloudsmith",
+  "curated": false
+ },
+ {
+  "id": "aap",
+  "name": "aap",
+  "terraform": "ansible/aap",
+  "tier": "official",
+  "description": "Management of Ansible Automation Platform (AAP) resources to be able to initiate inventory updates, job execution, and complex workflow orchestration.",
+  "downloads": 605121,
+  "repository": "https://github.com/ansible/terraform-provider-aap",
+  "curated": false
+ },
+ {
+  "id": "shoreline",
+  "name": "shoreline",
+  "terraform": "shorelinesoftware/shoreline",
+  "tier": "partner",
+  "description": "",
+  "downloads": 594371,
+  "repository": "https://github.com/shorelinesoftware/terraform-provider-shoreline",
+  "curated": false
+ },
+ {
+  "id": "alkira",
+  "name": "alkira",
+  "terraform": "alkiranet/alkira",
+  "tier": "partner",
+  "description": "",
+  "downloads": 582338,
+  "repository": "https://github.com/alkiranet/terraform-provider-alkira",
+  "curated": false
+ },
+ {
+  "id": "codefresh",
+  "name": "codefresh",
+  "terraform": "codefresh-io/codefresh",
+  "tier": "partner",
+  "description": "",
+  "downloads": 576084,
+  "repository": "https://github.com/codefresh-io/terraform-provider-codefresh",
+  "curated": false
+ },
+ {
+  "id": "netapp-ontap",
+  "name": "netapp-ontap",
+  "terraform": "NetApp/netapp-ontap",
+  "tier": "partner",
+  "description": "",
+  "downloads": 568768,
+  "repository": "https://github.com/NetApp/terraform-provider-netapp-ontap",
+  "curated": false
+ },
+ {
+  "id": "instana",
+  "name": "instana",
+  "terraform": "instana/instana",
+  "tier": "official",
+  "description": "",
+  "downloads": 564084,
+  "repository": "https://github.com/instana/terraform-provider-instana",
+  "curated": false
+ },
+ {
+  "id": "lightstep",
+  "name": "lightstep",
+  "terraform": "lightstep/lightstep",
+  "tier": "partner",
+  "description": "",
+  "downloads": 564021,
+  "repository": "https://github.com/lightstep/terraform-provider-lightstep",
+  "curated": false
+ },
+ {
+  "id": "coreweave",
+  "name": "coreweave",
+  "terraform": "coreweave/coreweave",
+  "tier": "partner",
+  "description": "",
+  "downloads": 563512,
+  "repository": "https://github.com/coreweave/terraform-provider-coreweave",
+  "curated": false
+ }
+]

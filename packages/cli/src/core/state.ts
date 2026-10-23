@@ -6,15 +6,21 @@ import { readJson, writeJson } from "./fs.ts";
 // journal.json — every add, step by step, with how to undo each step (drives `rollback`)
 
 export interface Resource {
-  id: string; // "upstash/redis/cache"
-  provider: string;
-  service: string;
+  /** Unique within the project; also the Terraform module name and env var prefix. */
   name: string;
-  remoteId: string;
-  account: string;
-  plan?: string;
-  budget?: number;
+  recipe: `${string}/${string}`;
+  provider: string;
+  strategy: "api" | "terraform";
+  /** Provider-side id, for API resources (what destroy/cost/rotate address). */
+  remoteId?: string;
+  inputs: Record<string, string | number>;
+  /** Requirement name → resource name it is satisfied by. */
+  dependsOn: Record<string, string>;
+  /** Vault keys this resource publishes once applied. */
   envKeys: string[];
+  /** Non-sensitive outputs (ids, URLs) from the last sync. Sensitive ones live only in the vault. */
+  outputs: Record<string, string>;
+  applied: boolean;
   createdAt: string;
 }
 
@@ -41,12 +47,12 @@ export const state = {
   load: (root: string) => readJson<{ version: 1; resources: Resource[] }>(path.join(dir(root), "state.json"), { version: 1, resources: [] }),
   async upsert(root: string, resource: Resource) {
     const s = await state.load(root);
-    s.resources = s.resources.filter((r) => r.id !== resource.id).concat(resource);
+    s.resources = s.resources.filter((r) => r.name !== resource.name).concat(resource);
     await writeJson(path.join(dir(root), "state.json"), s);
   },
-  async remove(root: string, id: string) {
+  async remove(root: string, name: string) {
     const s = await state.load(root);
-    s.resources = s.resources.filter((r) => r.id !== id);
+    s.resources = s.resources.filter((r) => r.name !== name);
     await writeJson(path.join(dir(root), "state.json"), s);
   },
 };

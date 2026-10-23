@@ -41,3 +41,11 @@ export async function promptLine(question: string): Promise<string> {
 export async function confirm(question: string): Promise<boolean> {
   return /^y(es)?$/i.test(await promptLine(`${question} [y/N] `));
 }
+
+export async function choose(question: string, options: readonly string[]): Promise<string> {
+  process.stderr.write(`${question}\n${options.map((o, i) => `  ${i + 1}) ${o}`).join("\n")}\n`);
+  const answer = await promptLine("Choose a number: ");
+  const picked = options[Number(answer) - 1];
+  if (!picked) throw new Error(`"${answer}" isn't one of the options`);
+  return picked;
+}

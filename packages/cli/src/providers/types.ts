@@ -16,6 +16,6 @@ export interface Provider {
   isLoggedIn: (page: Page) => Promise<boolean>;
   /** Types the credentials into the provider's own login screens, one human-paced step at a time. */
   login: (page: Page, creds: Credentials, step: Step) => Promise<void>;
-  /** Optional work once signed in, e.g. minting an API key; returned values go to the keychain. */
-  afterLogin?: (page: Page, step: Step) => Promise<Record<string, string>>;
+  /** For API-backed providers: once signed in, create an API key in the dashboard and return it. */
+  mint?: { readonly key: string; readonly run: (page: Page, step: Step) => Promise<string> };
 }

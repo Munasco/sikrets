@@ -1,13 +1,16 @@
 import type { Page } from "playwright-core";
 import { openBrowser } from "../browser/session.ts";
+import { connectAws } from "../providers/aws.ts";
 import { provider as getProvider } from "../providers/index.ts";
 import type { Credentials, Provider } from "../providers/types.ts";
-import { keychain, listConnections, saveConnection } from "../store.ts";
+import { keychain, listConnections, saveConnection, type Connection } from "../store.ts";
 import { log, promptHidden, promptLine } from "../ui.ts";
 
 export interface ConnectOptions {
   email?: string;
   passwordStdin?: boolean;
+  /** Mint a fresh API key even if one is stored (old keys stay valid until revoked in the dashboard). */
+  renew?: boolean;
   json?: boolean;
 }
 
@@ -18,8 +21,19 @@ export interface ConnectOptions {
  *  - terminal (--email): you give the email and password up front and Sikrets types them in.
  * Either way, anything the script can't do (2FA, captchas, "is this you?") you finish in the window.
  */
-export async function run(args: string[], opts: Record<string, string | boolean | undefined>) {
-  return connect(args[0]!, { email: opts.email as string | undefined, passwordStdin: Boolean(opts["password-stdin"]), json: Boolean(opts.json) });
+export async function run(args: string[], opts: Record<string, unknown>) {
+  const id = args[0]!;
+  if (id === "aws") {
+    const result = await connectAws(typeof opts.profile === "string" ? opts.profile : (Bun.env.AWS_PROFILE ?? "default"), (m) => log(opts, m));
+    if (opts.json) console.log(JSON.stringify({ provider: "aws", ...result, connected: true }));
+    return;
+  }
+  return connect(id, {
+    email: typeof opts.email === "string" ? opts.email : undefined,
+    passwordStdin: Boolean(opts["password-stdin"]),
+    renew: Boolean(opts.renew),
+    json: Boolean(opts.json),
+  });
 }
 
 export async function connect(id: string, opts: ConnectOptions) {
@@ -27,7 +41,7 @@ export async function connect(id: string, opts: ConnectOptions) {
   const known = (await listConnections()).find((c) => c.provider === p.id);
 
   let creds: Credentials | undefined;
-  let mode: "watch" | "terminal" = "watch";
+  let mode: Connection["mode"] = "watch";
   if (opts.email) {
     mode = "terminal";
     const password = opts.passwordStdin ? (await Bun.stdin.text()).trim() : await promptHidden(`${p.name} password: `);
@@ -58,16 +72,19 @@ export async function connect(id: string, opts: ConnectOptions) {
     }
 
     // Social sign-ins (Google, GitHub) never show us an email; API-backed providers need one.
-    const account = creds?.email ?? known?.account ?? (p.afterLogin ? await promptLine(`${p.name} account email: `) : "default");
+    const account = creds?.email ?? known?.account ?? (p.mint ? await promptLine(`${p.name} account email: `) : "default");
     if (creds) await keychain.set(p.id, creds.email, creds.password);
-    if (p.afterLogin) {
-      const extra = await p.afterLogin(page, (s) => log(opts, `  ${s}`));
-      for (const [name, value] of Object.entries(extra)) if (value) await keychain.set(p.id, `${account}#${name}`, value);
+    let minted = false;
+    if (p.mint && (opts.renew || !(await keychain.get(p.id, `${account}#${p.mint.key}`)))) {
+      const value = await p.mint.run(page, (s) => log(opts, `  ${s}`));
+      if (!value) throw new Error(`No ${p.mint.key} was created`);
+      await keychain.set(p.id, `${account}#${p.mint.key}`, value);
+      minted = true;
     }
     await saveConnection({ provider: p.id, account, mode: known?.mode ?? mode, connectedAt: new Date().toISOString() });
 
-    if (opts.json) console.log(JSON.stringify({ provider: p.id, account, connected: true, savedPassword: Boolean(creds) }));
-    else log(opts, `Connected ${p.name} as ${account}${creds ? " (password saved to keychain)" : ""}`);
+    if (opts.json) console.log(JSON.stringify({ provider: p.id, account, connected: true, savedPassword: Boolean(creds), mintedKey: minted }));
+    else log(opts, `Connected ${p.name} as ${account}${creds ? "; password saved to keychain" : ""}${minted ? `; new ${p.mint!.key} saved to keychain` : ""}`);
   } finally {
     await browser.close();
   }

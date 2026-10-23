@@ -1,6 +1,7 @@
 import { click, pause, type } from "../../browser/human.ts";
 import { promptHidden } from "../../ui.ts";
-import type { Provider } from "../types.ts";
+import type { Page } from "playwright-core";
+import type { Provider, Step } from "../types.ts";
 
 // Upstash only needs the browser once: to mint a Developer API key. Everything after that
 // (create, delete, reset password, billing) goes through api.upstash.com.
@@ -35,8 +36,11 @@ export const upstash: Provider = {
   },
 
   // Follows Upstash's documented path: Account → Developer API → Create API Key.
-  async afterLogin(page, step) {
-    try {
+  mint: { key: "api-key", run: mintApiKey },
+};
+
+async function mintApiKey(page: Page, step: Step): Promise<string> {
+  try {
       step("Opening Account → Developer API");
       await page.goto("https://console.upstash.com/account/api", { waitUntil: "domcontentloaded" });
       await pause(1500, 400);
@@ -50,11 +54,10 @@ export const upstash: Provider = {
       // The key is shown once; read the longest token-looking string in the dialog.
       const text = await page.getByRole("dialog").innerText({ timeout: 15_000 });
       const key = text.match(/[A-Za-z0-9_-]{30,}/g)?.sort((a, b) => b.length - a.length)[0];
-      if (key) return { "api-key": key };
-    } catch {
-      /* fall through to manual */
-    }
-    step("Couldn't read the key automatically — create it in the window and paste it here");
-    return { "api-key": await promptHidden("Upstash Developer API key: ") };
-  },
-};
+      if (key) return key;
+  } catch {
+    /* fall through to manual */
+  }
+  step("Couldn't read the key automatically — create it in the window and paste it here");
+  return promptHidden("Upstash Developer API key: ");
+}

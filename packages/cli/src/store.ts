@@ -17,7 +17,7 @@ export const keychain = {
 export interface Connection {
   provider: string;
   account: string;
-  mode: "watch" | "terminal";
+  mode: "watch" | "terminal" | "profile";
   connectedAt: string;
 }
 
