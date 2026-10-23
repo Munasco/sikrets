@@ -5,7 +5,12 @@
 /** How a flow points at an element: a CSS selector, or a role plus its visible/accessible name. */
 export type Target =
   | { readonly css: string }
-  | { readonly role: "button" | "link" | "textbox" | "dialog"; readonly name: string | RegExp };
+  | {
+      readonly role: "button" | "link" | "textbox" | "dialog" | "combobox" | "option";
+      readonly name: string | RegExp;
+      /** CSS selector to search inside, e.g. "[role=dialog]" so a dialog's button isn't confused with the page's. */
+      readonly within?: string;
+    };
 
 export interface Box {
   readonly x: number;
@@ -25,6 +30,8 @@ export interface Driver {
   /** Visible text of the target (or the whole page). */
   text(target?: Target): Promise<string>;
   screenshot(): Promise<Uint8Array>;
+  /** Runs an expression in the page. For diagnosing dashboards; flows should prefer the methods above. */
+  evaluate<T>(expression: string): Promise<T>;
   close(): Promise<void>;
 }
 

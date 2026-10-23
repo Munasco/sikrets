@@ -38,6 +38,10 @@ beforeEach(async () => {
     const url = new URL(String(input));
     const method = init?.method ?? "GET";
     const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
+    if (url.hostname === "api.anthropic.com") {
+      const key = new Headers(init?.headers).get("x-api-key");
+      return key === GOOD_ANTHROPIC_KEY ? json({ data: [] }) : json({ error: { type: "authentication_error" } }, 401);
+    }
     if (method === "GET" && url.pathname === "/v2/redis/databases") return json(Object.values(databases));
     if (method === "POST" && url.pathname === "/v2/redis/database") {
       if (failCreate) return json({ error: "boom" }, 500);
@@ -56,6 +60,7 @@ beforeEach(async () => {
 
 afterEach(() => rm(root, { recursive: true, force: true }));
 
+const GOOD_ANTHROPIC_KEY = "sk-ant-api03-goodkeygoodkeygoodkey1234";
 const exists = (rel: string) => Bun.file(path.join(root, rel)).exists();
 const request = (over: Partial<AddRequest>): AddRequest => ({
   recipe: "upstash/redis",
@@ -64,6 +69,9 @@ const request = (over: Partial<AddRequest>): AddRequest => ({
   use: {},
   choose: async () => {
     throw new Error("unexpected prompt");
+  },
+  secret: async () => {
+    throw new Error("unexpected secret prompt");
   },
   ...over,
 });
@@ -182,5 +190,38 @@ describe("Terraform recipes (aws/*)", () => {
     await applyPlan("add", (await planAdd(request({ recipe: "aws/vpc", name: "main" }), ctx)).changes, ctx);
     await expect(planAdd(request({ recipe: "aws/vpc", name: "main" }), ctx)).rejects.toThrow("already has a resource");
     await expect(planAdd(request({ recipe: "aws/vpc", name: "Bad_Name" }), ctx)).rejects.toThrow("Invalid name");
+  });
+});
+
+describe("manual recipes (anthropic/api-key)", () => {
+  const paste = (value: string) => request({ recipe: "anthropic/api-key", name: "anthropic", secret: async () => Secret.of(value) });
+
+  test("dry runs never ask for the key", async () => {
+    const plan = await planAdd(request({ recipe: "anthropic/api-key", name: "anthropic" }), { ...ctx, dryRun: true });
+    expect(plan.changes[0]!.summary).toContain("store it as ANTHROPIC_API_KEY");
+    expect(fetchCalls).toBe(0);
+  });
+
+  test("a working key is verified, stored, and rollback removes it", async () => {
+    const op = await applyPlan("add anthropic/api-key", (await planAdd(paste(GOOD_ANTHROPIC_KEY), ctx)).changes, ctx);
+    expect(keychain.get("dev.sikrets.vault.demo/ANTHROPIC_API_KEY")).toBe(GOOD_ANTHROPIC_KEY);
+    const [res] = (await state.load(root)).resources;
+    expect(res).toMatchObject({ name: "anthropic", strategy: "manual", applied: true, envKeys: ["ANTHROPIC_API_KEY"] });
+    expect(JSON.stringify(res)).not.toContain("sk-ant");
+    await undoSteps(op, ctx);
+    expect(keychain.size).toBe(0);
+    expect((await state.load(root)).resources).toHaveLength(0);
+  });
+
+  test("something that isn't a key is rejected before any network call", async () => {
+    await expect(applyPlan("add", (await planAdd(paste("hello"), ctx)).changes, ctx)).rejects.toThrow("doesn't look like");
+    expect(fetchCalls).toBe(0);
+    expect(keychain.size).toBe(0);
+  });
+
+  test("a revoked or mistyped key is rejected and nothing is stored", async () => {
+    await expect(applyPlan("add", (await planAdd(paste("sk-ant-api03-revokedrevokedrevoked99"), ctx)).changes, ctx)).rejects.toThrow("rejected this key");
+    expect(keychain.size).toBe(0);
+    expect((await state.load(root)).resources).toHaveLength(0);
   });
 });

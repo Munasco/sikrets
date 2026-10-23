@@ -27,7 +27,7 @@ export async function run(args: string[], opts: Record<string, unknown>) {
 
   const rows = await Promise.all(keys.map(async (key) => ({ key, set: (await vault.get(key)) !== undefined })));
   if (opts.json) return console.log(JSON.stringify({ vault: vault.name, keys: rows }));
-  if (!rows.length) return console.log("No values yet. Add something and run sikrets apply.");
+  if (!rows.length) return console.log("No values yet. Add something: sikrets add <provider/service>");
   console.log(`Values in the ${vault.name} vault (shown by name only):`);
   for (const r of rows) console.log(`  ${r.set ? "●" : "○"} ${r.key}${r.set ? "" : "  (missing: run sikrets apply)"}`);
 }

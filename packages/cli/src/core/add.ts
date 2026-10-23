@@ -1,6 +1,6 @@
 import { files, GITIGNORE, moduleTf, rootTf, versionsTf } from "../iac/terraform.ts";
 import { recipe, terraformRecipe } from "../recipes/index.ts";
-import { envPrefix, resolveInputs, RESOURCE_NAME, type ApiRecipe, type Provisioned, type Recipe, type TerraformRecipe } from "../recipes/types.ts";
+import { envPrefix, resolveInputs, RESOURCE_NAME, type ApiRecipe, type ManualRecipe, type Provisioned, type Recipe, type TerraformRecipe } from "../recipes/types.ts";
 import { providerEnv } from "./credentials.ts";
 import { ensureGitignore, isGenerated, removeGenerated, writeGenerated } from "./files.ts";
 import { registerUndo, type Change, type Context } from "./plan.ts";
@@ -16,6 +16,8 @@ export interface AddRequest {
   use: Readonly<Record<string, string>>;
   /** Asked only when several existing resources could satisfy a requirement. */
   choose: (question: string, options: readonly string[]) => Promise<string>;
+  /** Reads a credential the person pastes (manual recipes). Called only when the change is applied. */
+  secret: (prompt: string) => Promise<Secret>;
 }
 
 export interface AddPlan {
@@ -73,10 +75,10 @@ export async function planAdd(req: AddRequest, ctx: Context): Promise<AddPlan> {
   };
 
   await plan(recipe(req.recipe), req.name, req.inputs, req.use);
-  return { resources: planned, changes: await changesFor(planned, existing, ctx) };
+  return { resources: planned, changes: await changesFor(planned, existing, ctx, req.secret) };
 }
 
-async function changesFor(planned: readonly Resource[], existing: readonly Resource[], ctx: Context): Promise<Change[]> {
+async function changesFor(planned: readonly Resource[], existing: readonly Resource[], ctx: Context, read: AddRequest["secret"]): Promise<Change[]> {
   const all = [...existing, ...planned];
   const changes: Change[] = [];
 
@@ -97,6 +99,7 @@ async function changesFor(planned: readonly Resource[], existing: readonly Resou
   for (const res of planned) {
     const r = recipe(res.recipe);
     if (r.strategy === "api") changes.push(...apiChanges(r, res));
+    else if (r.strategy === "manual") changes.push(...manualChanges(r, res, read));
     else {
       const [main] = files.module(r);
       if (!newModules.has(r.id) && !(await isGenerated(ctx.root, main))) {
@@ -107,6 +110,36 @@ async function changesFor(planned: readonly Resource[], existing: readonly Resou
     }
   }
   return changes;
+}
+
+/** The person creates the credential in the dashboard; it is checked, then stored. Nothing is stored if a check fails. */
+function manualChanges(r: ManualRecipe, res: Resource, read: AddRequest["secret"]): Change[] {
+  const spec = r.outputs[r.secret];
+  if (!spec?.sensitive) throw new Error(`${r.id}: secret output "${r.secret}" must be declared sensitive`);
+  const key = `${envPrefix(res.name)}_${spec.env}`;
+  return [
+    {
+      summary: `Ask for ${spec.description} (create it at ${r.instructions.url}), verify it, store it as ${key}`,
+      cost: r.estimate(res.inputs),
+      async apply(c) {
+        c.log(`  Create it at ${r.instructions.url}:`);
+        for (const [i, s] of r.instructions.steps.entries()) c.log(`    ${i + 1}. ${s}`);
+        const value = await read(`${spec.description}: `);
+        if (!r.pattern.test(value.reveal())) throw new Error(`That doesn't look like ${spec.description.replace(/^an? /i, "an ")}; nothing was stored`);
+        await r.verify(value);
+        await (await openVault(c.project)).put(key, value);
+        c.log(`  Verified with ${r.provider} and stored as ${key}`);
+        return { kind: "vault.delete", summary: `Remove ${key} from the vault`, data: { project: c.project, keys: key } };
+      },
+    },
+    {
+      summary: `Record "${res.name}" in .sikrets/state.json`,
+      async apply(c) {
+        await state.upsert(c.root, { ...res, applied: true });
+        return { kind: "state.remove", summary: `Forget "${res.name}" (revoke the key itself at ${r.instructions.url})`, data: { name: res.name } };
+      },
+    },
+  ];
 }
 
 /** Created right away through the provider's API; outputs go straight to the vault. */

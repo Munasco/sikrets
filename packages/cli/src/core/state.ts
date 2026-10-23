@@ -10,7 +10,7 @@ export interface Resource {
   name: string;
   recipe: `${string}/${string}`;
   provider: string;
-  strategy: "api" | "terraform";
+  strategy: "api" | "terraform" | "manual";
   /** Provider-side id, for API resources (what destroy/cost/rotate address). */
   remoteId?: string;
   inputs: Record<string, string | number>;

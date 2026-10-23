@@ -18,6 +18,7 @@ function harness() {
     type: async () => {},
     text: async () => "",
     screenshot: async () => new Uint8Array([137, 80, 78, 71]),
+    evaluate: async <T>() => undefined as T,
     close: async () => {},
   };
   const opts = async () => ({

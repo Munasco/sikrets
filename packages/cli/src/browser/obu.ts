@@ -35,10 +35,15 @@ const FIND = `(t) => {
   else {
     const sel = { button: "button,[role=button],input[type=submit]", link: "a,[role=link]",
       textbox: "input:not([type=hidden]):not([type=submit]):not([type=button]),textarea,[contenteditable=true],[role=textbox]",
-      dialog: "dialog[open],[role=dialog],[aria-modal=true]" }[t.role];
-    const name = (el) => (el.getAttribute("aria-label") || el.labels?.[0]?.innerText || el.placeholder || el.innerText || el.value || "").trim();
+      dialog: "dialog[open],[role=dialog],[aria-modal=true]",
+      combobox: "select,[role=combobox],button[aria-haspopup=listbox],button[aria-haspopup=menu]",
+      option: "option,[role=option],[role=menuitem],[role=menuitemradio]" }[t.role];
+    // An element matches if any of its names does: aria-label, its <label>, placeholder, or visible text.
+    const names = (el) => [el.getAttribute("aria-label"), el.labels?.[0]?.innerText, el.placeholder, el.innerText, el.value]
+      .filter((n) => typeof n === "string" && n.trim()).map((n) => n.trim());
     const re = t.source !== undefined ? new RegExp(t.source, t.flags) : null;
-    els = [...document.querySelectorAll(sel)].filter((el) => (re ? re.test(name(el)) : name(el) === t.name));
+    const root = t.within ? document.querySelector(t.within) : document;
+    els = root ? [...root.querySelectorAll(sel)].filter((el) => names(el).some((n) => (re ? re.test(n) : n === t.name))) : [];
   }
   const el = els.find(visible);
   if (!el) return null;
@@ -48,7 +53,9 @@ const FIND = `(t) => {
 }`;
 
 const serialize = (t: Target) =>
-  "css" in t ? { css: t.css } : t.name instanceof RegExp ? { role: t.role, source: t.name.source, flags: t.name.flags } : { role: t.role, name: t.name };
+  "css" in t
+    ? { css: t.css }
+    : { role: t.role, within: t.within, ...(t.name instanceof RegExp ? { source: t.name.source, flags: t.name.flags } : { name: t.name }) };
 
 export async function openObu(url: string, opts: ObuOptions): Promise<Driver> {
   const session = opts.session ?? `sikrets-${Date.now().toString(36)}`;
@@ -66,9 +73,16 @@ export async function openObu(url: string, opts: ObuOptions): Promise<Driver> {
     if (r.exceptionDetails) throw new FlowError("driver", "browser", `page script failed: ${r.exceptionDetails.text ?? "exception"}`);
     return r.result.value as T;
   };
-  const mouse = (type: string, x: number, y: number) => cdp("Input.dispatchMouseEvent", { type, x, y, button: "left", clickCount: 1 });
-  // Chrome only hit-tests synthetic input in the foreground tab, so every input starts by focusing ours.
-  const front = () => cdp("Page.bringToFront");
+  // Input is delivered to the element itself (not by screen coordinates), so flows work in a
+  // background tab without taking over the user's window.
+  const CLICK = `(t) => { const b = (${FIND})(t); if (!b) return false;
+    const el = document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2)?.closest("button,a,input,select,textarea,[role],label") ?? null;
+    const target = el && (el === document.body ? null : el); if (!target) return false;
+    const at = { bubbles: true, cancelable: true, composed: true, clientX: b.x + b.width / 2, clientY: b.y + b.height / 2, button: 0 };
+    target.dispatchEvent(new PointerEvent("pointerdown", { ...at, pointerType: "mouse" })); target.dispatchEvent(new MouseEvent("mousedown", at));
+    if (typeof target.focus === "function") target.focus();
+    target.dispatchEvent(new PointerEvent("pointerup", { ...at, pointerType: "mouse" })); target.dispatchEvent(new MouseEvent("mouseup", at));
+    target.click(); return true; }`;
   // A navigation counts as finished only when a *new* document (without our marker) is fully loaded;
   // checking readyState alone races with the old page, which still reports "complete".
   const MARK = "__sikretsDoc";
@@ -93,18 +107,12 @@ export async function openObu(url: string, opts: ObuOptions): Promise<Driver> {
       await waitLoaded(true);
     },
     url: () => evaluate<string>("location.href"),
+    evaluate,
     find: (target) => evaluate<Box | null>(`(${FIND})(${JSON.stringify(serialize(target))})`),
     async click(target) {
-      const box = await driver.find(target);
-      if (!box) throw new FlowError("missing", "click", `nothing to click: ${JSON.stringify(serialize(target))}`);
-      await front();
-      const x = box.x + box.width / 2;
-      const y = box.y + box.height / 2;
-      await mouse("mouseMoved", x, y);
-      await Bun.sleep(80);
-      await mouse("mousePressed", x, y);
-      await Bun.sleep(60);
-      await mouse("mouseReleased", x, y);
+      const clicked = await evaluate<boolean>(`(${CLICK})(${JSON.stringify(serialize(target))})`);
+      if (!clicked) throw new FlowError("missing", "click", `nothing to click: ${JSON.stringify(serialize(target))}`);
+      await Bun.sleep(120);
     },
     async type(target, text) {
       await driver.click(target);
@@ -126,6 +134,8 @@ export async function openObu(url: string, opts: ObuOptions): Promise<Driver> {
       await obu(["finalize-tabs", ...base, "--keep", "[]"], timeout).catch(() => undefined);
     },
   };
+  // Let the page behave as focused (focus/blur-driven UIs) while it stays in the background.
+  await cdp("Emulation.setFocusEmulationEnabled", { enabled: true });
   await waitLoaded(false);
   return driver;
 }

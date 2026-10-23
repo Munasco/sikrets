@@ -2,7 +2,8 @@ import { planAdd } from "../core/add.ts";
 import { applyPlan, printPlan, type Context } from "../core/plan.ts";
 import { projectName } from "../core/state.ts";
 import { recipe } from "../recipes/index.ts";
-import { choose, confirm, log } from "../ui.ts";
+import { Secret } from "../core/secret.ts";
+import { choose, confirm, log, promptHidden } from "../ui.ts";
 
 export async function run(args: string[], opts: Record<string, unknown>) {
   const root = process.cwd();
@@ -18,12 +19,19 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   const plan = await planAdd(
     {
       recipe: r.id,
-      name: typeof opts.name === "string" ? opts.name : r.id.split("/")[1]!,
+      name: typeof opts.name === "string" ? opts.name : (r.defaultName ?? r.id.split("/")[1]!),
       inputs,
       use: pairs(opts.use, "--use"),
       choose: async (question, options) => {
         if (!interactive) throw new Error(`${question} Pass --use to pick one of: ${options.join(", ")}`);
         return choose(question, options);
+      },
+      // Agents pipe the value in with --value-stdin; people get a hidden prompt. Never an argument,
+      // so it can't land in shell history or a process list.
+      secret: async (prompt) => {
+        if (opts["value-stdin"]) return Secret.of((await Bun.stdin.text()).trim());
+        if (!process.stdin.isTTY) throw new Error("No terminal to ask in; pipe the value with --value-stdin");
+        return Secret.of(await promptHidden(prompt));
       },
     },
     ctx,

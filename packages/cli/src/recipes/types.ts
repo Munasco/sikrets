@@ -6,6 +6,8 @@ import type { Secret } from "../core/secret.ts";
 // and how it is provisioned. Two strategies:
 //   "api"       — provisioned immediately through the provider's own API (most developer SaaS)
 //   "terraform" — declared as Terraform in the project and created by `sikrets apply`
+//   "manual"    — the person creates the credential in the provider's dashboard and pastes it;
+//                 Sikrets verifies it before storing (for providers with no way to mint keys)
 // Recipes never read config or write files; they get credentials and inputs, and return results.
 
 export type RecipeId = `${string}/${string}`;
@@ -36,6 +38,8 @@ interface RecipeBase<I extends Record<string, InputSpec>> {
   /** Provider whose credentials provisioning needs (see core/credentials.ts). */
   readonly provider: string;
   readonly summary: string;
+  /** Resource name when --name isn't given; also the env var prefix (e.g. "anthropic" → ANTHROPIC_API_KEY). */
+  readonly defaultName?: string;
   readonly inputs: I;
   readonly requires: readonly Requirement[];
   readonly outputs: Readonly<Record<string, OutputSpec>>;
@@ -68,10 +72,23 @@ export interface TerraformRecipe<I extends Record<string, InputSpec> = Record<st
   arguments(inputs: Inputs<I>, dep: (as: string, output: string) => string): Readonly<Record<string, string>>;
 }
 
-export type Recipe<I extends Record<string, InputSpec> = Record<string, InputSpec>> = ApiRecipe<I> | TerraformRecipe<I>;
+export interface ManualRecipe<I extends Record<string, InputSpec> = Record<string, InputSpec>> extends RecipeBase<I> {
+  readonly strategy: "manual";
+  /** Where the person creates the credential and what to choose there. Shown before asking for it. */
+  readonly instructions: { readonly url: string; readonly steps: readonly string[] };
+  /** Key of the one sensitive output the person supplies. */
+  readonly secret: string;
+  /** Cheap shape check, so an obvious paste mistake fails before any network call. */
+  readonly pattern: RegExp;
+  /** Live check that the credential works; throws a plain-language error if it doesn't. */
+  verify(value: Secret): Promise<void>;
+}
+
+export type Recipe<I extends Record<string, InputSpec> = Record<string, InputSpec>> = ApiRecipe<I> | TerraformRecipe<I> | ManualRecipe<I>;
 
 /** Identity functions that keep each recipe's input types precise. */
 export const defineApiRecipe = <I extends Record<string, InputSpec>>(r: Omit<ApiRecipe<I>, "strategy">): ApiRecipe<I> => ({ ...r, strategy: "api" });
+export const defineManualRecipe = <I extends Record<string, InputSpec>>(r: Omit<ManualRecipe<I>, "strategy">): ManualRecipe<I> => ({ ...r, strategy: "manual" });
 export const defineTerraformRecipe = <I extends Record<string, InputSpec>>(r: Omit<TerraformRecipe<I>, "strategy">): TerraformRecipe<I> => ({
   ...r,
   strategy: "terraform",
