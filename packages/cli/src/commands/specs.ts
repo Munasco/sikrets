@@ -22,6 +22,9 @@ export interface CommandSpec {
 
 export const jsonOption: OptionSpec = { name: "json", type: "boolean", description: "Machine-readable output on stdout (for agents)" };
 
+const dryRunOption: OptionSpec = { name: "dry-run", type: "boolean", description: "Show exactly what would change, and what it costs, without touching anything" };
+const yesOption: OptionSpec = { name: "yes", type: "boolean", short: "y", description: "Skip the confirmation prompt" };
+
 export const commands: CommandSpec[] = [
   {
     name: "connect",
@@ -34,6 +37,38 @@ export const commands: CommandSpec[] = [
     ],
     examples: ["sikrets connect openai", "sikrets connect openai --email me@acme.dev", "printf %s \"$PW\" | sikrets connect openai --email me@acme.dev --password-stdin --json"],
     load: () => import("./connect.ts"),
+  },
+  {
+    name: "add",
+    description: "Provision a service for this project, store its credentials and generate its IaC",
+    arguments: [{ name: "provider/service", required: true }],
+    options: [
+      { name: "name", type: "string", argument: "NAME", description: "Resource name (default: cache)" },
+      { name: "region", type: "string", argument: "REGION", description: "Primary region (default: us-east-1)" },
+      { name: "plan", type: "string", argument: "PLAN", description: "free, payg, fixed_250mb, … (default: free)" },
+      { name: "budget", type: "string", argument: "USD", description: "Monthly spend cap for pay-as-you-go plans" },
+      dryRunOption,
+      yesOption,
+      jsonOption,
+    ],
+    examples: ["sikrets add upstash/redis --dry-run", "sikrets add upstash/redis --name cache --plan payg --budget 20 --yes --json"],
+    load: () => import("./add.ts"),
+  },
+  {
+    name: "rollback",
+    description: "Undo an add: delete what it created, remove its credentials and generated files",
+    arguments: [{ name: "operation", required: false }],
+    options: [dryRunOption, yesOption, jsonOption],
+    examples: ["sikrets rollback --dry-run", "sikrets rollback op_m2x7k1 --yes"],
+    load: () => import("./rollback.ts"),
+  },
+  {
+    name: "cost",
+    description: "Month-to-date spend for everything Sikrets provisioned in this project",
+    arguments: [],
+    options: [jsonOption],
+    examples: ["sikrets cost", "sikrets cost --json"],
+    load: () => import("./cost.ts"),
   },
   {
     name: "ls",

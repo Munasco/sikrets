@@ -30,3 +30,14 @@ export async function promptHidden(question: string): Promise<string> {
     stdin.on("data", onData);
   });
 }
+
+export async function promptLine(question: string): Promise<string> {
+  if (!process.stdin.isTTY) throw new Error("No terminal to prompt in");
+  process.stderr.write(question);
+  for await (const line of console) return line.trim();
+  return "";
+}
+
+export async function confirm(question: string): Promise<boolean> {
+  return /^y(es)?$/i.test(await promptLine(`${question} [y/N] `));
+}

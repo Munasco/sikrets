@@ -3,7 +3,7 @@ import { openBrowser } from "../browser/session.ts";
 import { provider as getProvider } from "../providers/index.ts";
 import type { Credentials, Provider } from "../providers/types.ts";
 import { keychain, listConnections, saveConnection } from "../store.ts";
-import { log, promptHidden } from "../ui.ts";
+import { log, promptHidden, promptLine } from "../ui.ts";
 
 export interface ConnectOptions {
   email?: string;
@@ -57,8 +57,13 @@ export async function connect(id: string, opts: ConnectOptions) {
       creds = await captured.result();
     }
 
-    const account = creds?.email ?? known?.account ?? "default";
+    // Social sign-ins (Google, GitHub) never show us an email; API-backed providers need one.
+    const account = creds?.email ?? known?.account ?? (p.afterLogin ? await promptLine(`${p.name} account email: `) : "default");
     if (creds) await keychain.set(p.id, creds.email, creds.password);
+    if (p.afterLogin) {
+      const extra = await p.afterLogin(page, (s) => log(opts, `  ${s}`));
+      for (const [name, value] of Object.entries(extra)) if (value) await keychain.set(p.id, `${account}#${name}`, value);
+    }
     await saveConnection({ provider: p.id, account, mode: known?.mode ?? mode, connectedAt: new Date().toISOString() });
 
     if (opts.json) console.log(JSON.stringify({ provider: p.id, account, connected: true, savedPassword: Boolean(creds) }));
