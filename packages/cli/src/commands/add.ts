@@ -1,5 +1,6 @@
 import { planAdd } from "../core/add.ts";
 import { projectContext } from "../core/config.ts";
+import { record } from "../core/activity.ts";
 import { applyPlan, printPlan } from "../core/plan.ts";
 import { recipe } from "../recipes/index.ts";
 import { Secret } from "../core/secret.ts";
@@ -46,6 +47,7 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   if (interactive && !(await confirm("Write these files?"))) return log(opts, "Cancelled; nothing was written.");
 
   const op = await applyPlan(`add ${r.id}`, plan.changes, ctx);
+  await record(root, { kind: "add", detail: plan.resources.map((x) => `${x.recipe} ${x.name}`).join(", "), keys: plan.resources.flatMap((x) => x.envKeys) });
   if (opts.json) console.log(JSON.stringify({ operation: op.id, resources: plan.resources.map((x) => x.name) }));
   else {
     const declared = plan.resources.filter((x) => x.strategy === "terraform").map((x) => x.name);

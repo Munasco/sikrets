@@ -1,6 +1,7 @@
 import { providerEnv } from "../core/credentials.ts";
 import { registerUndo, type Context } from "../core/plan.ts";
 import { projectContext } from "../core/config.ts";
+import { record } from "../core/activity.ts";
 import { journal, state } from "../core/state.ts";
 import { sync } from "../core/sync.ts";
 import { terraform } from "../core/terraform.ts";
@@ -24,6 +25,7 @@ export async function run(_args: string[], opts: Record<string, unknown>) {
   await terraform(root, ["apply", "-input=false", ...(opts.yes ? ["-auto-approve"] : [])], env);
 
   const result = await sync(root, ctx.project, ctx.vault, env);
+  await record(root, { kind: "apply", detail: `${resources.length} Terraform resource(s)${pending.length ? `, new: ${pending.join(", ")}` : ""}` });
   if (pending.length) {
     await journal.record(root, {
       id: `op_${Date.now().toString(36)}`,

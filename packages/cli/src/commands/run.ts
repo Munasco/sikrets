@@ -1,6 +1,7 @@
 import { providerEnv, toProcessEnv, type Env } from "../core/credentials.ts";
 import { projectContext } from "../core/config.ts";
 import { state } from "../core/state.ts";
+import { record } from "../core/activity.ts";
 import { openVault } from "../core/vault.ts";
 
 // Runs a command with this project's values injected as environment variables. Nothing is written
@@ -23,6 +24,11 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   // Provider admin credentials only on request, e.g. `sikrets run --providers -- terraform plan`.
   if (opts.providers) Object.assign(env, await providerEnv(resources.map((r) => r.provider)));
 
+  const started = Date.now();
   const proc = Bun.spawn(args, { env: { ...Bun.env, ...toProcessEnv(env) }, stdio: ["inherit", "inherit", "inherit"] });
-  process.exitCode = await proc.exited;
+  const code = await proc.exited;
+  const ms = Date.now() - started;
+  // Only the program name is logged, not its arguments, which could contain anything.
+  await record(root, { kind: "run", detail: `${args[0]!.split("/").at(-1)} (exit ${code}, ${(ms / 1000).toFixed(1)}s)`, keys: Object.keys(env), exitCode: code, ms });
+  process.exitCode = code;
 }

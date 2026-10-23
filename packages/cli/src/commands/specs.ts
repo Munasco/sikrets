@@ -126,6 +126,23 @@ export const commands: CommandSpec[] = [
     load: () => import("./cost.ts"),
   },
   {
+    name: "status",
+    description: "Every resource in this project: state, when its keys were last used, and cost",
+    arguments: [],
+    options: [jsonOption],
+    examples: ["sikrets status", "sikrets status --json"],
+    load: () => import("./status.ts"),
+  },
+  {
+    name: "activity",
+    aliases: ["log"],
+    description: "What happened in this project and who did it (key names only, never values)",
+    arguments: [],
+    options: [{ name: "limit", type: "string", argument: "N", description: "How many entries (default 20)" }, jsonOption],
+    examples: ["sikrets activity", "sikrets activity --limit 100 --json"],
+    load: () => import("./activity.ts"),
+  },
+  {
     name: "ls",
     aliases: ["list"],
     description: "List connected providers",

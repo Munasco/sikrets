@@ -291,3 +291,17 @@ describe("sikrets.json", () => {
     process.env.SIKRETS_VAULT = "keychain";
   });
 });
+
+describe("activity", () => {
+  test("records names and outcomes, never values; last-used comes from runs", async () => {
+    const { record, readActivity, lastUsed } = await import("./core/activity.ts");
+    await record(root, { kind: "env.pull", detail: "2 value(s) to .env", keys: ["CACHE_REDIS_REST_TOKEN"], real: false });
+    await record(root, { kind: "run", detail: "bun (exit 0, 0.4s)", keys: ["CACHE_REDIS_REST_TOKEN"], exitCode: 0, ms: 400 });
+    await Bun.write(path.join(root, ".sikrets/activity.jsonl"), (await Bun.file(path.join(root, ".sikrets/activity.jsonl")).text()) + '{"torn');
+    const entries = await readActivity(root);
+    expect(entries.map((e) => e.kind)).toEqual(["env.pull", "run"]); // torn last line skipped
+    expect(lastUsed(entries).get("CACHE_REDIS_REST_TOKEN")).toBe(entries[1]!.at);
+    expect(await Bun.file(path.join(root, ".sikrets/activity.jsonl")).text()).not.toContain("tok_live");
+    expect((await Bun.file(path.join(root, ".gitignore")).text()).split("\n")).toContain(".sikrets/activity.jsonl");
+  });
+});

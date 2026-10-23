@@ -2,6 +2,7 @@ import { upsertEnv } from "../core/dotenv.ts";
 import { projectContext } from "../core/config.ts";
 import { state } from "../core/state.ts";
 import { envValues, outputKeys } from "../core/standin.ts";
+import { record } from "../core/activity.ts";
 import { openVault } from "../core/vault.ts";
 
 // `sikrets env` lists which values exist (names only, never values).
@@ -19,6 +20,7 @@ export async function run(args: string[], opts: Record<string, unknown>) {
     const real = Boolean(opts.real);
     const values = await envValues(vault, applied, real);
     await upsertEnv(root, file, values);
+    await record(root, { kind: "env.pull", detail: `${values.size} value(s) to ${file}`, keys: [...values.keys()], real });
     const secrets = applied.flatMap(outputKeys).filter((k) => k.sensitive && values.has(k.key)).length;
     const what = real ? `${secrets} real secret(s)` : `${secrets} stand-in(s)`;
     return console.log(opts.json ? JSON.stringify({ file, keys: values.size, real }) : `Wrote ${values.size} value(s) to ${file}: ${what} (mode 600, git-ignored).`);

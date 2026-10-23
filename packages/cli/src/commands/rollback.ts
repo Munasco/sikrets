@@ -1,4 +1,5 @@
 import { projectContext } from "../core/config.ts";
+import { record } from "../core/activity.ts";
 import { undoSteps } from "../core/plan.ts";
 import { journal, state, type Operation } from "../core/state.ts";
 import { confirm, log } from "../ui.ts";
@@ -27,6 +28,7 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   await undoSteps(op, ctx);
   op.rolledBackAt = new Date().toISOString();
   await journal.save(root, ops);
+  await record(root, { kind: "rollback", detail: `${op.id} (${op.command})` });
   if (opts.json) console.log(JSON.stringify({ operation: op.id, rolledBack: true }));
   else log(opts, `Rolled back ${op.id}.`);
 }
