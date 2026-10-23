@@ -10,7 +10,7 @@
     "dev": "bun run src/index.ts",
     "build": "bun build --compile --minify --bytecode --external electron --external \"chromium-bidi/*\" src/index.ts --outfile dist/sikrets",
     "typecheck": "tsc --noEmit",
-    "test": "bun test"
+    "test": "bun test --timeout 5000"
   },
   "dependencies": {
     "@aws-sdk/client-ssm": "3.1156.0",

@@ -1,0 +1,2391 @@
+[
+  {
+    "id": "anthropic",
+    "name": "Anthropic",
+    "category": "ai",
+    "services": [
+      "workspace"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "api-key",
+    "docs": "https://platform.claude.com/docs/en/manage-claude/admin-api",
+    "terraform": null,
+    "freeTier": false
+  },
+  {
+    "id": "assemblyai",
+    "name": "AssemblyAI",
+    "category": "ai",
+    "services": [
+      "api-key"
+    ],
+    "managementApi": false,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "api-key",
+    "docs": "https://www.assemblyai.com/docs/account-management",
+    "terraform": null,
+    "freeTier": false
+  },
+  {
+    "id": "baseten",
+    "name": "Baseten",
+    "category": "ai",
+    "services": [
+      "model-deployment",
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://docs.baseten.co/reference/management-api/api-keys/creates-an-api-key",
+    "terraform": "basetenlabs/baseten",
+    "freeTier": false
+  },
+  {
+    "id": "browserbase",
+    "name": "Browserbase",
+    "category": "ai",
+    "services": [
+      "session",
+      "context",
+      "webhook"
+    ],
+    "managementApi": false,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "api-key",
+    "docs": "https://docs.browserbase.com/reference/api/list-projects",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "cerebras",
+    "name": "Cerebras",
+    "category": "ai",
+    "services": [
+      "api-key"
+    ],
+    "managementApi": false,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://inference-docs.cerebras.ai/console/api-keys",
+    "terraform": null,
+    "freeTier": false
+  },
+  {
+    "id": "cohere",
+    "name": "Cohere",
+    "category": "ai",
+    "services": [
+      "api-key"
+    ],
+    "managementApi": false,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://docs.cohere.com/docs/rate-limits",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "deepgram",
+    "name": "Deepgram",
+    "category": "ai",
+    "services": [
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "api-key",
+    "docs": "https://developers.deepgram.com/reference/manage/keys/create",
+    "terraform": null,
+    "freeTier": false
+  },
+  {
+    "id": "deepinfra",
+    "name": "DeepInfra",
+    "category": "ai",
+    "services": [
+      "scoped-jwt"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://docs.deepinfra.com/account/authentication",
+    "terraform": null,
+    "freeTier": false
+  },
+  {
+    "id": "e2b",
+    "name": "E2B",
+    "category": "ai",
+    "services": [
+      "sandbox",
+      "template"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "api-key",
+    "docs": "https://docs.e2b.dev/api-key",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "elevenlabs",
+    "name": "ElevenLabs",
+    "category": "ai",
+    "services": [
+      "service-account",
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "api-key",
+    "docs": "https://elevenlabs.io/docs/api-reference/service-accounts/api-keys/create",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "fal",
+    "name": "fal",
+    "category": "ai",
+    "services": [
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "api-key",
+    "docs": "https://fal.ai/docs/platform-apis/v1/keys/create",
+    "terraform": "fal-ai/fal",
+    "freeTier": false
+  },
+  {
+    "id": "firecrawl",
+    "name": "Firecrawl",
+    "category": "ai",
+    "services": [
+      "api-key"
+    ],
+    "managementApi": false,
+    "apiKeyCreation": "oauth",
+    "auth": "bearer",
+    "docs": "https://www.firecrawl.dev/auth.md",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "fireworks",
+    "name": "Fireworks AI",
+    "category": "ai",
+    "services": [
+      "deployment",
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://docs.fireworks.ai/api-reference/create-api-key",
+    "terraform": null,
+    "freeTier": false
+  },
+  {
+    "id": "gemini",
+    "name": "Google Gemini API",
+    "category": "ai",
+    "services": [
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "oauth",
+    "docs": "https://docs.cloud.google.com/api-keys/docs/create-manage-api-keys",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "groq",
+    "name": "Groq",
+    "category": "ai",
+    "services": [
+      "api-key"
+    ],
+    "managementApi": false,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://console.groq.com/docs/quickstart",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "huggingface",
+    "name": "Hugging Face",
+    "category": "ai",
+    "services": [
+      "model-repo",
+      "space",
+      "inference-endpoint"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "oauth",
+    "auth": "bearer",
+    "docs": "https://huggingface.co/docs/hub/oauth",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "mistral",
+    "name": "Mistral AI",
+    "category": "ai",
+    "services": [
+      "workspace",
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://docs.mistral.ai/api/endpoint/beta/admin/api-keys",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "modal",
+    "name": "Modal",
+    "category": "ai",
+    "services": [
+      "app",
+      "service-user",
+      "proxy-token"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "unknown",
+    "docs": "https://modal.com/docs/guide/service-users",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "openai",
+    "name": "OpenAI",
+    "category": "ai",
+    "services": [
+      "project",
+      "service-account",
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://platform.openai.com/docs/api-reference/project-service-accounts/create",
+    "terraform": "jianyuan/openai",
+    "freeTier": false
+  },
+  {
+    "id": "openrouter",
+    "name": "OpenRouter",
+    "category": "ai",
+    "services": [
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://openrouter.ai/docs/guides/overview/auth/management-api-keys",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "perplexity",
+    "name": "Perplexity",
+    "category": "ai",
+    "services": [
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://docs.perplexity.ai/api-reference/generate-auth-token-post",
+    "terraform": null,
+    "freeTier": false
+  },
+  {
+    "id": "replicate",
+    "name": "Replicate",
+    "category": "ai",
+    "services": [
+      "model",
+      "deployment"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://replicate.com/docs/reference/http",
+    "terraform": null,
+    "freeTier": false
+  },
+  {
+    "id": "together",
+    "name": "Together AI",
+    "category": "ai",
+    "services": [
+      "dedicated-endpoint",
+      "fine-tuning"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://docs.together.ai/reference/createendpoint",
+    "terraform": null,
+    "freeTier": false
+  },
+  {
+    "id": "vapi",
+    "name": "Vapi",
+    "category": "ai",
+    "services": [
+      "assistant",
+      "phone-number",
+      "credential"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://docs.vapi.ai/security-and-privacy/api-keys",
+    "terraform": null,
+    "freeTier": false
+  },
+  {
+    "id": "voyage",
+    "name": "Voyage AI",
+    "category": "ai",
+    "services": [
+      "api-key"
+    ],
+    "managementApi": false,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://docs.voyageai.com/docs/api-key-and-installation",
+    "terraform": null,
+    "freeTier": false
+  },
+  {
+    "id": "xai",
+    "name": "xAI",
+    "category": "ai",
+    "services": [
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://docs.x.ai/developers/management-api-guide",
+    "terraform": null,
+    "freeTier": false
+  },
+  {
+    "id": "amplitude",
+    "name": "Amplitude",
+    "category": "analytics",
+    "services": [
+      "feature-flag",
+      "destination"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://amplitude.com/docs/apis/developer",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "mixpanel",
+    "name": "Mixpanel",
+    "category": "analytics",
+    "services": [
+      "service-account"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "basic",
+    "docs": "https://docs.mixpanel.com/reference/create-service-account",
+    "terraform": "mixpanel/mixpanel",
+    "freeTier": true
+  },
+  {
+    "id": "posthog",
+    "name": "PostHog",
+    "category": "analytics",
+    "services": [
+      "project",
+      "feature-flag"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "unknown",
+    "auth": "bearer",
+    "docs": "https://posthog.com/docs/api",
+    "terraform": "posthog/posthog",
+    "freeTier": true
+  },
+  {
+    "id": "segment",
+    "name": "Segment",
+    "category": "analytics",
+    "services": [
+      "source",
+      "destination",
+      "warehouse"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://www.twilio.com/docs/segment/api/public-api",
+    "terraform": "segmentio/segment",
+    "freeTier": true
+  },
+  {
+    "id": "auth0",
+    "name": "Auth0",
+    "category": "auth",
+    "services": [
+      "tenant",
+      "application",
+      "api",
+      "client-secret"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://auth0.com/docs/api/management/v2/clients/post-clients",
+    "terraform": "auth0/auth0",
+    "freeTier": true
+  },
+  {
+    "id": "clerk",
+    "name": "Clerk",
+    "category": "auth",
+    "services": [
+      "application",
+      "instance",
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "unknown",
+    "auth": "bearer",
+    "docs": "https://clerk.com/docs/reference/api/overview",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "descope",
+    "name": "Descope",
+    "category": "auth",
+    "services": [
+      "project",
+      "access-key",
+      "tenant"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://docs.descope.com/api/management/access-keys",
+    "terraform": "descope/descope",
+    "freeTier": true
+  },
+  {
+    "id": "frontegg",
+    "name": "Frontegg",
+    "category": "auth",
+    "services": [
+      "tenant",
+      "user",
+      "tenant-api-token"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://developers.frontegg.com/ciam/api/vendor-service",
+    "terraform": "frontegg/frontegg",
+    "freeTier": true
+  },
+  {
+    "id": "kinde",
+    "name": "Kinde",
+    "category": "auth",
+    "services": [
+      "application",
+      "organization",
+      "m2m-app"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "unknown",
+    "auth": "bearer",
+    "docs": "https://docs.kinde.com/developer-tools/kinde-api/connect-to-kinde-api/",
+    "terraform": "kinde-oss/kinde",
+    "freeTier": true
+  },
+  {
+    "id": "logto",
+    "name": "Logto",
+    "category": "auth",
+    "services": [
+      "tenant",
+      "application",
+      "m2m-app",
+      "application-secret"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://docs.logto.io/logto-cloud/automate-tenant-creation",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "ory",
+    "name": "Ory Network",
+    "category": "auth",
+    "services": [
+      "project",
+      "project-api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://www.ory.com/docs/guides/manage-project-via-api",
+    "terraform": "ory/ory",
+    "freeTier": true
+  },
+  {
+    "id": "propelauth",
+    "name": "PropelAuth",
+    "category": "auth",
+    "services": [
+      "user",
+      "organization",
+      "end-user-api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://docs.propelauth.com/reference/api/getting-started",
+    "terraform": "propelauth/propelauth",
+    "freeTier": true
+  },
+  {
+    "id": "stytch",
+    "name": "Stytch",
+    "category": "auth",
+    "services": [
+      "project",
+      "environment",
+      "secret"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "basic",
+    "docs": "https://stytch.com/docs/workspace-management/pwa/create-secret",
+    "terraform": "stytchauth/stytch",
+    "freeTier": true
+  },
+  {
+    "id": "supertokens",
+    "name": "SuperTokens",
+    "category": "auth",
+    "services": [
+      "core",
+      "app",
+      "tenant"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "api-key",
+    "docs": "https://supertokens.com/docs/platform-configuration/supertokens-core/api-keys",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "workos",
+    "name": "WorkOS",
+    "category": "auth",
+    "services": [
+      "organization",
+      "sso",
+      "directory-sync",
+      "authkit",
+      "organization-api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://workos.com/docs/reference/api-authentication",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "momento",
+    "name": "Momento",
+    "category": "cache",
+    "services": [
+      "cache",
+      "topics",
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "api-key",
+    "docs": "https://docs.momentohq.com/cache/develop/authentication/api-keys",
+    "terraform": "momentohq/momento",
+    "freeTier": true
+  },
+  {
+    "id": "redis-cloud",
+    "name": "Redis Cloud",
+    "category": "cache",
+    "services": [
+      "subscription",
+      "database"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "api-key",
+    "docs": "https://redis.io/docs/latest/operate/rc/api/get-started/",
+    "terraform": "RedisLabs/rediscloud",
+    "freeTier": true
+  },
+  {
+    "id": "upstash",
+    "name": "Upstash",
+    "category": "cache",
+    "services": [
+      "redis",
+      "vector",
+      "qstash",
+      "search"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "basic",
+    "docs": "https://upstash.com/docs/devops/developer-api/introduction",
+    "terraform": "upstash/upstash",
+    "freeTier": true
+  },
+  {
+    "id": "contentful",
+    "name": "Contentful",
+    "category": "cms",
+    "services": [
+      "space",
+      "environment",
+      "api-key",
+      "cma-token"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://www.contentful.com/developers/docs/references/content-management-api/access-tokens/",
+    "terraform": "labd/contentful",
+    "freeTier": true
+  },
+  {
+    "id": "datocms",
+    "name": "DatoCMS",
+    "category": "cms",
+    "services": [
+      "environment",
+      "model",
+      "api-token"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://www.datocms.com/docs/content-management-api/resources/access-token/create",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "hygraph",
+    "name": "Hygraph",
+    "category": "cms",
+    "services": [
+      "environment",
+      "schema",
+      "permanent-auth-token"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://hygraph.com/docs/getting-started/access-and-permissions/management-api-permissions",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "prismic",
+    "name": "Prismic",
+    "category": "cms",
+    "services": [
+      "custom-type",
+      "slice"
+    ],
+    "managementApi": false,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://prismic.io/docs/custom-types-api",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "sanity",
+    "name": "Sanity",
+    "category": "cms",
+    "services": [
+      "project",
+      "dataset",
+      "api-token"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://www.sanity.io/docs/http-reference/projects-api",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "storyblok",
+    "name": "Storyblok",
+    "category": "cms",
+    "services": [
+      "space",
+      "access-token"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "api-key",
+    "docs": "https://www.storyblok.com/docs/api/management/access-tokens/create-an-access-token",
+    "terraform": "labd/storyblok",
+    "freeTier": true
+  },
+  {
+    "id": "aiven",
+    "name": "Aiven",
+    "category": "database",
+    "services": [
+      "postgres",
+      "mysql",
+      "kafka",
+      "valkey",
+      "opensearch",
+      "service",
+      "token"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://api.aiven.io/doc/",
+    "terraform": "aiven/aiven",
+    "freeTier": true
+  },
+  {
+    "id": "appwrite",
+    "name": "Appwrite",
+    "category": "database",
+    "services": [
+      "project",
+      "database",
+      "auth",
+      "storage",
+      "function"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "api-key",
+    "docs": "https://appwrite.io/docs/advanced/platform/api-keys",
+    "terraform": "appwrite/appwrite",
+    "freeTier": true
+  },
+  {
+    "id": "astra",
+    "name": "DataStax Astra DB",
+    "category": "database",
+    "services": [
+      "cassandra",
+      "vector",
+      "database",
+      "token"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://docs.datastax.com/en/astra-db-classic/api-reference/devops-tokens.html",
+    "terraform": "datastax/astra",
+    "freeTier": true
+  },
+  {
+    "id": "clickhouse",
+    "name": "ClickHouse Cloud",
+    "category": "database",
+    "services": [
+      "service",
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "basic",
+    "docs": "https://clickhouse.com/docs/products/cloud/api-reference/api-keys/create-key",
+    "terraform": "ClickHouse/clickhouse",
+    "freeTier": false
+  },
+  {
+    "id": "cockroachdb",
+    "name": "CockroachDB Cloud",
+    "category": "database",
+    "services": [
+      "cluster",
+      "sql-user",
+      "service-account",
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api",
+    "terraform": "cockroachdb/cockroach",
+    "freeTier": true
+  },
+  {
+    "id": "convex",
+    "name": "Convex",
+    "category": "database",
+    "services": [
+      "project",
+      "deployment",
+      "deploy-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://docs.convex.dev/platform-apis",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "instantdb",
+    "name": "InstantDB",
+    "category": "database",
+    "services": [
+      "app",
+      "admin-token"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "oauth",
+    "auth": "bearer",
+    "docs": "https://www.instantdb.com/docs/platform-api",
+    "terraform": null,
+    "freeTier": null
+  },
+  {
+    "id": "mongodb-atlas",
+    "name": "MongoDB Atlas",
+    "category": "database",
+    "services": [
+      "project",
+      "cluster",
+      "database-user",
+      "service-account",
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/operation/operation-createorgserviceaccount",
+    "terraform": "mongodb/mongodbatlas",
+    "freeTier": true
+  },
+  {
+    "id": "motherduck",
+    "name": "MotherDuck",
+    "category": "database",
+    "services": [
+      "duckdb",
+      "service-account",
+      "access-token"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://motherduck.com/docs/sql-reference/rest-api/motherduck-rest-api/",
+    "terraform": "motherduckdb/motherduck",
+    "freeTier": true
+  },
+  {
+    "id": "neon",
+    "name": "Neon",
+    "category": "database",
+    "services": [
+      "project",
+      "branch",
+      "database",
+      "role",
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://neon.com/docs/reference/api/api-keys/create-api-key",
+    "terraform": "kislerdm/neon",
+    "freeTier": true
+  },
+  {
+    "id": "nile",
+    "name": "Nile",
+    "category": "database",
+    "services": [
+      "postgres",
+      "database",
+      "credentials"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://www.thenile.dev/docs/api-reference/databases/create-a-database-credential.md",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "planetscale",
+    "name": "PlanetScale",
+    "category": "database",
+    "services": [
+      "mysql",
+      "postgres",
+      "database",
+      "branch",
+      "password",
+      "service-token"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "api-key",
+    "docs": "https://planetscale.com/docs/api/reference/create_service_token",
+    "terraform": "planetscale/planetscale",
+    "freeTier": false
+  },
+  {
+    "id": "prisma-postgres",
+    "name": "Prisma Postgres",
+    "category": "database",
+    "services": [
+      "postgres",
+      "project",
+      "database",
+      "connection-string"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "oauth",
+    "auth": "bearer",
+    "docs": "https://www.prisma.io/docs/postgres/introduction/management-api",
+    "terraform": "prisma/prisma-postgres",
+    "freeTier": true
+  },
+  {
+    "id": "supabase",
+    "name": "Supabase",
+    "category": "database",
+    "services": [
+      "project",
+      "database",
+      "auth",
+      "storage",
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://supabase.com/docs/reference/api/introduction",
+    "terraform": "supabase/supabase",
+    "freeTier": true
+  },
+  {
+    "id": "tidb",
+    "name": "TiDB Cloud",
+    "category": "database",
+    "services": [
+      "project",
+      "cluster"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "unknown",
+    "docs": "https://docs.pingcap.com/tidbcloud/api-overview",
+    "terraform": "tidbcloud/tidbcloud",
+    "freeTier": true
+  },
+  {
+    "id": "timescale",
+    "name": "Timescale (Tiger Data)",
+    "category": "database",
+    "services": [
+      "postgres",
+      "service"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "basic",
+    "docs": "https://www.tigerdata.com/docs/get-started/quickstart/rest-api",
+    "terraform": "timescale/timescale",
+    "freeTier": true
+  },
+  {
+    "id": "turso",
+    "name": "Turso",
+    "category": "database",
+    "services": [
+      "libsql",
+      "database",
+      "group",
+      "auth-token",
+      "api-token"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://docs.turso.tech/api-reference/authentication",
+    "terraform": "celest-dev/turso",
+    "freeTier": true
+  },
+  {
+    "id": "xata",
+    "name": "Xata",
+    "category": "database",
+    "services": [
+      "postgres",
+      "project",
+      "branch"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://xata.io/docs/api",
+    "terraform": null,
+    "freeTier": null
+  },
+  {
+    "id": "brevo",
+    "name": "Brevo",
+    "category": "email",
+    "services": [
+      "email",
+      "sms",
+      "contacts",
+      "sender",
+      "domain",
+      "sub-account-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "api-key",
+    "docs": "https://developers.brevo.com/reference/create-an-api-key-for-a-sub-account.md",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "loops",
+    "name": "Loops",
+    "category": "email",
+    "services": [
+      "email",
+      "contacts"
+    ],
+    "managementApi": false,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://loops.so/docs/api-reference/api-key",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "mailersend",
+    "name": "MailerSend",
+    "category": "email",
+    "services": [
+      "email",
+      "domain",
+      "api-token"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://developers.mailersend.com/api/v1/tokens.html",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "mailgun",
+    "name": "Mailgun",
+    "category": "email",
+    "services": [
+      "email",
+      "domain",
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "basic",
+    "docs": "https://documentation.mailgun.com/docs/mailgun/api-reference/send/mailgun/keys/post-v1-keys",
+    "terraform": "wgebis/mailgun",
+    "freeTier": true
+  },
+  {
+    "id": "mailjet",
+    "name": "Mailjet",
+    "category": "email",
+    "services": [
+      "email",
+      "sender",
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "basic",
+    "docs": "https://dev.mailjet.com/email/reference/settings/api-key-configuration/",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "postmark",
+    "name": "Postmark",
+    "category": "email",
+    "services": [
+      "server",
+      "server-token",
+      "domain",
+      "sender-signature"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "api-key",
+    "docs": "https://postmarkapp.com/developer/api/servers-api",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "resend",
+    "name": "Resend",
+    "category": "email",
+    "services": [
+      "email",
+      "domain",
+      "api-key",
+      "audience"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://resend.com/docs/api-reference/api-keys/create-api-key",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "sendgrid",
+    "name": "SendGrid",
+    "category": "email",
+    "services": [
+      "email",
+      "api-key",
+      "subuser",
+      "domain"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://www.twilio.com/docs/sendgrid/api-reference/api-keys/create-api-keys",
+    "terraform": null,
+    "freeTier": false
+  },
+  {
+    "id": "sparkpost",
+    "name": "SparkPost",
+    "category": "email",
+    "services": [
+      "email",
+      "subaccount",
+      "subaccount-api-key",
+      "sending-domain"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "api-key",
+    "docs": "https://developers.sparkpost.com/api/subaccounts/",
+    "terraform": null,
+    "freeTier": null
+  },
+  {
+    "id": "configcat",
+    "name": "ConfigCat",
+    "category": "feature-flags",
+    "services": [
+      "product",
+      "config",
+      "environment",
+      "feature-flag",
+      "sdk-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "basic",
+    "docs": "https://configcat.com/docs/api/reference/configcat-public-management-api/",
+    "terraform": "configcat/configcat",
+    "freeTier": true
+  },
+  {
+    "id": "flagsmith",
+    "name": "Flagsmith",
+    "category": "feature-flags",
+    "services": [
+      "project",
+      "environment",
+      "environment-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "unknown",
+    "auth": "api-key",
+    "docs": "https://docs.flagsmith.com/integrating-with-flagsmith/flagsmith-api-overview/admin-api/authentication",
+    "terraform": "Flagsmith/flagsmith",
+    "freeTier": true
+  },
+  {
+    "id": "growthbook",
+    "name": "GrowthBook",
+    "category": "feature-flags",
+    "services": [
+      "feature",
+      "sdk-connection"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://docs.growthbook.io/app/api",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "launchdarkly",
+    "name": "LaunchDarkly",
+    "category": "feature-flags",
+    "services": [
+      "project",
+      "environment",
+      "flag",
+      "access-token"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "api-key",
+    "docs": "https://launchdarkly.com/docs/guides/api/rest-api",
+    "terraform": "launchdarkly/launchdarkly",
+    "freeTier": true
+  },
+  {
+    "id": "statsig",
+    "name": "Statsig",
+    "category": "feature-flags",
+    "services": [
+      "gate",
+      "experiment",
+      "server-secret",
+      "client-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "api-key",
+    "docs": "https://docs.statsig.com/api-reference/keys/create-key",
+    "terraform": "statsig-io/statsig",
+    "freeTier": true
+  },
+  {
+    "id": "unleash",
+    "name": "Unleash",
+    "category": "feature-flags",
+    "services": [
+      "project",
+      "feature",
+      "api-token"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "api-key",
+    "docs": "https://docs.getunleash.io/reference/api/unleash/create-api-token",
+    "terraform": "Unleash/unleash",
+    "freeTier": true
+  },
+  {
+    "id": "digitalocean",
+    "name": "DigitalOcean",
+    "category": "hosting",
+    "services": [
+      "app",
+      "droplet",
+      "database",
+      "spaces",
+      "spaces-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://docs.digitalocean.com/reference/api/reference/spaces-keys/",
+    "terraform": "digitalocean/digitalocean",
+    "freeTier": false
+  },
+  {
+    "id": "fly",
+    "name": "Fly.io",
+    "category": "hosting",
+    "services": [
+      "app",
+      "machine",
+      "volume",
+      "postgres",
+      "secret"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "unknown",
+    "auth": "bearer",
+    "docs": "https://fly.io/docs/machines/api/working-with-machines-api/",
+    "terraform": "fly-apps/fly",
+    "freeTier": false
+  },
+  {
+    "id": "heroku",
+    "name": "Heroku",
+    "category": "hosting",
+    "services": [
+      "app",
+      "addon",
+      "config-var",
+      "oauth-authorization"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://devcenter.heroku.com/articles/platform-api-quickstart",
+    "terraform": "heroku/heroku",
+    "freeTier": false
+  },
+  {
+    "id": "koyeb",
+    "name": "Koyeb",
+    "category": "hosting",
+    "services": [
+      "app",
+      "service",
+      "database",
+      "secret",
+      "api-token"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://www.koyeb.com/docs/reference/api",
+    "terraform": "koyeb/koyeb",
+    "freeTier": true
+  },
+  {
+    "id": "netlify",
+    "name": "Netlify",
+    "category": "hosting",
+    "services": [
+      "site",
+      "deploy",
+      "env-var"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "oauth",
+    "auth": "bearer",
+    "docs": "https://docs.netlify.com/api-and-cli-guides/api-guides/get-started-with-api",
+    "terraform": "netlify/netlify",
+    "freeTier": true
+  },
+  {
+    "id": "northflank",
+    "name": "Northflank",
+    "category": "hosting",
+    "services": [
+      "project",
+      "service",
+      "addon",
+      "secret"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://northflank.com/docs/v1/api/use-the-api",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "railway",
+    "name": "Railway",
+    "category": "hosting",
+    "services": [
+      "project",
+      "service",
+      "environment",
+      "variable"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "oauth",
+    "auth": "bearer",
+    "docs": "https://docs.railway.com/guides/public-api",
+    "terraform": "terraform-community-providers/railway",
+    "freeTier": true
+  },
+  {
+    "id": "render",
+    "name": "Render",
+    "category": "hosting",
+    "services": [
+      "service",
+      "postgres",
+      "key-value",
+      "env-var"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://render.com/docs/api",
+    "terraform": "render-oss/render",
+    "freeTier": true
+  },
+  {
+    "id": "vercel",
+    "name": "Vercel",
+    "category": "hosting",
+    "services": [
+      "project",
+      "deployment",
+      "env-var",
+      "blob",
+      "edge-config",
+      "access-token"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://vercel.com/docs/rest-api/authentication/create-an-auth-token",
+    "terraform": "vercel/vercel",
+    "freeTier": true
+  },
+  {
+    "id": "axiom",
+    "name": "Axiom",
+    "category": "observability",
+    "services": [
+      "dataset",
+      "api-token"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://axiom.co/docs/restapi/endpoints/createToken",
+    "terraform": "axiomhq/axiom",
+    "freeTier": true
+  },
+  {
+    "id": "betterstack",
+    "name": "Better Stack",
+    "category": "observability",
+    "services": [
+      "uptime-monitor",
+      "logs-source",
+      "heartbeat"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://betterstack.com/docs/logs/api/getting-started/",
+    "terraform": "BetterStackHQ/better-uptime",
+    "freeTier": true
+  },
+  {
+    "id": "checkly",
+    "name": "Checkly",
+    "category": "observability",
+    "services": [
+      "check"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://checklyhq.com/docs/api/",
+    "terraform": "checkly/checkly",
+    "freeTier": true
+  },
+  {
+    "id": "datadog",
+    "name": "Datadog",
+    "category": "observability",
+    "services": [
+      "monitor",
+      "api-key",
+      "application-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "api-key",
+    "docs": "https://docs.datadoghq.com/api/latest/key-management/",
+    "terraform": "DataDog/datadog",
+    "freeTier": true
+  },
+  {
+    "id": "grafana-cloud",
+    "name": "Grafana Cloud",
+    "category": "observability",
+    "services": [
+      "stack",
+      "access-policy",
+      "access-policy-token"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://grafana.com/docs/grafana-cloud/developer-resources/api-reference/cloud-api/",
+    "terraform": "grafana/grafana",
+    "freeTier": true
+  },
+  {
+    "id": "helicone",
+    "name": "Helicone",
+    "category": "observability",
+    "services": [
+      "api-key"
+    ],
+    "managementApi": false,
+    "apiKeyCreation": "unknown",
+    "auth": "bearer",
+    "docs": "https://docs.helicone.ai/helicone-headers/helicone-auth",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "honeycomb",
+    "name": "Honeycomb",
+    "category": "observability",
+    "services": [
+      "environment",
+      "dataset",
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://docs.honeycomb.io/api/api-keys/",
+    "terraform": "honeycombio/honeycombio",
+    "freeTier": true
+  },
+  {
+    "id": "langfuse",
+    "name": "Langfuse",
+    "category": "observability",
+    "services": [
+      "project",
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "basic",
+    "docs": "https://langfuse.com/docs/administration/scim-and-org-api",
+    "terraform": "langfuse/langfuse",
+    "freeTier": true
+  },
+  {
+    "id": "langsmith",
+    "name": "LangSmith",
+    "category": "observability",
+    "services": [
+      "workspace",
+      "service-account",
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "api-key",
+    "docs": "https://docs.langchain.com/langsmith/smith-api/orgs/create-org-service-key",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "new-relic",
+    "name": "New Relic",
+    "category": "observability",
+    "services": [
+      "ingest-key",
+      "user-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "api-key",
+    "docs": "https://docs.newrelic.com/docs/apis/nerdgraph/examples/use-nerdgraph-manage-license-keys-user-keys/",
+    "terraform": "newrelic/newrelic",
+    "freeTier": true
+  },
+  {
+    "id": "rollbar",
+    "name": "Rollbar",
+    "category": "observability",
+    "services": [
+      "project",
+      "access-token"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "api-key",
+    "docs": "https://docs.rollbar.com/docs/api",
+    "terraform": "rollbar/rollbar",
+    "freeTier": true
+  },
+  {
+    "id": "sentry",
+    "name": "Sentry",
+    "category": "observability",
+    "services": [
+      "project",
+      "client-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://docs.sentry.io/api/projects/create-a-new-client-key/",
+    "terraform": "jianyuan/sentry",
+    "freeTier": true
+  },
+  {
+    "id": "dub",
+    "name": "Dub",
+    "category": "other",
+    "services": [
+      "link",
+      "domain"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "oauth",
+    "auth": "bearer",
+    "docs": "https://dub.co/docs/integrations/quickstart",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "knock",
+    "name": "Knock",
+    "category": "other",
+    "services": [
+      "workflow",
+      "template",
+      "channel"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://docs.knock.app/mapi-reference",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "mapbox",
+    "name": "Mapbox",
+    "category": "other",
+    "services": [
+      "access-token",
+      "style",
+      "tileset"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "api-key",
+    "docs": "https://docs.mapbox.com/api/accounts/tokens/",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "novu",
+    "name": "Novu",
+    "category": "other",
+    "services": [
+      "workflow",
+      "integration",
+      "layout"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "api-key",
+    "docs": "https://docs.novu.co/api-reference/integrations/create-an-integration",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "onesignal",
+    "name": "OneSignal",
+    "category": "other",
+    "services": [
+      "app",
+      "app-api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "api-key",
+    "docs": "https://documentation.onesignal.com/reference/create-api-key",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "stream",
+    "name": "Stream",
+    "category": "other",
+    "services": [
+      "chat",
+      "feeds",
+      "video"
+    ],
+    "managementApi": false,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "api-key",
+    "docs": "https://getstream.io/docs/platform/authentication/",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "lago",
+    "name": "Lago",
+    "category": "payments",
+    "services": [
+      "customer",
+      "plan",
+      "billable-metric",
+      "subscription"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://doc.getlago.com/guide/security/api-keys",
+    "terraform": null,
+    "freeTier": false
+  },
+  {
+    "id": "lemon-squeezy",
+    "name": "Lemon Squeezy",
+    "category": "payments",
+    "services": [
+      "checkout",
+      "webhook",
+      "discount"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://docs.lemonsqueezy.com/api",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "paddle",
+    "name": "Paddle",
+    "category": "payments",
+    "services": [
+      "product",
+      "price",
+      "discount",
+      "notification-setting"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://developer.paddle.com/api-reference/overview",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "paypal",
+    "name": "PayPal",
+    "category": "payments",
+    "services": [
+      "order",
+      "product",
+      "plan",
+      "webhook"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "oauth",
+    "auth": "oauth",
+    "docs": "https://developer.paypal.com/api/rest",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "polar",
+    "name": "Polar",
+    "category": "payments",
+    "services": [
+      "product",
+      "checkout",
+      "discount",
+      "webhook"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "oauth",
+    "auth": "bearer",
+    "docs": "https://polar.sh/docs/integrate/oat",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "revenuecat",
+    "name": "RevenueCat",
+    "category": "payments",
+    "services": [
+      "project",
+      "app",
+      "product",
+      "entitlement",
+      "offering"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://www.revenuecat.com/docs/api-v2.md",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "stripe",
+    "name": "Stripe",
+    "category": "payments",
+    "services": [
+      "product",
+      "price",
+      "webhook-endpoint",
+      "customer",
+      "connect-account"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "oauth",
+    "auth": "bearer",
+    "docs": "https://docs.stripe.com/api",
+    "terraform": "stripe/stripe",
+    "freeTier": true
+  },
+  {
+    "id": "ably",
+    "name": "Ably",
+    "category": "queue",
+    "services": [
+      "app",
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://ably.com/docs/platform/account/control-api",
+    "terraform": "ably/ably",
+    "freeTier": true
+  },
+  {
+    "id": "cloudamqp",
+    "name": "CloudAMQP",
+    "category": "queue",
+    "services": [
+      "rabbitmq",
+      "lavinmq",
+      "instance"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "basic",
+    "docs": "https://docs.cloudamqp.com",
+    "terraform": "cloudamqp/cloudamqp",
+    "freeTier": true
+  },
+  {
+    "id": "confluent",
+    "name": "Confluent Cloud",
+    "category": "queue",
+    "services": [
+      "environment",
+      "kafka",
+      "cluster",
+      "service-account",
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "basic",
+    "docs": "https://docs.confluent.io/cloud/current/api.html",
+    "terraform": "confluentinc/confluent",
+    "freeTier": false
+  },
+  {
+    "id": "hookdeck",
+    "name": "Hookdeck",
+    "category": "queue",
+    "services": [
+      "source",
+      "destination",
+      "connection"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://hookdeck.com/docs/api",
+    "terraform": "hookdeck/hookdeck",
+    "freeTier": true
+  },
+  {
+    "id": "inngest",
+    "name": "Inngest",
+    "category": "queue",
+    "services": [
+      "environment",
+      "webhook",
+      "event-key",
+      "signing-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://api-docs.inngest.com/authentication",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "pusher",
+    "name": "Pusher",
+    "category": "queue",
+    "services": [
+      "channels"
+    ],
+    "managementApi": false,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "api-key",
+    "docs": "https://pusher.com/docs/channels/library_auth_reference/rest-api/",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "svix",
+    "name": "Svix",
+    "category": "queue",
+    "services": [
+      "application",
+      "endpoint",
+      "event-type"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://docs.svix.com/api-keys",
+    "terraform": "svix/svix",
+    "freeTier": true
+  },
+  {
+    "id": "temporal-cloud",
+    "name": "Temporal Cloud",
+    "category": "queue",
+    "services": [
+      "namespace",
+      "service-account",
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://docs.temporal.io/ops",
+    "terraform": "temporalio/temporalcloud",
+    "freeTier": false
+  },
+  {
+    "id": "trigger-dev",
+    "name": "Trigger.dev",
+    "category": "queue",
+    "services": [
+      "envvars",
+      "schedule",
+      "secret-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://trigger.dev/docs/management/authentication",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "algolia",
+    "name": "Algolia",
+    "category": "search",
+    "services": [
+      "index",
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "api-key",
+    "docs": "https://www.algolia.com/doc/rest-api/search/add-api-key",
+    "terraform": "algolia/algolia",
+    "freeTier": true
+  },
+  {
+    "id": "brave-search",
+    "name": "Brave Search API",
+    "category": "search",
+    "services": [
+      "api-key"
+    ],
+    "managementApi": false,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "api-key",
+    "docs": "https://api-dashboard.search.brave.com/documentation/guides/authentication",
+    "terraform": null,
+    "freeTier": null
+  },
+  {
+    "id": "elastic-cloud",
+    "name": "Elastic Cloud",
+    "category": "search",
+    "services": [
+      "deployment",
+      "project",
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "api-key",
+    "docs": "https://www.elastic.co/docs/deploy-manage/api-keys/elastic-cloud-api-keys",
+    "terraform": "elastic/ec",
+    "freeTier": false
+  },
+  {
+    "id": "exa",
+    "name": "Exa",
+    "category": "search",
+    "services": [
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "api-key",
+    "docs": "https://exa.ai/docs/reference/team-management/create-api-key",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "meilisearch",
+    "name": "Meilisearch Cloud",
+    "category": "search",
+    "services": [
+      "index",
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://www.meilisearch.com/docs/capabilities/security/how_to/manage_api_keys",
+    "terraform": null,
+    "freeTier": null
+  },
+  {
+    "id": "tavily",
+    "name": "Tavily",
+    "category": "search",
+    "services": [
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://docs.tavily.com/changelog",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "typesense",
+    "name": "Typesense Cloud",
+    "category": "search",
+    "services": [
+      "cluster",
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "api-key",
+    "docs": "https://typesense.org/docs/cloud-management-api/v1/cluster-management.html",
+    "terraform": null,
+    "freeTier": false
+  },
+  {
+    "id": "plivo",
+    "name": "Plivo",
+    "category": "sms",
+    "services": [
+      "sms",
+      "voice",
+      "subaccount",
+      "phone-number",
+      "application"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "basic",
+    "docs": "https://www.plivo.com/docs/account/api/subaccount",
+    "terraform": null,
+    "freeTier": false
+  },
+  {
+    "id": "telnyx",
+    "name": "Telnyx",
+    "category": "sms",
+    "services": [
+      "sms",
+      "voice",
+      "phone-number",
+      "messaging-profile"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://developers.telnyx.com/development/api-fundamentals/create-api-keys",
+    "terraform": null,
+    "freeTier": false
+  },
+  {
+    "id": "twilio",
+    "name": "Twilio",
+    "category": "sms",
+    "services": [
+      "sms",
+      "voice",
+      "phone-number",
+      "subaccount",
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "basic",
+    "docs": "https://www.twilio.com/docs/iam/api-keys/key-resource-v1",
+    "terraform": "twilio/twilio",
+    "freeTier": false
+  },
+  {
+    "id": "vonage",
+    "name": "Vonage",
+    "category": "sms",
+    "services": [
+      "sms",
+      "voice",
+      "application",
+      "phone-number",
+      "subaccount",
+      "api-secret"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "basic",
+    "docs": "https://developer.vonage.com/en/account/secret-management",
+    "terraform": null,
+    "freeTier": false
+  },
+  {
+    "id": "backblaze",
+    "name": "Backblaze B2",
+    "category": "storage",
+    "services": [
+      "bucket",
+      "application-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "basic",
+    "docs": "https://www.backblaze.com/apidocs/b2-create-key",
+    "terraform": "Backblaze/b2",
+    "freeTier": true
+  },
+  {
+    "id": "bunny",
+    "name": "bunny.net",
+    "category": "storage",
+    "services": [
+      "storage-zone",
+      "pull-zone",
+      "stream-library"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "api-key",
+    "docs": "https://docs.bunny.net/api-reference/core",
+    "terraform": "BunnyWay/bunnynet",
+    "freeTier": false
+  },
+  {
+    "id": "cloudflare",
+    "name": "Cloudflare",
+    "category": "storage",
+    "services": [
+      "r2",
+      "workers",
+      "kv",
+      "d1",
+      "api-token"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://developers.cloudflare.com/api/resources/accounts/subresources/tokens/methods/create",
+    "terraform": "cloudflare/cloudflare",
+    "freeTier": true
+  },
+  {
+    "id": "cloudinary",
+    "name": "Cloudinary",
+    "category": "storage",
+    "services": [
+      "product-environment",
+      "upload-preset",
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "basic",
+    "docs": "https://cloudinary.com/documentation/provisioning_api",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "mux",
+    "name": "Mux",
+    "category": "storage",
+    "services": [
+      "asset",
+      "live-stream",
+      "signing-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "basic",
+    "docs": "https://mux.com/docs/core/mux-fundamentals",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "tigris",
+    "name": "Tigris",
+    "category": "storage",
+    "services": [
+      "bucket",
+      "access-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "api-key",
+    "docs": "https://www.tigrisdata.com/docs/iam/manage-access-key/",
+    "terraform": "tigrisdata/tigris",
+    "freeTier": true
+  },
+  {
+    "id": "uploadthing",
+    "name": "UploadThing",
+    "category": "storage",
+    "services": [
+      "app",
+      "api-key"
+    ],
+    "managementApi": false,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "api-key",
+    "docs": "https://docs.uploadthing.com/api-reference/ut-api",
+    "terraform": null,
+    "freeTier": true
+  },
+  {
+    "id": "chroma",
+    "name": "Chroma Cloud",
+    "category": "vector",
+    "services": [
+      "database"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "api-key",
+    "docs": "https://docs.trychroma.com/docs/cli/db",
+    "terraform": null,
+    "freeTier": false
+  },
+  {
+    "id": "pinecone",
+    "name": "Pinecone",
+    "category": "vector",
+    "services": [
+      "project",
+      "index",
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://docs.pinecone.io/reference/api/2025-04/admin/create_api_key",
+    "terraform": "pinecone-io/pinecone",
+    "freeTier": true
+  },
+  {
+    "id": "qdrant",
+    "name": "Qdrant Cloud",
+    "category": "vector",
+    "services": [
+      "cluster",
+      "database-api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "api-key",
+    "docs": "https://qdrant.tech/documentation/cloud-api/",
+    "terraform": "qdrant/qdrant-cloud",
+    "freeTier": true
+  },
+  {
+    "id": "turbopuffer",
+    "name": "turbopuffer",
+    "category": "vector",
+    "services": [
+      "namespace"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "dashboard-only",
+    "auth": "bearer",
+    "docs": "https://turbopuffer.com/docs/quickstart",
+    "terraform": null,
+    "freeTier": false
+  },
+  {
+    "id": "weaviate",
+    "name": "Weaviate Cloud",
+    "category": "vector",
+    "services": [
+      "database-user",
+      "collection"
+    ],
+    "managementApi": false,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://docs.weaviate.io/weaviate/configuration/rbac/manage-users",
+    "terraform": null,
+    "freeTier": null
+  },
+  {
+    "id": "zilliz",
+    "name": "Zilliz Cloud",
+    "category": "vector",
+    "services": [
+      "cluster",
+      "api-key"
+    ],
+    "managementApi": true,
+    "apiKeyCreation": "api",
+    "auth": "bearer",
+    "docs": "https://docs.zilliz.com/reference/restful",
+    "terraform": "zilliztech/zillizcloud",
+    "freeTier": true
+  }
+]
