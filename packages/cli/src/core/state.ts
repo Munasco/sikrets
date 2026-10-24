@@ -26,8 +26,12 @@ export interface Resource {
   lastRotatedAt?: string;
   /** Rotate before this time (from rotateEvery, pulled earlier by expiresAt). */
   rotateBy?: string;
-  /** When the key itself stops working, if the provider set an expiry. */
+  /** Lifetime chosen at creation (e.g. "30d"); each rotation gets the same. */
+  expires?: string;
+  /** When the current key stops working. */
   expiresAt?: string;
+  /** Rotate automatically when due (API keys only). */
+  autoRotate?: boolean;
 }
 
 /** Data-only description of how to reverse a step, so a later process can run it. */

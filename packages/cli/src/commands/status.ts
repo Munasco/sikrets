@@ -30,7 +30,7 @@ export async function run(_args: string[], opts: Record<string, unknown>) {
   const rows = await Promise.all(
     resources.map(async (r) => {
       const last = r.envKeys.map((k) => used.get(k)).filter((x): x is string => Boolean(x)).sort().at(-1);
-      return { name: r.name, recipe: r.recipe, strategy: r.strategy, live: r.applied, created: r.createdAt, lastUsed: last ?? null, rotateBy: r.rotateBy ?? null, expiresAt: r.expiresAt ?? null, keys: r.envKeys, spend: await spend(r) };
+      return { name: r.name, recipe: r.recipe, strategy: r.strategy, live: r.applied, created: r.createdAt, lastUsed: last ?? null, rotateBy: r.rotateBy ?? null, autoRotate: r.autoRotate ?? false, expiresAt: r.expiresAt ?? null, keys: r.envKeys, spend: await spend(r) };
     }),
   );
   if (opts.json) return console.log(JSON.stringify({ project: ctx.project, vault: ctx.vault, resources: rows }));
@@ -39,6 +39,6 @@ export async function run(_args: string[], opts: Record<string, unknown>) {
   const w = Math.max(...rows.map((r) => r.name.length), 4);
   console.log(`${"NAME".padEnd(w)}  ${"RECIPE".padEnd(18)} ${"STATE".padEnd(12)} ${"CREATED".padEnd(10)} ${"LAST USED".padEnd(10)} ${"ROTATE".padEnd(14)} ${"EXPIRES".padEnd(14)} COST`);
   for (const r of rows) {
-    console.log(`${r.name.padEnd(w)}  ${r.recipe.padEnd(18)} ${(r.live ? "live" : "declared").padEnd(12)} ${ago(r.created).padEnd(10)} ${ago(r.lastUsed ?? undefined).padEnd(10)} ${(r.rotateBy ? until(r.rotateBy) : "—").padEnd(14)} ${(r.expiresAt ? until(r.expiresAt).replace("overdue by", "expired") : "—").padEnd(14)} ${r.spend}`);
+    console.log(`${r.name.padEnd(w)}  ${r.recipe.padEnd(18)} ${(r.live ? "live" : "declared").padEnd(12)} ${ago(r.created).padEnd(10)} ${ago(r.lastUsed ?? undefined).padEnd(10)} ${(r.rotateBy ? `${until(r.rotateBy)}${r.autoRotate ? " auto" : ""}` : "—").padEnd(14)} ${(r.expiresAt ? until(r.expiresAt).replace("overdue by", "expired") : "—").padEnd(14)} ${r.spend}`);
   }
 }

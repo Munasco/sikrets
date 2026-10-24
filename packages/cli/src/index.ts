@@ -65,14 +65,14 @@ async function main(argv = process.argv.slice(2)) {
   const missing = spec.arguments.slice(args.length).find((a) => a.required);
   if (missing) throw new Error(`Missing <${missing.name}>. Usage: ${usage(spec)}${spec.passthrough ? " -- …" : ""}`);
 
+  // Keys with auto-rotate on are replaced when due, before the command uses them.
+  if (!values["dry-run" as keyof typeof values] && !["init", "rotate", "rollback"].includes(spec.name)) {
+    const { autoRotate } = await import("./core/autorotate.ts");
+    await autoRotate(process.cwd(), (m) => console.error(m)).catch(() => {});
+  }
+
   const { run } = await spec.load();
   await run(args, values);
-
-  // After any command, nudge about keys that need rotating or are about to expire (never in --json mode).
-  if (!(values as Record<string, unknown>).json) {
-    const { reminders } = await import("./core/reminders.ts");
-    for (const line of await reminders(process.cwd()).catch(() => [])) console.error(line);
-  }
 }
 
 main().catch((error) => {

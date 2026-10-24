@@ -25,9 +25,11 @@ export interface AddRequest {
   envFile?: string;
   /** Rotation interval for credentials Sikrets provisions (from sikrets.json). */
   rotateEvery?: string;
+  /** Key lifetime, e.g. "30d"; for dashboard keys, the expiry picked in the dashboard. */
+  expires?: string;
+  /** Rotate the key automatically when due. API keys only. */
+  autoRotate?: boolean;
 }
-
-const expiryOf = (inputs: Readonly<Record<string, string | number | undefined>>) => (typeof inputs.expires === "string" ? inputs.expires : undefined);
 
 export interface AddPlan {
   /** New resources in creation order: dependencies first. */
@@ -68,6 +70,11 @@ export async function planAdd(req: AddRequest, ctx: Context): Promise<AddPlan> {
     }
 
     const inputs = resolveInputs(r, given);
+    // --expires and --auto-rotate apply to the requested resource, not to dependencies planned for it.
+    const top = name === req.name;
+    if (top && req.autoRotate && (r.strategy !== "api" || !r.rotate)) {
+      throw new Error(r.strategy === "manual" ? `${r.id} is created in a dashboard, so it can't rotate itself; rotate it with: sikrets rotate ${name}` : `${r.id} can't auto-rotate`);
+    }
     const resource: Resource = {
       name,
       recipe: r.id,
@@ -80,7 +87,9 @@ export async function planAdd(req: AddRequest, ctx: Context): Promise<AddPlan> {
       applied: false,
       createdAt: new Date().toISOString(),
       // Terraform-managed credentials rotate through Terraform; the rest get a due date.
-      ...(r.strategy !== "terraform" && req.rotateEvery ? schedule(req.rotateEvery, expiryOf(inputs)) : {}),
+      ...(r.strategy !== "terraform" && req.rotateEvery ? schedule(req.rotateEvery, top ? req.expires : undefined) : {}),
+      ...(top && req.expires && r.strategy !== "terraform" ? { expires: req.expires } : {}),
+      ...(top && req.autoRotate ? { autoRotate: true } : {}),
     };
     planned.push(resource);
     return resource;

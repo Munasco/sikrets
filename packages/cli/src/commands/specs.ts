@@ -64,12 +64,14 @@ export const commands: CommandSpec[] = [
       { name: "name", type: "string", argument: "NAME", description: "Resource name (default: the service name)" },
       { name: "set", type: "string", multiple: true, argument: "KEY=VALUE", description: "Set a recipe input, e.g. --set region=eu-west-1" },
       { name: "use", type: "string", multiple: true, argument: "NEED=NAME", description: "Satisfy a dependency with an existing resource" },
+      { name: "expires", type: "string", argument: "DURATION", description: "Key lifetime, e.g. 7d or never (dashboard keys: the expiry you picked there)" },
+      { name: "auto-rotate", type: "boolean", description: "Replace the key automatically before it expires (API keys only)" },
       { name: "value-stdin", type: "boolean", description: "Read a pasted credential from stdin instead of a hidden prompt" },
       dryRunOption,
       yesOption,
       jsonOption,
     ],
-    examples: ["sikrets add anthropic/api-key", "sikrets add upstash/redis --dry-run", "sikrets add aws/ec2 --name web --set size=t4g.micro", "sikrets add aws/ec2 --name worker --use network=main --yes --json"],
+    examples: ["sikrets add anthropic/api-key", "sikrets add upstash/redis --expires 30d --auto-rotate", "sikrets add aws/ec2 --name web --set size=t4g.micro", "sikrets add aws/ec2 --name worker --use network=main --yes --json"],
     load: () => import("./add.ts"),
   },
   {
@@ -112,15 +114,14 @@ export const commands: CommandSpec[] = [
   {
     name: "rotate",
     description: "Replace a resource's credential with a new one; stand-ins in the project stay the same",
-    arguments: [{ name: "resource", required: false }],
+    arguments: [{ name: "resource", required: true }],
     options: [
-      { name: "due", type: "boolean", description: "Rotate everything overdue or due within 7 days, one by one" },
       { name: "value-stdin", type: "boolean", description: "Manual recipes: read the replacement credential from stdin" },
       dryRunOption,
       yesOption,
       jsonOption,
     ],
-    examples: ["sikrets rotate cache --dry-run", "sikrets rotate --due", "pbpaste | sikrets rotate anthropic --value-stdin"],
+    examples: ["sikrets rotate cache --dry-run", "sikrets rotate cache --yes", "pbpaste | sikrets rotate anthropic --value-stdin"],
     load: () => import("./rotate.ts"),
   },
   {
