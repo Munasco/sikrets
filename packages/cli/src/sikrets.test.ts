@@ -356,3 +356,52 @@ describe("rotate", () => {
     expect(until(new Date(Date.now() - 2 * 86_400_000).toISOString())).toBe("overdue by 2d");
   });
 });
+
+describe("expiry and auto-rotation", () => {
+  const DAY = 86_400_000;
+
+  test("a key's expiry pulls its rotation earlier", async () => {
+    const { schedule, parseExpiry, keyExpiry } = await import("./core/schedule.ts");
+    const now = Date.parse("2026-10-24T00:00:00Z");
+    expect(schedule("30d", undefined, now)).toEqual({ rotateBy: new Date(now + 30 * DAY).toISOString() });
+    const week = schedule("30d", "7d", now);
+    expect(week.expiresAt).toBe(new Date(now + 7 * DAY).toISOString());
+    expect(week.rotateBy).toBe(new Date(now + 7 * DAY - 0.7 * DAY).toISOString()); // a tenth of the lifetime before expiry
+    expect(parseExpiry("never")).toBe("never");
+    expect(() => parseExpiry("1 week")).toThrow();
+    // Default: never, or the provider's longest; asking beyond the limit fails.
+    expect(keyExpiry(undefined, undefined, "x/y")).toBeUndefined();
+    expect(keyExpiry("never", undefined, "x/y")).toBeUndefined();
+    expect(keyExpiry(undefined, "90d", "x/y")).toBe("90d");
+    expect(keyExpiry("7d", "90d", "x/y")).toBe("7d");
+    expect(() => keyExpiry("never", "90d", "x/y")).toThrow("at most 90d");
+    expect(() => keyExpiry("120d", "90d", "x/y")).toThrow("at most 90d");
+  });
+
+  test("--expires is recorded; dashboard keys can't auto-rotate", async () => {
+    await applyPlan("add", (await planAdd(request({ recipe: "anthropic/api-key", name: "anthropic", rotateEvery: "30d", expires: "7d", secret: async () => Secret.of(GOOD_ANTHROPIC_KEY) }), ctx)).changes, ctx);
+    const [res] = (await state.load(root)).resources;
+    expect(res!.expires).toBe("7d");
+    expect(Date.parse(res!.expiresAt!) - Date.now()).toBeGreaterThan(6 * DAY);
+    expect(res!.autoRotate).toBeUndefined();
+    await expect(planAdd(request({ recipe: "anthropic/api-key", name: "other", autoRotate: true }), ctx)).rejects.toThrow("can't rotate itself");
+  });
+
+  test("auto-rotate replaces only due API keys, before the command runs", async () => {
+    await Bun.write(path.join(root, "sikrets.json"), JSON.stringify({ project: "demo" }));
+    await applyPlan("add", (await planAdd(request({ rotateEvery: "30d", expires: "30d", autoRotate: true }), ctx)).changes, ctx);
+    await applyPlan("add", (await planAdd(request({ name: "plain", rotateEvery: "30d" }), ctx)).changes, ctx);
+    const s = (await state.load(root)).resources;
+    const past = new Date(Date.now() - DAY).toISOString();
+    for (const r of s) await state.upsert(root, { ...r, rotateBy: past });
+    const { autoRotate } = await import("./core/autorotate.ts");
+    const said: string[] = [];
+    await autoRotate(root, (m) => said.push(m));
+    const after = (await state.load(root)).resources;
+    const cache = after.find((r) => r.name === "cache")!;
+    expect(said).toEqual(["sikrets: auto-rotated cache"]);
+    expect(cache.lastRotatedAt).toBeString();
+    expect(Date.parse(cache.expiresAt!)).toBeGreaterThan(Date.now() + 29 * DAY);
+    expect(after.find((r) => r.name === "plain")!.lastRotatedAt).toBeUndefined();
+  });
+});

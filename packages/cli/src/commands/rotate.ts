@@ -3,7 +3,7 @@ import { projectContext } from "../core/config.ts";
 import { providerEnv } from "../core/credentials.ts";
 import { Secret } from "../core/secret.ts";
 import { state, type Resource } from "../core/state.ts";
-import { after } from "../core/ttl.ts";
+import { schedule } from "../core/schedule.ts";
 import { openVault } from "../core/vault.ts";
 import { recipe } from "../recipes/index.ts";
 import { envPrefix, type Recipe } from "../recipes/types.ts";
@@ -44,23 +44,24 @@ function rotator(r: Recipe, res: Resource, opts: Record<string, unknown>, say: (
   }
 }
 
-export async function run(args: string[], opts: Record<string, unknown>) {
-  const root = process.cwd();
-  const say = (m: string) => log(opts, m);
-  const { config, ctx } = await projectContext(root, { dryRun: Boolean(opts["dry-run"]), log: say });
-  const res = (await state.load(root)).resources.find((r) => r.name === args[0]);
-  if (!res) throw new Error(`No resource named "${args[0]}" in this project. See: sikrets status`);
-  if (!res.applied) throw new Error(`${res.name} isn't live yet`);
+type Ctx = Awaited<ReturnType<typeof projectContext>>;
+
+/** Rotates one live resource; also used for auto-rotation. */
+export async function rotateOne(res: Resource, { config, ctx }: Ctx, opts: Record<string, unknown>, say: (m: string) => void) {
   const r = recipe(res.recipe);
   const plan = rotator(r, res, opts, say);
   const keys = Object.entries(r.outputs).filter(([, o]) => o.sensitive).map(([, o]) => `${envPrefix(res.name)}_${o.env}`);
+  const { expires } = res;
 
   say(`${ctx.dryRun ? "Dry run — would rotate" : "Rotating"} "${res.name}" (${r.id}):`);
   say(`  ~ ${plan.describe}`);
   say(`  ~ Replace ${keys.join(", ")} in the ${ctx.vault} vault (stand-ins stay the same)`);
-  say(`  ~ Next rotation due ${config.rotateEvery} after this`);
-  if (ctx.dryRun) return opts.json ? console.log(JSON.stringify({ dryRun: true, resource: res.name, keys })) : undefined;
-  if (!opts.yes && process.stdin.isTTY && !(await confirm("Rotate now? The old credential will stop working."))) return say("Cancelled; nothing changed.");
+  say(`  ~ Next rotation due in ${config.rotateEvery}${expires ? `, or before the new key's ${expires} expiry` : ""}`);
+  if (ctx.dryRun) return { resource: res.name, keys, rotated: false };
+  if (!opts.yes && process.stdin.isTTY && !(await confirm("Rotate now? The old credential will stop working."))) {
+    say("Skipped; nothing changed.");
+    return { resource: res.name, keys, rotated: false };
+  }
 
   const changed = await plan.run();
   const vault = await openVault(ctx.project, ctx.vault);
@@ -72,10 +73,22 @@ export async function run(args: string[], opts: Record<string, unknown>) {
     await vault.put(`${envPrefix(res.name)}_${spec.env}`, value instanceof Secret ? value : Secret.of(value));
     if (typeof value === "string") outputs[key] = value;
   }
-  const now = new Date().toISOString();
-  await state.upsert(root, { ...res, outputs, lastRotatedAt: now, rotateBy: after(config.rotateEvery) });
-  await record(root, { kind: "rotate", detail: `${r.id} ${res.name}`, keys });
+  const next = schedule(config.rotateEvery, expires);
+  await state.upsert(ctx.root, { ...res, outputs, lastRotatedAt: new Date().toISOString(), ...next });
+  await record(ctx.root, { kind: "rotate", detail: `${r.id} ${res.name}`, keys });
+  say(`  Rotated ${keys.join(", ")}.${r.strategy === "manual" ? ` Revoke the old key at ${r.instructions.url}.` : ""}`);
+  return { resource: res.name, keys, rotated: true, ...next };
+}
 
-  if (opts.json) console.log(JSON.stringify({ resource: res.name, rotated: keys, rotateBy: after(config.rotateEvery) }));
-  else say(`Rotated ${keys.join(", ")}. Stand-ins unchanged; apps using @sikrets/sdk pick it up within its cache window, \`sikrets run\` on next start.`);
+export async function run(args: string[], opts: Record<string, unknown>) {
+  const root = process.cwd();
+  const say = (m: string) => log(opts, m);
+  const project = await projectContext(root, { dryRun: Boolean(opts["dry-run"]), log: say });
+  const res = (await state.load(root)).resources.find((r) => r.name === args[0]);
+  if (!res) throw new Error(`No resource named "${args[0]}" in this project. See: sikrets status`);
+  if (!res.applied) throw new Error(`${res.name} isn't live yet`);
+
+  const result = await rotateOne(res, project, opts, say);
+  if (opts.json) console.log(JSON.stringify(result));
+  else if (result.rotated) say("Stand-ins are unchanged; apps using @sikrets/sdk pick up new values within its cache window, `sikrets run` on next start.");
 }

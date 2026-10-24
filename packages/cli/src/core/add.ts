@@ -7,7 +7,7 @@ import { ensureGitignore, isGenerated, removeGenerated, writeGenerated } from ".
 import { registerUndo, type Change, type Context } from "./plan.ts";
 import { Secret } from "./secret.ts";
 import { envValues, outputKeys, standInKey } from "./standin.ts";
-import { after } from "./ttl.ts";
+import { keyExpiry, schedule } from "./schedule.ts";
 import { state, type Resource } from "./state.ts";
 import { openVault } from "./vault.ts";
 
@@ -25,6 +25,10 @@ export interface AddRequest {
   envFile?: string;
   /** Rotation interval for credentials Sikrets provisions (from sikrets.json). */
   rotateEvery?: string;
+  /** Key lifetime, e.g. "30d" or "never"; for dashboard keys, the expiry picked there. Omitted: never, or the provider's longest. */
+  expires?: string;
+  /** Rotate the key automatically when due. API keys only. */
+  autoRotate?: boolean;
 }
 
 export interface AddPlan {
@@ -65,19 +69,28 @@ export async function planAdd(req: AddRequest, ctx: Context): Promise<AddPlan> {
       }
     }
 
+    const inputs = resolveInputs(r, given);
+    // --expires and --auto-rotate apply to the requested resource, not to dependencies planned for it.
+    const top = name === req.name;
+    if (top && req.autoRotate && (r.strategy !== "api" || !r.rotate)) {
+      throw new Error(r.strategy === "manual" ? `${r.id} is created in a dashboard, so it can't rotate itself; rotate it with: sikrets rotate ${name}` : `${r.id} can't auto-rotate`);
+    }
+    const expires = top && r.strategy !== "terraform" ? keyExpiry(req.expires, r.maxExpiry, r.id) : undefined;
     const resource: Resource = {
       name,
       recipe: r.id,
       provider: r.provider,
       strategy: r.strategy,
-      inputs: resolveInputs(r, given),
+      inputs,
       dependsOn,
       envKeys: Object.values(r.outputs).map((o) => `${envPrefix(name)}_${o.env}`),
       outputs: {},
       applied: false,
       createdAt: new Date().toISOString(),
       // Terraform-managed credentials rotate through Terraform; the rest get a due date.
-      ...(r.strategy !== "terraform" && req.rotateEvery ? { rotateBy: after(req.rotateEvery) } : {}),
+      ...(r.strategy !== "terraform" && req.rotateEvery ? schedule(req.rotateEvery, expires) : {}),
+      ...(expires ? { expires } : {}),
+      ...(top && req.autoRotate ? { autoRotate: true } : {}),
     };
     planned.push(resource);
     return resource;

@@ -24,8 +24,14 @@ export interface Resource {
   applied: boolean;
   createdAt: string;
   lastRotatedAt?: string;
-  /** Rotate before this time (from the project's TTL). */
+  /** Rotate before this time (from rotateEvery, pulled earlier by expiresAt). */
   rotateBy?: string;
+  /** Lifetime chosen at creation (e.g. "30d"); each rotation gets the same. */
+  expires?: string;
+  /** When the current key stops working. */
+  expiresAt?: string;
+  /** Rotate automatically when due (API keys only). */
+  autoRotate?: boolean;
 }
 
 /** Data-only description of how to reverse a step, so a later process can run it. */
