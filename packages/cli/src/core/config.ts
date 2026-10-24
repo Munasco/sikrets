@@ -3,7 +3,8 @@ import { readJson, writeJson } from "./fs.ts";
 import type { Context } from "./plan.ts";
 import { parseDuration } from "./ttl.ts";
 import type { VaultName } from "./vault.ts";
-import { DEFAULTS, ENV, FILES, IAC_DIR, SCHEMA_URL } from "../constants.ts";
+import { configDir } from "../store.ts";
+import { DEFAULTS, ENV, FILES, IAC_DIR, ORPHANS_DIR, SCHEMA_URL } from "../constants.ts";
 
 // sikrets.json: the committed, hand-editable project file (like vercel.json). Machine-written
 // state stays in .sikrets/. Validation is strict so a typo fails loudly instead of being ignored.
@@ -84,3 +85,12 @@ export async function projectContext(root: string, opts: { dryRun?: boolean; log
   const config = await loadConfig(root);
   return { config, ctx: { root, project: config.project, vault: effectiveVault(config), dryRun: opts.dryRun ?? false, log: opts.log } };
 }
+
+/** Directory for resources outside any project (e.g. minted via `sikrets get`). */
+export const personalDir = () => path.join(configDir(), ORPHANS_DIR);
+
+/** Context pointing at the personal area (~/.sikrets/orphans) for standalone resources. */
+export async function personalContext(opts: { dryRun?: boolean; log: (m: string) => void }): Promise<{ config: ProjectConfig; ctx: Context }> {
+  return projectContext(personalDir(), opts);
+}
+
