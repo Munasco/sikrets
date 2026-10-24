@@ -7,10 +7,21 @@ import { parseDuration } from "./ttl.ts";
 const DAY = 86_400_000;
 
 /** Checks an --expires value: a duration like 7d, or "never". */
-export function parseExpiry(text: string): string | undefined {
-  if (text === "never") return undefined;
-  parseDuration(text);
+export function parseExpiry(text: string): string {
+  if (text !== "never") parseDuration(text);
   return text;
+}
+
+/**
+ * The lifetime a new key gets: what was asked for, else the longest the provider allows (never,
+ * when it has no limit). Returns undefined for a key that doesn't expire.
+ */
+export function keyExpiry(asked: string | undefined, max: string | undefined, id: string): string | undefined {
+  if (max && (asked === "never" || (asked && parseDuration(asked) > parseDuration(max)))) {
+    throw new Error(`${id} keys can live at most ${max}; pass --expires ${max} or less`);
+  }
+  const chosen = asked ?? max;
+  return chosen === "never" ? undefined : chosen;
 }
 
 export function schedule(rotateEvery: string, expires: string | undefined, now = Date.now()): { rotateBy: string; expiresAt?: string } {

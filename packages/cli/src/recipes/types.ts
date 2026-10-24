@@ -43,6 +43,8 @@ interface RecipeBase<I extends Record<string, InputSpec>> {
   readonly inputs: I;
   readonly requires: readonly Requirement[];
   readonly outputs: Readonly<Record<string, OutputSpec>>;
+  /** Longest key lifetime the provider allows, e.g. "90d". Omitted: keys can live forever. Also the default. */
+  readonly maxExpiry?: string;
   /** Rough monthly cost for dry runs. Real spend comes from `sikrets cost`. */
   estimate(inputs: Inputs<I>): string;
 }

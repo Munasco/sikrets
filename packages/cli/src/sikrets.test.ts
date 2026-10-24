@@ -361,14 +361,21 @@ describe("expiry and auto-rotation", () => {
   const DAY = 86_400_000;
 
   test("a key's expiry pulls its rotation earlier", async () => {
-    const { schedule, parseExpiry } = await import("./core/schedule.ts");
+    const { schedule, parseExpiry, keyExpiry } = await import("./core/schedule.ts");
     const now = Date.parse("2026-10-24T00:00:00Z");
     expect(schedule("30d", undefined, now)).toEqual({ rotateBy: new Date(now + 30 * DAY).toISOString() });
     const week = schedule("30d", "7d", now);
     expect(week.expiresAt).toBe(new Date(now + 7 * DAY).toISOString());
     expect(week.rotateBy).toBe(new Date(now + 7 * DAY - 0.7 * DAY).toISOString()); // a tenth of the lifetime before expiry
-    expect(parseExpiry("never")).toBeUndefined();
+    expect(parseExpiry("never")).toBe("never");
     expect(() => parseExpiry("1 week")).toThrow();
+    // Default: never, or the provider's longest; asking beyond the limit fails.
+    expect(keyExpiry(undefined, undefined, "x/y")).toBeUndefined();
+    expect(keyExpiry("never", undefined, "x/y")).toBeUndefined();
+    expect(keyExpiry(undefined, "90d", "x/y")).toBe("90d");
+    expect(keyExpiry("7d", "90d", "x/y")).toBe("7d");
+    expect(() => keyExpiry("never", "90d", "x/y")).toThrow("at most 90d");
+    expect(() => keyExpiry("120d", "90d", "x/y")).toThrow("at most 90d");
   });
 
   test("--expires is recorded; dashboard keys can't auto-rotate", async () => {

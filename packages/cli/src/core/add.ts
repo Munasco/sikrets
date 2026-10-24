@@ -7,7 +7,7 @@ import { ensureGitignore, isGenerated, removeGenerated, writeGenerated } from ".
 import { registerUndo, type Change, type Context } from "./plan.ts";
 import { Secret } from "./secret.ts";
 import { envValues, outputKeys, standInKey } from "./standin.ts";
-import { schedule } from "./schedule.ts";
+import { keyExpiry, schedule } from "./schedule.ts";
 import { state, type Resource } from "./state.ts";
 import { openVault } from "./vault.ts";
 
@@ -25,7 +25,7 @@ export interface AddRequest {
   envFile?: string;
   /** Rotation interval for credentials Sikrets provisions (from sikrets.json). */
   rotateEvery?: string;
-  /** Key lifetime, e.g. "30d"; for dashboard keys, the expiry picked in the dashboard. */
+  /** Key lifetime, e.g. "30d" or "never"; for dashboard keys, the expiry picked there. Omitted: never, or the provider's longest. */
   expires?: string;
   /** Rotate the key automatically when due. API keys only. */
   autoRotate?: boolean;
@@ -75,6 +75,7 @@ export async function planAdd(req: AddRequest, ctx: Context): Promise<AddPlan> {
     if (top && req.autoRotate && (r.strategy !== "api" || !r.rotate)) {
       throw new Error(r.strategy === "manual" ? `${r.id} is created in a dashboard, so it can't rotate itself; rotate it with: sikrets rotate ${name}` : `${r.id} can't auto-rotate`);
     }
+    const expires = top && r.strategy !== "terraform" ? keyExpiry(req.expires, r.maxExpiry, r.id) : undefined;
     const resource: Resource = {
       name,
       recipe: r.id,
@@ -87,8 +88,8 @@ export async function planAdd(req: AddRequest, ctx: Context): Promise<AddPlan> {
       applied: false,
       createdAt: new Date().toISOString(),
       // Terraform-managed credentials rotate through Terraform; the rest get a due date.
-      ...(r.strategy !== "terraform" && req.rotateEvery ? schedule(req.rotateEvery, top ? req.expires : undefined) : {}),
-      ...(top && req.expires && r.strategy !== "terraform" ? { expires: req.expires } : {}),
+      ...(r.strategy !== "terraform" && req.rotateEvery ? schedule(req.rotateEvery, expires) : {}),
+      ...(expires ? { expires } : {}),
       ...(top && req.autoRotate ? { autoRotate: true } : {}),
     };
     planned.push(resource);
