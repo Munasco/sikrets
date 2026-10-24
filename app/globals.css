@@ -1,6 +1,14 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Font tokens are inline so they resolve where they're used: next/font defines its variables on
+   <body>, not :root, so a non-inline token would resolve to nothing and fall back. */
+@theme inline {
+  --font-sans: var(--font-rethink-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-pt-mono), ui-monospace, monospace;
+  --font-serif: var(--font-instrument-serif), ui-serif, Georgia, serif;
+}
+
 /* Tennant palette — mirrors tennant-frontend so Sikrets reads as part of the same product. */
 @theme {
   --color-ink: #0c0e0d;
@@ -17,8 +25,6 @@
   --color-faint: #626c60;
   --color-danger: #e5786d;
 
-  --font-sans: var(--font-rethink-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-pt-mono), ui-monospace, monospace;
 }
 
 @layer base {

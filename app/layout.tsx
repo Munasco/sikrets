@@ -1,6 +1,6 @@
 import "./globals.css"
 import type { Metadata, Viewport } from "next"
-import { Rethink_Sans, PT_Mono } from "next/font/google"
+import { Instrument_Serif, Rethink_Sans, PT_Mono } from "next/font/google"
 import type { ReactNode } from "react"
 import { site } from "@/lib/site"
 
@@ -50,6 +50,13 @@ const rethinkSans = Rethink_Sans({
   subsets: ["latin"],
 })
 
+const instrumentSerif = Instrument_Serif({
+  variable: "--font-instrument-serif",
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
+})
+
 const ptMono = PT_Mono({
   variable: "--font-pt-mono",
   subsets: ["latin"],
@@ -59,7 +66,7 @@ const ptMono = PT_Mono({
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${rethinkSans.variable} ${ptMono.variable}`}>{children}</body>
+      <body className={`${rethinkSans.variable} ${ptMono.variable} ${instrumentSerif.variable}`}>{children}</body>
     </html>
   )
 }
