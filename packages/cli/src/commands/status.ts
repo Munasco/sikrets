@@ -1,5 +1,5 @@
 import { lastUsed, readActivity } from "../core/activity.ts";
-import { projectContext } from "../core/config.ts";
+import { personalDir, projectContext } from "../core/config.ts";
 import { providerEnv } from "../core/credentials.ts";
 import { state, type Resource } from "../core/state.ts";
 import { until } from "../core/ttl.ts";
@@ -23,7 +23,7 @@ const ago = (iso?: string) => {
 };
 
 export async function run(_args: string[], opts: Record<string, unknown>) {
-  const root = process.cwd();
+  const root = opts.personal || opts.orphans ? personalDir() : process.cwd();
   const { ctx } = await projectContext(root, { log: () => {} });
   const { resources } = await state.load(root);
   const used = lastUsed(await readActivity(root));
