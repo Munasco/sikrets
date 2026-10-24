@@ -23,6 +23,7 @@ export const ENV = {
 export const USER_DIR = ".sikrets";
 /** Per-project folder for machine-written state. */
 export const PROJECT_DIR = ".sikrets";
+export const ORPHANS_DIR = "orphans";
 export const FILES = {
   config: "sikrets.json",
   lock: "sikrets.lock",

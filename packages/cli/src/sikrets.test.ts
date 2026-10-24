@@ -29,6 +29,7 @@ beforeEach(async () => {
   root = await mkdtemp(path.join(os.tmpdir(), "sikrets-test-"));
   ctx = { root, project: "demo", vault: "keychain", dryRun: false, log: () => {} };
   process.env.SIKRETS_VAULT = "keychain";
+  process.env.SIKRETS_CONFIG_DIR = path.join(root, ".sikrets-config");
   process.env.UPSTASH_EMAIL = "dev@example.com";
   process.env.UPSTASH_API_KEY = "test-management-key";
 
@@ -356,3 +357,130 @@ describe("rotate", () => {
     expect(until(new Date(Date.now() - 2 * 86_400_000).toISOString())).toBe("overdue by 2d");
   });
 });
+
+describe("get", () => {
+  test("provisions in personal area with stand-ins, 24h TTL, and clean stdout", async () => {
+    const logs: string[] = [];
+    const errs: string[] = [];
+    const origLog = console.log;
+    const origErr = console.error;
+    console.log = (...args: unknown[]) => logs.push(args.map(String).join(" "));
+    console.error = (...args: unknown[]) => errs.push(args.map(String).join(" "));
+
+    try {
+      const { run } = await import("./commands/get.ts");
+      await run(["upstash/redis"], {});
+    } finally {
+      console.log = origLog;
+      console.error = origErr;
+    }
+
+    // Progress goes to stderr
+    expect(errs.some((e) => e.includes("Create upstash/redis"))).toBe(true);
+
+    // Stdout has exactly KEY=value lines
+    expect(logs.length).toBe(2);
+    const urlLine = logs.find((l) => l.startsWith("REDIS_REDIS_REST_URL="));
+    const tokenLine = logs.find((l) => l.startsWith("REDIS_REDIS_REST_TOKEN="));
+    expect(urlLine).toBe("REDIS_REDIS_REST_URL=https://happy-fox-123.upstash.io");
+    expect(tokenLine).toBeDefined();
+    const token = tokenLine!.split("=")[1]!;
+    expect(isStandIn(token)).toBe(true);
+
+    // Resource is saved in personal area with 24h TTL
+    const { personalDir } = await import("./core/config.ts");
+    const { state: st } = await import("./core/state.ts");
+    const [res] = (await st.load(personalDir())).resources;
+    expect(res).toBeDefined();
+    expect(res!.name).toBe("redis");
+    expect(res!.applied).toBe(true);
+    expect(res!.rotateBy).toBeString();
+    const ttlMs = Date.parse(res!.rotateBy!) - Date.now();
+    expect(ttlMs).toBeGreaterThan(23 * 3_600_000);
+    expect(ttlMs).toBeLessThanOrEqual(24 * 3_600_000 + 5000);
+  });
+
+  test("--real prints actual secrets", async () => {
+    const logs: string[] = [];
+    const origLog = console.log;
+    console.log = (...args: unknown[]) => logs.push(args.map(String).join(" "));
+
+    try {
+      const { run } = await import("./commands/get.ts");
+      await run(["upstash/redis", "--name", "realdb"], { real: true, name: "realdb" });
+    } finally {
+      console.log = origLog;
+    }
+
+    expect(logs).toContain("REALDB_REDIS_REST_TOKEN=tok_live_secret_value");
+  });
+
+  test("--json returns an object", async () => {
+    const logs: string[] = [];
+    const origLog = console.log;
+    console.log = (...args: unknown[]) => logs.push(args.map(String).join(" "));
+
+    try {
+      const { run } = await import("./commands/get.ts");
+      await run(["upstash/redis", "--name", "jsondb"], { json: true, name: "jsondb" });
+    } finally {
+      console.log = origLog;
+    }
+
+    const obj = JSON.parse(logs[0]!) as Record<string, string>;
+    expect(obj.JSONDB_REDIS_REST_URL).toBe("https://happy-fox-123.upstash.io");
+    expect(isStandIn(obj.JSONDB_REDIS_REST_TOKEN!)).toBe(true);
+  });
+
+  test("reuses resources with an existing --name instead of creating another", async () => {
+    const { run } = await import("./commands/get.ts");
+    const logs1: string[] = [];
+    const logs2: string[] = [];
+    const origLog = console.log;
+
+    console.log = (...args: unknown[]) => logs1.push(args.map(String).join(" "));
+    try {
+      await run(["upstash/redis"], { name: "cache" });
+    } finally {
+      console.log = origLog;
+    }
+
+    const callsAfterFirst = fetchCalls;
+
+    console.log = (...args: unknown[]) => logs2.push(args.map(String).join(" "));
+    try {
+      await run(["upstash/redis"], { name: "cache" });
+    } finally {
+      console.log = origLog;
+    }
+
+    // No new fetch calls were made to Upstash on second run
+    expect(fetchCalls).toBe(callsAfterFirst);
+    expect(logs2).toEqual(logs1);
+
+    const { personalDir } = await import("./core/config.ts");
+    const { state: st } = await import("./core/state.ts");
+    const resources = (await st.load(personalDir())).resources.filter((r) => r.name === "cache");
+    expect(resources.length).toBe(1);
+  });
+
+  test("rollback --personal removes personal resources", async () => {
+    const { run: runGet } = await import("./commands/get.ts");
+    await runGet(["upstash/redis"], { name: "throwaway" });
+
+    const { personalDir } = await import("./core/config.ts");
+    const { state: st } = await import("./core/state.ts");
+    expect((await st.load(personalDir())).resources.some((r) => r.name === "throwaway")).toBe(true);
+
+    const { run: runRollback } = await import("./commands/rollback.ts");
+    await runRollback([], { personal: true, yes: true });
+
+    expect((await st.load(personalDir())).resources.some((r) => r.name === "throwaway")).toBe(false);
+  });
+
+  test("Terraform recipes are refused in get", async () => {
+    const { run } = await import("./commands/get.ts");
+    await expect(run(["aws/ec2"], {})).rejects.toThrow("managed by Terraform");
+  });
+});
+
