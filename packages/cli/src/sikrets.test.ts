@@ -356,3 +356,69 @@ describe("rotate", () => {
     expect(until(new Date(Date.now() - 2 * 86_400_000).toISOString())).toBe("overdue by 2d");
   });
 });
+
+describe("rotation schedule and reminders", () => {
+  const DAY = 86_400_000;
+
+  test("a key's expiry pulls its rotation earlier", async () => {
+    const { schedule } = await import("./core/schedule.ts");
+    const now = Date.parse("2026-10-24T00:00:00Z");
+    expect(schedule("30d", undefined, now)).toEqual({ rotateBy: new Date(now + 30 * DAY).toISOString() });
+    expect(schedule("30d", "never", now).expiresAt).toBeUndefined();
+    const week = schedule("30d", "7d", now);
+    expect(week.expiresAt).toBe(new Date(now + 7 * DAY).toISOString());
+    expect(week.rotateBy).toBe(new Date(now + 7 * DAY - 0.7 * DAY).toISOString()); // a tenth of the lifetime before expiry
+    const short = schedule("30d", "3h", now);
+    expect(Date.parse(short.rotateBy)).toBe(now + 3 * 3_600_000 - 1_080_000); // a tenth of 3 h before expiry
+  });
+
+  test("due list is ordered by urgency and ignores keys that aren't live", async () => {
+    const { dueList } = await import("./core/schedule.ts");
+    const now = Date.parse("2026-10-24T00:00:00Z");
+    const at = (d: number) => new Date(now + d * DAY).toISOString();
+    const base = { recipe: "anthropic/api-key", provider: "anthropic", strategy: "manual", inputs: {}, dependsOn: {}, envKeys: [] as string[], outputs: {}, applied: true as boolean, createdAt: at(-40) } as const;
+    const due = dueList(
+      [
+        { ...base, name: "soon", rotateBy: at(3) },
+        { ...base, name: "fine", rotateBy: at(20) },
+        { ...base, name: "late", rotateBy: at(-2) },
+        { ...base, name: "dead", expiresAt: at(-1), rotateBy: at(-2) },
+        { ...base, name: "draft", applied: false, rotateBy: at(-5) },
+      ],
+      now,
+    );
+    expect(due.map((d) => [d.name, d.kind])).toEqual([["dead", "expired"], ["late", "rotate-overdue"], ["soon", "rotate-soon"]]);
+  });
+
+  test("anthropic records the 30-day expiry by default, and reminders mention it near the end", async () => {
+    await applyPlan("add", (await planAdd(request({ recipe: "anthropic/api-key", name: "anthropic", rotateEvery: "30d", secret: async () => Secret.of(GOOD_ANTHROPIC_KEY) }), ctx)).changes, ctx);
+    const [res] = (await state.load(root)).resources;
+    expect(Date.parse(res!.expiresAt!) - Date.now()).toBeGreaterThan(29 * DAY);
+    expect(Date.parse(res!.rotateBy!)).toBeLessThan(Date.parse(res!.expiresAt!));
+    const { reminders } = await import("./core/reminders.ts");
+    expect(await reminders(root)).toEqual([]);
+    const later = await reminders(root, Date.now() + 25 * DAY);
+    expect(later[0]).toContain("1 key needs attention");
+    expect(later.at(-1)).toContain("sikrets rotate --due");
+  });
+
+  test("rotate --due rotates only what is due and moves its dates forward", async () => {
+    await Bun.write(path.join(root, "sikrets.json"), JSON.stringify({ project: "demo" }));
+    await applyPlan("add", (await planAdd(request({ rotateEvery: "30d" }), ctx)).changes, ctx);
+    await applyPlan("add", (await planAdd(request({ name: "fresh", rotateEvery: "30d" }), ctx)).changes, ctx);
+    const s = (await state.load(root)).resources;
+    await state.upsert(root, { ...s.find((r) => r.name === "cache")!, rotateBy: new Date(Date.now() - DAY).toISOString() });
+    const { run } = await import("./commands/rotate.ts");
+    const cwd = process.cwd();
+    process.chdir(root);
+    try {
+      await run([], { due: true, yes: true, json: true });
+    } finally {
+      process.chdir(cwd);
+    }
+    const after = (await state.load(root)).resources;
+    expect(after.find((r) => r.name === "cache")!.lastRotatedAt).toBeString();
+    expect(after.find((r) => r.name === "fresh")!.lastRotatedAt).toBeUndefined();
+    expect(Date.parse(after.find((r) => r.name === "cache")!.rotateBy!)).toBeGreaterThan(Date.now() + 29 * DAY);
+  });
+});

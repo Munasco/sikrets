@@ -1,3 +1,4 @@
+import { EXPIRY_CHOICES } from "../core/schedule.ts";
 import { defineManualRecipe } from "./types.ts";
 import { PROVIDER_URLS, USER_AGENT } from "../constants.ts";
 
@@ -9,7 +10,9 @@ export const apiKey = defineManualRecipe({
   provider: "anthropic",
   summary: "An Anthropic API key you create in the Claude Console",
   defaultName: "anthropic",
-  inputs: {},
+  inputs: {
+    expires: { kind: "choice", description: "Expiry you pick for the key in the Console", choices: EXPIRY_CHOICES, default: "30d" },
+  },
   requires: [],
   outputs: { api_key: { description: "Anthropic API key", env: "API_KEY", sensitive: true } },
   secret: "api_key",
@@ -18,7 +21,7 @@ export const apiKey = defineManualRecipe({
     url: PROVIDER_URLS.anthropic.keys,
     steps: [
       "Create key → Continue with an API key",
-      "Name it after this project, choose an expiry (7 or 30 days pairs well with rotation) and the workspace",
+      "Name it after this project, pick the expiry you passed to --set expires (30 days by default) and the workspace",
       "Copy the key (it's shown once) and paste it here",
     ],
   },

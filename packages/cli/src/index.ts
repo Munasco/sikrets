@@ -67,6 +67,12 @@ async function main(argv = process.argv.slice(2)) {
 
   const { run } = await spec.load();
   await run(args, values);
+
+  // After any command, nudge about keys that need rotating or are about to expire (never in --json mode).
+  if (!(values as Record<string, unknown>).json) {
+    const { reminders } = await import("./core/reminders.ts");
+    for (const line of await reminders(process.cwd()).catch(() => [])) console.error(line);
+  }
 }
 
 main().catch((error) => {

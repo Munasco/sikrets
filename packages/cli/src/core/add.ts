@@ -7,7 +7,7 @@ import { ensureGitignore, isGenerated, removeGenerated, writeGenerated } from ".
 import { registerUndo, type Change, type Context } from "./plan.ts";
 import { Secret } from "./secret.ts";
 import { envValues, outputKeys, standInKey } from "./standin.ts";
-import { after } from "./ttl.ts";
+import { schedule } from "./schedule.ts";
 import { state, type Resource } from "./state.ts";
 import { openVault } from "./vault.ts";
 
@@ -26,6 +26,8 @@ export interface AddRequest {
   /** Rotation interval for credentials Sikrets provisions (from sikrets.json). */
   rotateEvery?: string;
 }
+
+const expiryOf = (inputs: Readonly<Record<string, string | number | undefined>>) => (typeof inputs.expires === "string" ? inputs.expires : undefined);
 
 export interface AddPlan {
   /** New resources in creation order: dependencies first. */
@@ -65,19 +67,20 @@ export async function planAdd(req: AddRequest, ctx: Context): Promise<AddPlan> {
       }
     }
 
+    const inputs = resolveInputs(r, given);
     const resource: Resource = {
       name,
       recipe: r.id,
       provider: r.provider,
       strategy: r.strategy,
-      inputs: resolveInputs(r, given),
+      inputs,
       dependsOn,
       envKeys: Object.values(r.outputs).map((o) => `${envPrefix(name)}_${o.env}`),
       outputs: {},
       applied: false,
       createdAt: new Date().toISOString(),
       // Terraform-managed credentials rotate through Terraform; the rest get a due date.
-      ...(r.strategy !== "terraform" && req.rotateEvery ? { rotateBy: after(req.rotateEvery) } : {}),
+      ...(r.strategy !== "terraform" && req.rotateEvery ? schedule(req.rotateEvery, expiryOf(inputs)) : {}),
     };
     planned.push(resource);
     return resource;
