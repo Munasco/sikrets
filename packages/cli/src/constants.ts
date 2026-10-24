@@ -23,7 +23,6 @@ export const ENV = {
 export const USER_DIR = ".sikrets";
 /** Per-project folder for machine-written state. */
 export const PROJECT_DIR = ".sikrets";
-export const ORPHANS_DIR = "orphans";
 export const FILES = {
   config: "sikrets.json",
   lock: "sikrets.lock",
@@ -73,5 +72,6 @@ export const PROVIDER_URLS = {
     apiVersion: "2023-06-01",
     keys: "https://platform.claude.com/settings/keys",
   },
+  openai: { login: "https://platform.openai.com/login" },
   x: { login: "https://x.com/i/flow/login" },
 } as const;

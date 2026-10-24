@@ -1,4 +1,4 @@
-import { personalDir, projectContext } from "../core/config.ts";
+import { projectContext } from "../core/config.ts";
 import { record } from "../core/activity.ts";
 import { undoSteps } from "../core/plan.ts";
 import { journal, state, type Operation } from "../core/state.ts";
@@ -10,7 +10,7 @@ import "../core/vault.ts";
 import "./apply.ts";
 
 export async function run(args: string[], opts: Record<string, unknown>) {
-  const root = opts.personal || opts.orphans ? personalDir() : process.cwd();
+  const root = process.cwd();
   const { ctx } = await projectContext(root, { dryRun: Boolean(opts["dry-run"]), log: (m) => log(opts, m) });
   const ops = await journal.load(root);
   const op = args[0] ? ops.find((o) => o.id === args[0]) : ops.filter((o) => !o.rolledBackAt).at(-1);

@@ -9,7 +9,7 @@ import { FILES, PROJECT_DIR } from "../constants.ts";
 // One JSON object per line in .sikrets/activity.jsonl (git-ignored: it holds usernames and command
 // names). Bun.write has no append mode, so this uses node:fs appendFile.
 
-export type ActivityKind = "add" | "rollback" | "apply" | "env.pull" | "run" | "rotate" | "get";
+export type ActivityKind = "add" | "rollback" | "apply" | "env.pull" | "run" | "rotate";
 
 export interface Activity {
   at: string;
