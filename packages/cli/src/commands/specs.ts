@@ -64,7 +64,7 @@ export const commands: CommandSpec[] = [
       { name: "name", type: "string", argument: "NAME", description: "Resource name (default: the service name)" },
       { name: "set", type: "string", multiple: true, argument: "KEY=VALUE", description: "Set a recipe input, e.g. --set region=eu-west-1" },
       { name: "use", type: "string", multiple: true, argument: "NEED=NAME", description: "Satisfy a dependency with an existing resource" },
-      { name: "expires", type: "string", argument: "DURATION", description: "Key lifetime, e.g. 7d or never (dashboard keys: the expiry you picked there)" },
+      { name: "expires", type: "string", argument: "DURATION", description: "Key lifetime, e.g. 7d (default: never). Dashboard keys: the expiry you picked there" },
       { name: "auto-rotate", type: "boolean", description: "Replace the key automatically before it expires (API keys only)" },
       { name: "value-stdin", type: "boolean", description: "Read a pasted credential from stdin instead of a hidden prompt" },
       dryRunOption,
