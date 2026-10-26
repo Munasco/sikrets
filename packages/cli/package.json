@@ -2,6 +2,7 @@
   "name": "sikrets",
   "version": "0.0.1",
   "description": "Sikrets CLI: connect providers, provision and rotate credentials.",
+  "license": "MIT",
   "type": "module",
   "bin": {
     "sikrets": "./src/index.ts"

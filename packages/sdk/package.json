@@ -2,6 +2,7 @@
   "name": "@sikrets/sdk",
   "version": "0.0.1",
   "description": "Resolve Sikrets stand-ins to real values at runtime: sikrets.get(\"ANTHROPIC_API_KEY\").",
+  "license": "MIT",
   "type": "module",
   "exports": { ".": "./src/index.ts" },
   "scripts": { "test": "bun test --timeout 5000", "typecheck": "tsc --noEmit" },
