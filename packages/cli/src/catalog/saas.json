@@ -332,7 +332,7 @@
     "managementApi": true,
     "apiKeyCreation": "dashboard-only",
     "auth": "bearer",
-    "docs": "https://docs.together.ai/reference/createendpoint",
+    "docs": "https://docs.together.ai/reference/dmi/endpoints-create",
     "terraform": null,
     "freeTier": false
   },
@@ -581,7 +581,7 @@
     "managementApi": true,
     "apiKeyCreation": "api",
     "auth": "basic",
-    "docs": "https://stytch.com/docs/workspace-management/pwa/create-secret",
+    "docs": "https://stytch.com/docs/api-reference/pwa/api/v3/secrets/create-secret",
     "terraform": "stytchauth/stytch",
     "freeTier": true
   },
@@ -796,7 +796,7 @@
     "managementApi": true,
     "apiKeyCreation": "dashboard-only",
     "auth": "api-key",
-    "docs": "https://appwrite.io/docs/advanced/platform/api-keys",
+    "docs": "https://appwrite.io/docs/partners/project/api-keys",
     "terraform": "appwrite/appwrite",
     "freeTier": true
   },
@@ -813,7 +813,7 @@
     "managementApi": true,
     "apiKeyCreation": "api",
     "auth": "bearer",
-    "docs": "https://docs.datastax.com/en/astra-db-classic/api-reference/devops-tokens.html",
+    "docs": "https://docs.datastax.com/en/astra-db-classic/administration/manage-application-tokens.html",
     "terraform": "datastax/astra",
     "freeTier": true
   },
@@ -845,7 +845,7 @@
     "managementApi": true,
     "apiKeyCreation": "api",
     "auth": "bearer",
-    "docs": "https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api",
+    "docs": "https://docs.cockroachlabs.com/docs/cockroachcloud/cloud-api",
     "terraform": "cockroachdb/cockroach",
     "freeTier": true
   },
@@ -861,7 +861,7 @@
     "managementApi": true,
     "apiKeyCreation": "api",
     "auth": "bearer",
-    "docs": "https://docs.convex.dev/platform-apis",
+    "docs": "https://docs.convex.dev/platform-apis/overview",
     "terraform": null,
     "freeTier": true
   },
@@ -980,7 +980,7 @@
     "managementApi": true,
     "apiKeyCreation": "oauth",
     "auth": "bearer",
-    "docs": "https://www.prisma.io/docs/postgres/introduction/management-api",
+    "docs": "https://www.prisma.io/docs/rest-api/getting-started",
     "terraform": "prisma/prisma-postgres",
     "freeTier": true
   },
@@ -1062,7 +1062,7 @@
     "managementApi": true,
     "apiKeyCreation": "dashboard-only",
     "auth": "bearer",
-    "docs": "https://xata.io/docs/api",
+    "docs": "https://xata.io/docs/api-reference",
     "terraform": null,
     "freeTier": null
   },
@@ -1112,7 +1112,7 @@
     "managementApi": true,
     "apiKeyCreation": "api",
     "auth": "bearer",
-    "docs": "https://developers.mailersend.com/api/v1/tokens.html",
+    "docs": "https://developers.mailersend.com/api/v1/account/tokens",
     "terraform": null,
     "freeTier": true
   },
@@ -1144,7 +1144,7 @@
     "managementApi": true,
     "apiKeyCreation": "api",
     "auth": "basic",
-    "docs": "https://dev.mailjet.com/email/reference/settings/api-key-configuration/",
+    "docs": "https://dev.mailjet.com/docs/api-reference/email-api/categories/settings",
     "terraform": null,
     "freeTier": true
   },
@@ -1246,7 +1246,7 @@
     "managementApi": true,
     "apiKeyCreation": "unknown",
     "auth": "api-key",
-    "docs": "https://docs.flagsmith.com/integrating-with-flagsmith/flagsmith-api-overview/admin-api/authentication",
+    "docs": "https://docs.flagsmith.com/integrating-with-flagsmith/flagsmith-api-overview/management-api/authentication",
     "terraform": "Flagsmith/flagsmith",
     "freeTier": true
   },
@@ -1311,7 +1311,7 @@
     "managementApi": true,
     "apiKeyCreation": "api",
     "auth": "api-key",
-    "docs": "https://docs.getunleash.io/reference/api/unleash/create-api-token",
+    "docs": "https://docs.getunleash.io/api/create-api-token",
     "terraform": "Unleash/unleash",
     "freeTier": true
   },
@@ -1347,7 +1347,7 @@
     "managementApi": true,
     "apiKeyCreation": "unknown",
     "auth": "bearer",
-    "docs": "https://fly.io/docs/machines/api/working-with-machines-api/",
+    "docs": "https://docs.fly.io/machines/api/working-with-machines-api",
     "terraform": "fly-apps/fly",
     "freeTier": false
   },
@@ -1432,7 +1432,7 @@
     "managementApi": true,
     "apiKeyCreation": "oauth",
     "auth": "bearer",
-    "docs": "https://docs.railway.com/guides/public-api",
+    "docs": "https://docs.railway.com/integrations/api",
     "terraform": "terraform-community-providers/railway",
     "freeTier": true
   },
@@ -1513,7 +1513,7 @@
     "managementApi": true,
     "apiKeyCreation": "dashboard-only",
     "auth": "bearer",
-    "docs": "https://checklyhq.com/docs/api/",
+    "docs": "https://www.checklyhq.com/docs/api-reference/overview/",
     "terraform": "checkly/checkly",
     "freeTier": true
   },
@@ -1545,7 +1545,7 @@
     "managementApi": true,
     "apiKeyCreation": "api",
     "auth": "bearer",
-    "docs": "https://grafana.com/docs/grafana-cloud/developer-resources/api-reference/cloud-api/",
+    "docs": "https://grafana.com/docs/grafana-cloud/learn-and-build/developer-resources/api-reference/cloud-api/",
     "terraform": "grafana/grafana",
     "freeTier": true
   },
@@ -1575,7 +1575,7 @@
     "managementApi": true,
     "apiKeyCreation": "api",
     "auth": "bearer",
-    "docs": "https://docs.honeycomb.io/api/api-keys/",
+    "docs": "https://docs.honeycomb.io/configure/environments/manage-api-keys",
     "terraform": "honeycombio/honeycombio",
     "freeTier": true
   },
@@ -1636,7 +1636,7 @@
     "managementApi": true,
     "apiKeyCreation": "api",
     "auth": "api-key",
-    "docs": "https://docs.rollbar.com/docs/api",
+    "docs": "https://docs.rollbar.com/reference/getting-started-1",
     "terraform": "rollbar/rollbar",
     "freeTier": true
   },
@@ -1682,7 +1682,7 @@
     "managementApi": true,
     "apiKeyCreation": "dashboard-only",
     "auth": "bearer",
-    "docs": "https://docs.knock.app/mapi-reference",
+    "docs": "https://docs.knock.app/mapi-reference/overview",
     "terraform": null,
     "freeTier": true
   },
@@ -1762,7 +1762,7 @@
     "managementApi": true,
     "apiKeyCreation": "dashboard-only",
     "auth": "bearer",
-    "docs": "https://doc.getlago.com/guide/security/api-keys",
+    "docs": "https://getlago.com/docs/guide/security/api-keys",
     "terraform": null,
     "freeTier": false
   },
@@ -1795,7 +1795,7 @@
     "managementApi": true,
     "apiKeyCreation": "dashboard-only",
     "auth": "bearer",
-    "docs": "https://developer.paddle.com/api-reference/overview",
+    "docs": "https://developer.paddle.com/api-reference/",
     "terraform": null,
     "freeTier": true
   },
@@ -2147,7 +2147,7 @@
     "managementApi": true,
     "apiKeyCreation": "dashboard-only",
     "auth": "bearer",
-    "docs": "https://developers.telnyx.com/development/api-fundamentals/create-api-keys",
+    "docs": "https://developers.telnyx.com/docs/development/api-fundamentals/create-api-keys",
     "terraform": null,
     "freeTier": false
   },
@@ -2215,7 +2215,7 @@
     "managementApi": true,
     "apiKeyCreation": "dashboard-only",
     "auth": "api-key",
-    "docs": "https://docs.bunny.net/api-reference/core",
+    "docs": "https://bunny.net/docs/api-reference/core",
     "terraform": "BunnyWay/bunnynet",
     "freeTier": false
   },
@@ -2265,7 +2265,7 @@
     "managementApi": true,
     "apiKeyCreation": "dashboard-only",
     "auth": "basic",
-    "docs": "https://mux.com/docs/core/mux-fundamentals",
+    "docs": "https://www.mux.com/docs/core/mux-fundamentals",
     "terraform": null,
     "freeTier": true
   },

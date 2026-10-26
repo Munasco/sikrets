@@ -3,7 +3,7 @@ import { mkdtemp } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { Driver } from "./driver.ts";
-import { EXIT_CODES, FlowError, runFlow, waitFor, type Step } from "./flow.ts";
+import { EXIT_CODES, expectOutput, FlowError, runFlow, waitFor, type Step } from "./flow.ts";
 
 // A scripted page and a fake clock: every run of these tests sees exactly the same timeline.
 function harness() {
@@ -113,5 +113,54 @@ describe("runFlow", () => {
       return runFlow(h.driver, [h.step({ retries: 1, done: async (_d, s) => s.runs >= 2 })], { runs: 0 }, await h.opts());
     };
     expect(await outcome()).toEqual(await outcome());
+  });
+});
+
+describe("site changes", () => {
+  test("a missing element while signed in is a site change, and gets recorded", async () => {
+    const h = harness();
+    const drifts: { flow: string; step: string }[] = [];
+    const opts = { ...(await h.opts()), signedIn: async () => true, onDrift: async (d: { flow: string; step: string }) => void drifts.push(d) };
+    const step = h.step({ id: "create", run: async (d) => void (await waitFor(d, { css: "#create" }, "create", 200, opts)) });
+    const err = await runFlow(h.driver, [step], { runs: 0 }, opts).catch((e) => e);
+    expect(err).toBeInstanceOf(FlowError);
+    expect((err as FlowError).kind).toBe("site-changed");
+    expect((err as FlowError).exitCode).toBe(EXIT_CODES["site-changed"]);
+    expect(drifts).toEqual([{ flow: "test", step: "create", url: "https://console.example.com/", message: expect.any(String) } as never]);
+  });
+
+  test("the same failure while signed out is a lost session, not a site change", async () => {
+    const h = harness();
+    const drifts: unknown[] = [];
+    const opts = { ...(await h.opts()), signedIn: async () => false, onDrift: async (d: unknown) => void drifts.push(d) };
+    const step = h.step({ id: "create", run: async (d) => void (await waitFor(d, { css: "#create" }, "create", 200, opts)) });
+    const err = (await runFlow(h.driver, [step], { runs: 0 }, opts).catch((e) => e)) as FlowError;
+    expect(err.kind).toBe("signed-out");
+    expect(drifts).toEqual([]);
+  });
+
+  test("output that no longer matches is a site change", () => {
+    expect(() => expectOutput("Your key: (hidden)", /[A-Za-z0-9_-]{30,}/, "read-key")).toThrow("site-changed");
+    expect(expectOutput("x".repeat(32), /[A-Za-z0-9_-]{30,}/, "read-key")).toBe("x".repeat(32));
+  });
+});
+
+describe("drift log", () => {
+  test("keeps origin and path only, and builds an issue link without page content", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "sikrets-drift-"));
+    const prev = Bun.env.SIKRETS_CONFIG_DIR;
+    Bun.env.SIKRETS_CONFIG_DIR = dir;
+    try {
+      const { recordDrift, driftLog, driftIssueUrl } = await import("./drift.ts");
+      const d = await recordDrift({ flow: "upstash/api-key", step: "Submit", url: "https://console.upstash.com/account/api?token=abc#x", message: "button never appeared" });
+      expect(d.page).toBe("https://console.upstash.com/account/api");
+      expect(await driftLog()).toEqual([d]);
+      const url = new URL(driftIssueUrl(d));
+      expect(url.searchParams.get("title")).toBe("Site changed: upstash/api-key (Submit)");
+      expect(url.search).not.toContain("token");
+    } finally {
+      if (prev === undefined) delete Bun.env.SIKRETS_CONFIG_DIR;
+      else Bun.env.SIKRETS_CONFIG_DIR = prev;
+    }
   });
 });
