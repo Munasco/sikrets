@@ -1,21 +1,22 @@
-import providers from "../catalog/providers.json";
-import type { CatalogProvider } from "../catalog/types.ts";
+import { SERVICES, type Service } from "../catalog/services.ts";
 import { recipes } from "../recipes/index.ts";
 
-// Search the provider catalog (200 providers from the Terraform Registry) and what's addable today.
+// Search every service Sikrets can keep a key for, and what `sikrets add` takes for each.
 export async function run(args: string[], opts: Record<string, unknown>) {
   const words = args.join(" ").toLowerCase().split(/\s+/).filter(Boolean);
-  const recipesOf = (id: string) => [...recipes.values()].filter((r) => r.provider === id);
-  const addable = (id: string) => recipesOf(id).map((r) => r.id);
-  const haystack = (p: CatalogProvider) => [p.id, p.terraform, p.description, ...recipesOf(p.id).map((r) => `${r.id} ${r.summary}`)].join(" ").toLowerCase();
-  const matches = (providers as CatalogProvider[]).filter((p) => words.every((w) => haystack(p).includes(w)));
+  // Hand-written recipes first, then the generic one every service has.
+  const addable = (s: Service) => [...[...recipes.values()].filter((r) => r.provider === s.id).map((r) => r.id), ...(recipes.has(`${s.id}/api-key`) ? [] : [`${s.id}/api-key`])];
+  const haystack = (s: Service) => [s.id, s.name, s.category, s.terraform ?? ""].join(" ").toLowerCase();
+  // Hand-checked services first, then those with an API spec, then Terraform-only ones.
+  const rank = (s: Service) => (s.sources.includes("sikrets") ? 0 : s.sources.includes("apis.guru") ? 1 : 2);
+  const matches = SERVICES.filter((s) => words.every((w) => haystack(s).includes(w))).sort((a, b) => rank(a) - rank(b) || a.id.localeCompare(b.id));
 
-  if (opts.json) return console.log(JSON.stringify(matches.map((p) => ({ ...p, addable: addable(p.id) }))));
-  if (!matches.length) return console.log("No providers match.");
-  const width = Math.max(...matches.map((p) => p.id.length));
-  for (const p of matches.slice(0, words.length ? 50 : 30)) {
-    const add = addable(p.id);
-    console.log(`${p.id.padEnd(width)}  ${p.terraform.padEnd(36)} ${add.length ? `add: ${add.join(", ")}` : p.description.slice(0, 70)}`);
+  if (opts.json) return console.log(JSON.stringify(matches.map((s) => ({ ...s, addable: addable(s) }))));
+  if (!matches.length) return console.log("No services match.");
+  const limit = words.length ? 50 : 30;
+  const width = Math.min(Math.max(...matches.slice(0, limit).map((s) => s.name.length)), 28);
+  for (const s of matches.slice(0, limit)) {
+    console.log(`${s.name.slice(0, 28).padEnd(width)}  ${(s.verify ? "checked" : "").padEnd(8)} sikrets add ${addable(s).join(" | ")}`);
   }
-  if (matches.length > (words.length ? 50 : 30)) console.log(`… ${matches.length - (words.length ? 50 : 30)} more. Narrow it: sikrets catalog <words>`);
+  console.log(matches.length > limit ? `… ${matches.length - limit} more. Narrow it: sikrets catalog <words>` : `${SERVICES.length} services in all.`);
 }
