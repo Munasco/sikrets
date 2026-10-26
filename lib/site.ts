@@ -3,7 +3,8 @@ export const site = {
   url: "https://sikrets.usetennant.com",
   title: "Sikrets — Security for the agent era",
   description:
-    "The security platform for the agent era. Create, keep and rotate every credential your apps and agents use, from one open-source CLI. Projects only ever hold stand-ins.",
+    "The security platform for the agent era. Secure every API key your agents and apps use, without ever handing them over. Free and open source.",
+  githubUrl: "https://github.com/Munasco/sikrets",
   tennantUrl: "https://usetennant.com",
   twitter: "@tennantcloud",
   waitlistUrl: "https://usetennant.com/waitlist",
