@@ -1,6 +1,8 @@
-// Builds src/catalog/services.json: every service Sikrets can store a key for, from three sources
-// we're free to use:
+// Builds src/catalog/services.json: every service Sikrets can store a key for, from sources we're
+// free to use:
 //   - src/catalog/saas.json, our hand-checked list (wins on every fact it has),
+//   - src/catalog/researched.json, services we looked up in each provider's own docs; only
+//     confirmed entries carry auth details, and a key check only when nothing but the key is needed,
 //   - the APIs.guru OpenAPI directory (CC0): how each API authenticates, and a cheap GET to check a key,
 //   - the Terraform Registry: providers with real usage, for coverage and the Terraform address.
 // Re-run to refresh:  bun scripts/services.ts
@@ -24,6 +26,20 @@ const UTILITIES = new Set([
 
 /** Names that are tooling around Terraform, not a service with an account. */
 const NOT_A_SERVICE = /(helper|util|function|merge|calc|generator|example|demo|test|mock|fake|dummy|local|template|playground|sandbox|tools?$|^terra|^tf|json|yaml|toml|hcl|string|math|ipam|wireguard|libvirt|vmware|vsphere|esxi|proxmox|azurerm.+|aws.+|google.+)/;
+
+interface Researched {
+  name: string;
+  confidence: "high" | "medium" | "low";
+  website?: string;
+  docs?: string;
+  auth: ServiceAuth;
+  header?: string;
+  query?: string;
+  verify?: string;
+}
+
+/** "Loops.so" → "loops", "Discord Bot" → "discord-bot". */
+const researchedId = (name: string) => slug(name.replace(/\.(so|io|ai|com|app|co|org|net|me|dev)$/i, ""));
 
 interface SaasEntry {
   id: string;
@@ -189,6 +205,7 @@ const AUTH_FROM_SAAS: Record<string, ServiceAuth> = { "api-key": "header", beare
 
 async function main() {
   const saas = (await Bun.file(new URL("../src/catalog/saas.json", import.meta.url)).json()) as SaasEntry[];
+  const researched = (await Bun.file(new URL("../src/catalog/researched.json", import.meta.url)).json()) as Researched[];
   const [guru, tf] = await Promise.all([fromGuru(), fromTerraform()]);
   const merged = new Map<string, Service>();
   const add = (s: Service) => {
@@ -199,6 +216,10 @@ async function main() {
   };
   for (const e of saas) {
     add({ id: e.id, name: e.name, category: e.category, auth: AUTH_FROM_SAAS[e.auth] ?? "unknown", docs: e.docs, ...(e.terraform ? { terraform: e.terraform } : {}), sources: ["sikrets"] });
+  }
+  for (const r of researched) {
+    const { confidence: _, name, ...facts } = r;
+    add({ id: researchedId(name), name, category: "other", ...facts, sources: ["researched"] });
   }
   // The hand-checked list knows the auth style but not the header name; take that from the spec.
   for (const g of guru) {
@@ -213,7 +234,7 @@ async function main() {
     .sort((a, b) => a.id.localeCompare(b.id));
   await Bun.write(new URL("../src/catalog/services.json", import.meta.url), `${JSON.stringify(services)}\n`);
   const count = (f: (s: Service) => boolean) => services.filter(f).length;
-  console.log(`Wrote ${services.length} services: ${count((s) => s.sources.includes("sikrets"))} hand-checked, ${count((s) => s.sources.includes("apis.guru"))} from APIs.guru, ${count((s) => s.sources.includes("terraform"))} from Terraform; ${count((s) => !!s.verify)} with a live key check.`);
+  console.log(`Wrote ${services.length} services: ${count((s) => s.sources.includes("sikrets"))} hand-checked, ${count((s) => s.sources.includes("researched"))} researched, ${count((s) => s.sources.includes("apis.guru"))} from APIs.guru, ${count((s) => s.sources.includes("terraform"))} from Terraform; ${count((s) => !!s.verify)} with a live key check.`);
 }
 
 await main();

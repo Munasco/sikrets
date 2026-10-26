@@ -7,8 +7,8 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   // Hand-written recipes first, then the generic one every service has.
   const addable = (s: Service) => [...[...recipes.values()].filter((r) => r.provider === s.id).map((r) => r.id), ...(recipes.has(`${s.id}/api-key`) ? [] : [`${s.id}/api-key`])];
   const haystack = (s: Service) => [s.id, s.name, s.category, s.terraform ?? ""].join(" ").toLowerCase();
-  // Hand-checked services first, then those with an API spec, then Terraform-only ones.
-  const rank = (s: Service) => (s.sources.includes("sikrets") ? 0 : s.sources.includes("apis.guru") ? 1 : 2);
+  // Hand-checked services first, then researched or spec-backed ones, then Terraform-only ones.
+  const rank = (s: Service) => (s.sources.includes("sikrets") ? 0 : s.sources.includes("researched") || s.sources.includes("apis.guru") ? 1 : 2);
   const matches = SERVICES.filter((s) => words.every((w) => haystack(s).includes(w))).sort((a, b) => rank(a) - rank(b) || a.id.localeCompare(b.id));
 
   if (opts.json) return console.log(JSON.stringify(matches.map((s) => ({ ...s, addable: addable(s) }))));
