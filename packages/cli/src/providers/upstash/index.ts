@@ -40,7 +40,9 @@ export const upstash: Provider = {
   mint: { key: "api-key", run: mintApiKey },
 };
 
-async function mintApiKey(page: Page, step: Step): Promise<string> {
+async function mintApiKey(page: Page, report: Step): Promise<string> {
+  let at = "";
+  const step: Step = (m) => report((at = m));
   try {
       step("Opening Account → Developer API");
       await page.goto(PROVIDER_URLS.upstash.apiKeys, { waitUntil: "domcontentloaded" });
@@ -56,8 +58,14 @@ async function mintApiKey(page: Page, step: Step): Promise<string> {
       const text = await page.getByRole("dialog").innerText({ timeout: 15_000 });
       const key = text.match(/[A-Za-z0-9_-]{30,}/g)?.sort((a, b) => b.length - a.length)[0];
       if (key) return key;
-  } catch {
-    /* fall through to manual */
+      throw new Error("the dialog no longer shows a key");
+  } catch (error) {
+    // Still signed in but a step failed: Upstash's dashboard changed. Keep a record and offer an issue.
+    if (await upstash.isLoggedIn(page).catch(() => false)) {
+      const { driftIssueUrl, recordDrift } = await import("../../browser/drift.ts");
+      const d = await recordDrift({ flow: "upstash/api-key", step: at, url: page.url(), message: error instanceof Error ? error.message.split("\n")[0]! : String(error) });
+      report(`Upstash's dashboard looks different from what Sikrets expects. Report it (prefilled, nothing sent until you submit): ${driftIssueUrl(d)}`);
+    }
   }
   step("Couldn't read the key automatically — create it in the window and paste it here");
   return promptHidden("Upstash Developer API key: ");
