@@ -1,0 +1,83 @@
+{
+  "resources": {
+    "xrp-hot-wallet": {
+      "allow": [
+        "transfer",
+        "sign"
+      ],
+      "min_posture": "unknown"
+    },
+    "btc-hot-wallet": {
+      "allow": [
+        "transfer",
+        "sign"
+      ],
+      "min_posture": "unknown"
+    },
+    "eth-hot-wallet-1": {
+      "allow": [
+        "transfer",
+        "sign",
+        "delegate"
+      ],
+      "min_posture": "unknown"
+    },
+    "eth-hot-wallet-2": {
+      "allow": [
+        "transfer",
+        "sign",
+        "delegate"
+      ],
+      "min_posture": "unknown"
+    },
+    "tron-hot-wallet": {
+      "allow": [
+        "transfer",
+        "sign"
+      ],
+      "min_posture": "unknown"
+    },
+    "sol-hot-wallet": {
+      "allow": [
+        "transfer",
+        "sign"
+      ],
+      "min_posture": "unknown"
+    },
+    "op-hot-wallet": {
+      "allow": [
+        "transfer",
+        "sign"
+      ],
+      "min_posture": "unknown"
+    },
+    "arb-hot-wallet": {
+      "allow": [
+        "transfer",
+        "sign"
+      ],
+      "min_posture": "unknown"
+    },
+    "avax-hot-wallet": {
+      "allow": [
+        "transfer",
+        "sign"
+      ],
+      "min_posture": "unknown"
+    },
+    "base-hot-wallet": {
+      "allow": [
+        "transfer",
+        "sign"
+      ],
+      "min_posture": "unknown"
+    },
+    "polygon-hot-wallet": {
+      "allow": [
+        "transfer",
+        "sign"
+      ],
+      "min_posture": "unknown"
+    }
+  }
+}

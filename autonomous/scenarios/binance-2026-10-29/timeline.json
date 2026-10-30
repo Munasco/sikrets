@@ -1,0 +1,27 @@
+{
+  "title": "Binance hot-wallet drain, 29 October 2026",
+  "source": "TRM Labs public timeline (trmlabs.com, 30 Oct 2026) and Binance's statement that a compromised DevOps engineer's laptop reached a service container. Internal architecture is illustrative. USD values are approximate at transfer time and back-solved so the total matches TRM's $6.36B; the per-chain split of the remainder is illustrative.",
+  "attacker": { "principal": "withdrawal-service", "device": "devops-laptop" },
+  "events": [
+    { "at": "2026-10-29T20:05:00Z", "resource": "xrp-hot-wallet", "kind": "transfer", "to": "attacker-xrp", "usd": "$96m", "repeat": 5, "note": "233.46M XRP from five wallets" },
+    { "at": "2026-10-29T20:10:00Z", "resource": "sol-hot-wallet", "kind": "transfer", "to": "attacker-sol", "usd": "$60m" },
+    { "at": "2026-10-29T20:11:00Z", "resource": "op-hot-wallet", "kind": "transfer", "to": "attacker-op", "usd": "$25m" },
+    { "at": "2026-10-29T20:20:00Z", "resource": "btc-hot-wallet", "kind": "transfer", "to": "attacker-btc", "usd": "$1573.4m", "note": "18,270 BTC, then peel chain" },
+    { "at": "2026-10-29T20:20:00Z", "resource": "eth-hot-wallet-1", "kind": "delegate", "to": "attacker-sweeper", "usd": "$0", "repeat": 50, "note": "50 EIP-7702 authorizations to a sweeper contract" },
+    { "at": "2026-10-29T20:21:00Z", "resource": "tron-hot-wallet", "kind": "transfer", "to": "attacker-tron", "usd": "$628m", "note": "612.7M USDT + 46.4M TRX" },
+    { "at": "2026-10-29T20:23:00Z", "resource": "eth-hot-wallet-1", "kind": "transfer", "to": "attacker-sweeper", "usd": "$2237m", "via_delegation": true, "note": "sweep: 167,464 ETH, 1.615B USDT, 62 tokens" },
+    { "at": "2026-10-29T20:25:00Z", "resource": "eth-hot-wallet-2", "kind": "transfer", "to": "attacker-eth", "usd": "$112m", "note": "28,006 ETH" },
+    { "at": "2026-10-29T20:27:00Z", "resource": "eth-hot-wallet-2", "kind": "transfer", "to": "attacker-eth", "usd": "$55.7m", "note": "55.7M USDT" },
+    { "at": "2026-10-29T20:29:00Z", "resource": "eth-hot-wallet-2", "kind": "transfer", "to": "attacker-eth", "usd": "$25.9m", "note": "25.9M RLUSD" },
+    { "at": "2026-10-29T20:41:00Z", "resource": "eth-hot-wallet-1", "kind": "transfer", "to": "attacker-sweeper", "usd": "$823m", "via_delegation": true, "note": "823M USDC via the smart account it executes for" },
+    { "at": "2026-10-29T20:59:00Z", "resource": "eth-hot-wallet-1", "kind": "transfer", "to": "attacker-sweeper", "usd": "$120m", "via_delegation": true },
+    { "at": "2026-10-29T21:04:00Z", "resource": "eth-hot-wallet-1", "kind": "transfer", "to": "attacker-sweeper", "usd": "$60m", "via_delegation": true },
+    { "at": "2026-10-29T21:44:00Z", "resource": "eth-hot-wallet-1", "kind": "transfer", "to": "attacker-sweeper", "usd": "$40m", "via_delegation": true },
+    { "at": "2026-10-29T22:39:00Z", "resource": "eth-hot-wallet-1", "kind": "transfer", "to": "attacker-sweeper", "usd": "$20m", "via_delegation": true },
+    { "at": "2026-10-29T23:05:00Z", "resource": "avax-hot-wallet", "kind": "transfer", "to": "attacker-avax", "usd": "$20m" },
+    { "at": "2026-10-29T23:05:00Z", "resource": "polygon-hot-wallet", "kind": "transfer", "to": "attacker-polygon", "usd": "$15m" },
+    { "at": "2026-10-29T23:10:00Z", "resource": "arb-hot-wallet", "kind": "transfer", "to": "attacker-arb", "usd": "$30m" },
+    { "at": "2026-10-29T23:15:00Z", "resource": "base-hot-wallet", "kind": "transfer", "to": "attacker-base", "usd": "$25m" },
+    { "at": "2026-10-29T23:56:00Z", "resource": "eth-hot-wallet-1", "kind": "transfer", "to": "attacker-sweeper", "usd": "$10m", "via_delegation": true }
+  ]
+}

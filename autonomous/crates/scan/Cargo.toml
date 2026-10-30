@@ -1,0 +1,23 @@
+[package]
+name = "sikrets-scan"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+foldhash = "0.2.0"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sikrets-core = { version = "0.1.0", path = "../core" }
+sikrets-policy = { version = "0.1.0", path = "../policy" }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+divan = "0.1.21"
+
+[[bench]]
+name = "scan"
+harness = false
