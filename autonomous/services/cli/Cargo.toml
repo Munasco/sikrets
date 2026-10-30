@@ -1,0 +1,26 @@
+[package]
+name = "sikrets-auto"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+clap = { version = "4.6.7", features = ["derive"] }
+ed25519-dalek = "3.0.0"
+jiff = { version = "0.2.38", features = ["serde"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sikrets-audit = { version = "0.1.0", path = "../../crates/audit" }
+sikrets-core = { version = "0.1.0", path = "../../crates/core" }
+sikrets-policy = { version = "0.1.0", path = "../../crates/policy" }
+sikrets-scan = { version = "0.1.0", path = "../../crates/scan" }
+sikrets-triage = { version = "0.1.0", path = "../../crates/triage" }
+tokio = { version = "1.54.1", features = ["macros", "rt"] }
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "sikrets-auto"
+path = "src/main.rs"
