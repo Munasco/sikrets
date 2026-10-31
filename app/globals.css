@@ -9,21 +9,22 @@
   --font-serif: var(--font-instrument-serif), ui-serif, Georgia, serif;
 }
 
-/* Light, warm palette: paper and cream surfaces, near-black ink, one deep green for actions,
-   and a few muted chip colours for diagrams. */
+/* Light, airy palette: white page, light grey cards, dark green headlines and actions,
+   soft grey for secondary words. */
 @theme {
   --color-paper: #ffffff;
-  --color-cream: #f8f6f5;
-  --color-sand: #f2f0ef;
+  --color-cream: #f4f3f1;
+  --color-sand: #eceae6;
   --color-line: #e5e5e5;
   --color-line-soft: #efecea;
   --color-ink: #181818;
   --color-ink-soft: #555555;
   --color-muted: #948b81;
-  --color-faint: #b5ada4;
-  --color-pine: #1c4a40;
+  --color-faint: #b3aea7;
+  --color-forest: #1f3b2d;
+  --color-pine: #1f4a3a;
   --color-pine-deep: #0f2e27;
-  --color-night: #121b22;
+  --color-night: #16261e;
   --color-night-line: #2a343c;
   --color-tan: #a08a66;
   --color-rust: #a8522f;

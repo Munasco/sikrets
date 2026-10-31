@@ -1,7 +1,5 @@
 import Image from "next/image"
-import { HugeiconsIcon } from "@hugeicons/react"
-import { Building03Icon, UserGroupIcon, UserIcon } from "@hugeicons/core-free-icons"
-import { Accordion, Check, Container, GuardCard, Headline, HeroButton, PhotoCard, Pill } from "@/components/landing"
+import { Accordion, CardPhoto, Check, Container, GuardCard, Headline, HeroButton, MediaCard, Pill, RotateArt, StandInArt, VaultArt } from "@/components/landing"
 import { SikretsMark } from "@/components/logo"
 import { Reveal } from "@/components/reveal"
 import { site } from "@/lib/site"
@@ -31,9 +29,9 @@ const nav = [
 const providers = ["Upstash", "Anthropic", "AWS", "OpenAI", "Cloudflare", "Neon", "Resend", "Supabase"]
 
 const tiers = [
-  { who: "You", role: "Virtual security guard", icon: UserIcon },
-  { who: "Your startup", role: "Autonomous security engineer", icon: UserGroupIcon },
-  { who: "Your company", role: "Autonomous security team", icon: Building03Icon },
+  { who: "You", role: "Virtual security guard", image: "/landing/cabin.jpg", alt: "A small cabin with a lit window in a misty forest" },
+  { who: "Your startup", role: "Autonomous security engineer", image: "/landing/tower.jpg", alt: "A fire lookout tower above fog and golden larches" },
+  { who: "Your company", role: "Autonomous security team", image: "/landing/city.jpg", alt: "A city skyline over still water at dawn" },
 ]
 
 const security = ["Encrypted on your device", "Secrets never print", "A leaked .env opens nothing", "Each project sees only its own keys"]
@@ -57,11 +55,11 @@ export default function LandingPage() {
     <div className="min-h-screen overflow-x-clip bg-paper text-ink">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
-      <header className="sticky top-0 z-40 bg-paper/90 backdrop-blur">
+      <header className="sticky top-0 z-40 bg-paper/95 backdrop-blur">
         <Container className="flex h-[72px] items-center justify-between">
           <a href="/" className="flex items-center gap-2.5">
             <SikretsMark size={20} />
-            <span className="font-serif text-[1.65rem] leading-none tracking-tight">Sikrets</span>
+            <span className="font-serif text-[1.65rem] leading-none tracking-tight text-forest">Sikrets</span>
           </a>
           <nav className="hidden items-center gap-8 font-mono text-[13px] text-ink-soft md:flex">
             {nav.map((n) => (
@@ -71,10 +69,10 @@ export default function LandingPage() {
             ))}
           </nav>
           <div className="flex items-center gap-2.5">
-            <a href={demoUrl} className="hidden h-10 items-center rounded-lg border border-line bg-white px-3.5 font-serif text-[1.1rem] leading-none transition-colors hover:bg-cream sm:inline-flex">
+            <a href={demoUrl} className="inline-flex h-10 items-center rounded-md border border-line bg-white px-3 font-serif text-[1.05rem] leading-none text-forest transition-colors hover:bg-cream sm:px-3.5 sm:text-[1.1rem]">
               Book a demo
             </a>
-            <Pill href={waitlistUrl} className="h-10 px-4 text-[1.1rem]">
+            <Pill href={waitlistUrl} className="h-10 rounded-md px-4 text-[1.1rem]">
               Get started
             </Pill>
           </div>
@@ -82,36 +80,30 @@ export default function LandingPage() {
       </header>
 
       <main>
-        {/* Hero */}
-        <section className="px-2 sm:px-4 md:px-6">
-          <div className="relative overflow-hidden rounded-2xl bg-black md:rounded-[1.75rem]">
-            <div className="absolute inset-x-0 top-0 h-[400px] sm:h-[480px] md:inset-0 md:h-auto">
-              <Image src="/landing/hero-key.jpg" alt="A black security key with a green light, resting on a concrete block" fill priority sizes="100vw" className="object-cover object-[68%_center]" />
-            </div>
-            <div className="absolute inset-x-0 top-0 h-[400px] bg-gradient-to-b from-transparent via-black/20 to-black sm:h-[480px] md:inset-0 md:h-auto md:bg-gradient-to-r md:from-black/85 md:via-black/45 md:to-transparent" />
-            <Container className="relative flex min-h-[640px] flex-col justify-end gap-10 pb-6 pt-[300px] sm:pb-12 sm:pt-[380px] md:min-h-[720px] md:flex-row md:items-end md:justify-between md:gap-12 md:pb-16 md:pt-40">
-              <div className="max-w-xl text-white">
-                <h1 className="display text-balance text-[3.25rem] sm:text-7xl md:text-[5.5rem]">
-                  Your virtual <em>security guard.</em>
-                </h1>
-                <p className="mt-5 text-[18px] text-white/75 md:text-xl">Like Grok, but for security. For you or your company.</p>
-                <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3">
-                  <HeroButton href={waitlistUrl}>Get started</HeroButton>
-                  <a href={demoUrl} className="font-serif text-[1.2rem] text-white/85 underline-offset-4 hover:text-white hover:underline">
-                    Book a demo
-                  </a>
-                </div>
+        {/* Hero: a tall pastel photo in a rounded card, headline centred over the sky. */}
+        <section className="px-3 pt-1 sm:px-5 md:px-9">
+          <div className="relative overflow-hidden rounded-2xl bg-sand md:rounded-[20px]">
+            <Image src="/landing/hero.jpg" alt="A lighthouse on a misty headland under a pale dawn sky" fill priority sizes="100vw" className="object-cover object-[48%_center]" />
+            <div className="relative flex min-h-[780px] flex-col items-center px-5 pb-6 pt-20 text-center sm:min-h-[820px] md:min-h-[max(760px,calc(100svh-96px))] md:pb-10 md:pt-32">
+              <h1 className="display text-balance text-[3.3rem] text-forest sm:text-7xl md:text-[5.6rem]">Your virtual security guard.</h1>
+              <p className="mt-6 max-w-md text-[17px] leading-snug text-[#3d4540] md:text-[19px]">
+                Like Grok, but for security.
+                <br />
+                For you or your company.
+              </p>
+              <div className="mt-8">
+                <HeroButton href={waitlistUrl}>Get started</HeroButton>
               </div>
-              <GuardCard />
-            </Container>
+              <GuardCard className="mt-auto md:absolute md:bottom-10 md:right-10 md:mt-0" />
+            </div>
           </div>
         </section>
 
         {/* Works with */}
         <Container className="py-12 md:py-16">
-          <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
+          <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-3 sm:gap-x-10">
             {providers.map((p) => (
-              <span key={p} className="text-xl font-medium tracking-tight text-faint">
+              <span key={p} className="text-lg font-medium tracking-tight text-faint sm:text-xl">
                 {p}
               </span>
             ))}
@@ -122,18 +114,20 @@ export default function LandingPage() {
         <section id="product" className="scroll-mt-24 py-16 md:py-24">
           <Container>
             <Reveal>
-              <Headline sub="Real keys stay in one vault. Everything else gets a placeholder.">How it works</Headline>
+              <Headline eyebrow="How it works">
+                Real keys stay in <b>one vault.</b> Everything else gets <b>a placeholder.</b>
+              </Headline>
             </Reveal>
             <div className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-3">
-              <Reveal>
-                <PhotoCard image="/landing/vault.jpg" alt="An open vault door with soft green light" title="The vault" body="Your keys live encrypted in one place." />
-              </Reveal>
-              <Reveal delay={80}>
-                <PhotoCard image="/landing/standin.jpg" alt="A steel key beside an identical glass key" title="Stand-ins" body="Your .env and CI hold a copy that opens nothing." />
-              </Reveal>
-              <Reveal delay={160}>
-                <PhotoCard image="/landing/rotate.jpg" alt="A key turning inside a ring of light" title="Rotation" body="Keys renew on a schedule. Nothing to redeploy." />
-              </Reveal>
+              {[
+                { art: <VaultArt />, title: "The vault", body: "Your keys live encrypted in one place." },
+                { art: <StandInArt />, title: "Stand-ins", body: "Your .env and CI hold a copy that opens nothing." },
+                { art: <RotateArt />, title: "Rotation", body: "Keys renew on a schedule. Nothing to redeploy." },
+              ].map((c, i) => (
+                <Reveal key={c.title} delay={i * 80}>
+                  <MediaCard media={c.art} title={c.title} body={c.body} />
+                </Reveal>
+              ))}
             </div>
           </Container>
         </section>
@@ -142,18 +136,14 @@ export default function LandingPage() {
         <section id="tiers" className="scroll-mt-24 py-16 md:py-24">
           <Container>
             <Reveal>
-              <Headline sub="It starts with your keys.">One guard, sized to you</Headline>
+              <Headline eyebrow="For you">
+                <b>One guard, sized to you.</b> It starts with your keys.
+              </Headline>
             </Reveal>
             <div className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-3">
               {tiers.map((t, i) => (
                 <Reveal key={t.who} delay={i * 80}>
-                  <div className="flex h-full flex-col rounded-2xl border border-line bg-cream p-6 md:p-8">
-                    <span className="grid size-11 place-items-center rounded-full bg-white text-pine shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
-                      <HugeiconsIcon icon={t.icon} size={20} strokeWidth={1.6} />
-                    </span>
-                    <p className="mt-10 font-mono text-[12px] uppercase tracking-[0.08em] text-muted md:mt-16">{t.who}</p>
-                    <p className="display mt-2 text-[2rem] text-ink md:text-[2.25rem]">{t.role}</p>
-                  </div>
+                  <MediaCard media={<CardPhoto src={t.image} alt={t.alt} />} label={t.who} title={t.role} />
                 </Reveal>
               ))}
             </div>
@@ -164,12 +154,14 @@ export default function LandingPage() {
         <section id="security" className="scroll-mt-24 py-16 md:py-24">
           <Container>
             <Reveal>
-              <Headline sub="A leak, a log line or a curious agent never exposes a real key.">Secure by design</Headline>
+              <Headline eyebrow="Security">
+                <b>Secure by design.</b> A leak, a log line or a curious agent never exposes a real key.
+              </Headline>
             </Reveal>
             <Reveal className="mt-12" delay={80}>
-              <ul className="grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 md:grid-cols-4">
+              <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
                 {security.map((s) => (
-                  <li key={s} className="flex items-start gap-3 bg-paper p-6 text-[17px] leading-snug text-ink md:min-h-36 md:flex-col md:gap-6">
+                  <li key={s} className="flex items-start gap-3 rounded-2xl bg-cream p-6 text-[17px] leading-snug text-forest md:min-h-40 md:flex-col md:justify-between md:gap-6">
                     <Check />
                     {s}
                   </li>
@@ -183,8 +175,8 @@ export default function LandingPage() {
         <section id="pricing" className="scroll-mt-24 py-16 md:py-24">
           <Container>
             <Reveal>
-              <Headline>
-                Free to <em>start.</em>
+              <Headline eyebrow="Pricing">
+                <b>Free</b> to start.
               </Headline>
             </Reveal>
             <div className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -193,9 +185,9 @@ export default function LandingPage() {
                 { name: "Open source", note: "Run it on your own AWS", href: githubUrl, cta: "View on GitHub", variant: "outline" as const },
               ].map((p, i) => (
                 <Reveal key={p.name} delay={i * 80}>
-                  <div className="flex h-full flex-col rounded-2xl border border-line bg-cream p-6 md:p-8">
+                  <div className="flex h-full flex-col rounded-2xl bg-cream p-6 md:p-8">
                     <p className="font-mono text-[12px] uppercase tracking-[0.08em] text-muted">{p.name}</p>
-                    <p className="display mt-4 text-5xl text-ink">Free</p>
+                    <p className="display mt-4 text-5xl text-forest">Free</p>
                     <p className="mt-2 text-[15px] text-ink-soft">{p.note}</p>
                     <Pill href={p.href} variant={p.variant} className="mt-8 w-full sm:w-auto sm:self-start">
                       {p.cta}
@@ -211,7 +203,9 @@ export default function LandingPage() {
         <section id="faq" className="scroll-mt-24 py-16 md:py-24">
           <Container className="grid gap-10 md:grid-cols-[1fr_1.6fr] md:gap-12">
             <Reveal>
-              <Headline>Questions</Headline>
+              <Headline eyebrow="FAQ">
+                <b>Questions</b>
+              </Headline>
             </Reveal>
             <Reveal delay={80}>
               <Accordion items={faq} defaultOpen={-1} />
@@ -219,23 +213,21 @@ export default function LandingPage() {
           </Container>
         </section>
 
-        {/* Closing */}
-        <section className="px-2 pb-2 sm:px-4 md:px-6">
-          <div className="relative overflow-hidden rounded-2xl bg-night px-5 py-24 text-center text-white md:rounded-[1.75rem] md:py-36">
-            <Image src="/landing/rotate.jpg" alt="" fill sizes="100vw" className="object-cover opacity-35" />
-            <Reveal className="relative">
-              <h2 className="display mx-auto max-w-3xl text-balance text-[2.5rem] sm:text-5xl md:text-[3.75rem]">Secure your first key in minutes</h2>
-              <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-                <Pill href={waitlistUrl} variant="light">
-                  Get started
-                </Pill>
+        {/* Closing: the road photo in a rounded card, headline centred over the sky like the hero. */}
+        <section className="px-3 pb-3 pt-8 sm:px-5 md:px-9 md:pb-9">
+          <div className="relative overflow-hidden rounded-2xl bg-sand md:rounded-[20px]">
+            <Image src="/landing/road.jpg" alt="A road winding through an autumn forest with fog in the valleys" fill sizes="100vw" className="object-cover object-[60%_center]" />
+            <Reveal className="relative flex min-h-[560px] flex-col items-center px-5 pt-16 text-center md:min-h-[680px] md:pt-24">
+              <h2 className="display mx-auto max-w-3xl text-balance text-[2.6rem] text-forest sm:text-5xl md:text-[4rem]">Secure your first key in minutes</h2>
+              <div className="mt-8">
+                <HeroButton href={waitlistUrl}>Get started</HeroButton>
               </div>
             </Reveal>
           </div>
         </section>
       </main>
 
-      <footer className="bg-night text-white">
+      <footer className="bg-forest text-white">
         <Container className="grid gap-12 py-16 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div className="flex items-center gap-2.5 self-start">
             <SikretsMark size={20} />
