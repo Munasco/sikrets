@@ -1,6 +1,6 @@
 import "./globals.css"
 import type { Metadata, Viewport } from "next"
-import { DM_Sans, Geist_Mono, Instrument_Serif } from "next/font/google"
+import localFont from "next/font/local"
 import type { ReactNode } from "react"
 import { metadataOrigin, site } from "@/lib/site"
 
@@ -43,23 +43,23 @@ export const viewport: Viewport = {
   colorScheme: "light",
 }
 
-const dmSans = DM_Sans({
+// Fonts are bundled so builds never depend on reaching Google Fonts.
+const dmSans = localFont({
   variable: "--font-dm-sans",
-  subsets: ["latin"],
-  weight: ["400", "500"],
+  src: [{ path: "./fonts/DMSans.woff2", weight: "400 500", style: "normal" }],
 })
 
-const instrumentSerif = Instrument_Serif({
+const instrumentSerif = localFont({
   variable: "--font-instrument-serif",
-  subsets: ["latin"],
-  weight: "400",
-  style: ["normal", "italic"],
+  src: [
+    { path: "./fonts/InstrumentSerif.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/InstrumentSerif-Italic.woff2", weight: "400", style: "italic" },
+  ],
 })
 
-const geistMono = Geist_Mono({
+const geistMono = localFont({
   variable: "--font-geist-mono",
-  subsets: ["latin"],
-  weight: ["400", "500"],
+  src: [{ path: "./fonts/GeistMono.woff2", weight: "400 500", style: "normal" }],
 })
 
 export default function RootLayout({ children }: { children: ReactNode }) {

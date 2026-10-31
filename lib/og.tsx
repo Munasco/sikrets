@@ -37,7 +37,7 @@ export async function renderOg() {
               <span style={{ fontSize: 38, letterSpacing: -1 }}>Sikrets</span>
             </div>
             <div style={{ display: "flex", marginTop: 44, fontSize: 104, lineHeight: 1, letterSpacing: -3 }}>Your virtual security guard.</div>
-            <div style={{ display: "flex", marginTop: 26, fontFamily: "Geist Mono", fontSize: 22, color: "#3d4540" }}>Like Grok, but for security.</div>
+            <div style={{ display: "flex", marginTop: 26, fontFamily: "Geist Mono", fontSize: 22, color: "#3d4540" }}>The AI agent you can paste keys into.</div>
           </div>
         </div>
       </div>

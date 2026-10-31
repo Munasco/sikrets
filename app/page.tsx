@@ -87,9 +87,9 @@ export default function LandingPage() {
             <div className="relative flex min-h-[780px] flex-col items-center px-5 pb-6 pt-20 text-center sm:min-h-[820px] md:min-h-[max(760px,calc(100svh-96px))] md:pb-10 md:pt-32">
               <h1 className="display text-balance text-[3.3rem] text-forest sm:text-7xl md:text-[5.6rem]">Your virtual security guard.</h1>
               <p className="mt-6 max-w-md text-[17px] leading-snug text-[#3d4540] md:text-[19px]">
-                Like Grok, but for security.
+                The AI agent you can paste keys into.
                 <br />
-                For you or your company.
+                Like Grokbot, but for you and your company.
               </p>
               <div className="mt-8">
                 <HeroButton href={waitlistUrl}>Get started</HeroButton>
