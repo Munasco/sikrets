@@ -4,57 +4,87 @@
 /* Font tokens are inline so they resolve where they're used: next/font defines its variables on
    <body>, not :root, so a non-inline token would resolve to nothing and fall back. */
 @theme inline {
-  --font-sans: var(--font-rethink-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-pt-mono), ui-monospace, monospace;
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
   --font-serif: var(--font-instrument-serif), ui-serif, Georgia, serif;
 }
 
-/* Tennant palette — mirrors tennant-frontend so Sikrets reads as part of the same product. */
+/* Light, airy palette: white page, light grey cards, dark green headlines and actions,
+   soft grey for secondary words. */
 @theme {
-  --color-ink: #0c0e0d;
-  --color-surface: #0e110f;
-  --color-field: #121714;
-  --color-hover: #1a1c1a;
-  --color-line: #252824;
-  --color-line-strong: #485544;
-  --color-sage: #9ca99a;
-  --color-label: #aeb8ab;
-  --color-text: #e2e3e0;
-  --color-text-soft: #c9d0c8;
-  --color-muted: #788377;
-  --color-faint: #626c60;
-  --color-danger: #e5786d;
-
+  --color-paper: #ffffff;
+  --color-cream: #f4f3f1;
+  --color-sand: #eceae6;
+  --color-line: #e5e5e5;
+  --color-line-soft: #efecea;
+  --color-ink: #181818;
+  --color-ink-soft: #555555;
+  --color-muted: #948b81;
+  --color-faint: #b3aea7;
+  --color-forest: #1f3b2d;
+  --color-pine: #1f4a3a;
+  --color-pine-deep: #0f2e27;
+  --color-night: #16261e;
+  --color-night-line: #2a343c;
+  --color-tan: #a08a66;
+  --color-rust: #a8522f;
+  --color-teal: #387689;
+  --color-plum: #5e2c4d;
+  --color-moss: #475850;
 }
 
 @layer base {
   * {
-    @apply border-line outline-sage/50;
+    @apply border-line outline-pine/40;
   }
   html {
-    color-scheme: dark;
+    color-scheme: light;
+    scroll-behavior: smooth;
   }
   body {
-    @apply bg-ink text-text font-sans antialiased;
+    @apply bg-paper text-ink font-sans antialiased;
+    font-size: 17px;
+    line-height: 1.45;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--color-pine) 18%, white);
   }
 }
 
-/* Hero diagram: dashes drift toward the services, the rotate glyph turns. */
-.flow {
-  stroke-dasharray: 4 6;
-  animation: flow 1.6s linear infinite;
+/* Display type: tight leading and tracking like a magazine headline. */
+.display {
+  /* The next/font variable directly: `@theme inline` tokens are not emitted as CSS variables. */
+  font-family: var(--font-instrument-serif), ui-serif, Georgia, serif;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.02em;
 }
-.spin {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: spin 6s linear infinite;
+.display em {
+  font-style: italic;
 }
-@keyframes flow {
-  to { stroke-dashoffset: -20; }
+
+/* Scroll reveal: elements fade and rise a little as they enter. Without JavaScript or with
+   reduced motion they are simply visible. */
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 0.8s cubic-bezier(0.2, 0.7, 0.2, 1),
+    transform 0.8s cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition-delay: var(--reveal-delay, 0ms);
 }
-@keyframes spin {
-  to { transform: rotate(360deg); }
+.reveal.is-in {
+  opacity: 1;
+  transform: none;
 }
+
 @media (prefers-reduced-motion: reduce) {
-  .flow, .spin { animation: none; }
+  html {
+    scroll-behavior: auto;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
 }

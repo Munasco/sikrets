@@ -1,11 +1,11 @@
 import "./globals.css"
 import type { Metadata, Viewport } from "next"
-import { Instrument_Serif, Rethink_Sans, PT_Mono } from "next/font/google"
+import localFont from "next/font/local"
 import type { ReactNode } from "react"
-import { site } from "@/lib/site"
+import { metadataOrigin, site } from "@/lib/site"
 
 export const metadata: Metadata = {
-  metadataBase: new URL(site.url),
+  metadataBase: new URL(metadataOrigin),
   title: { default: site.title, template: `%s — ${site.name}` },
   description: site.description,
   applicationName: site.name,
@@ -13,14 +13,12 @@ export const metadata: Metadata = {
   creator: "Tennant",
   publisher: "Tennant",
   keywords: [
-    "credential management",
+    "virtual security guard",
+    "autonomous security agent",
+    "AI security",
     "secrets management",
     "API key rotation",
-    "automatic secret rotation",
     "AI agent security",
-    "non-human identities",
-    "MCP server credentials",
-    "dynamic secrets",
   ],
   alternates: { canonical: "/" },
   openGraph: {
@@ -41,32 +39,38 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: "#0c0e0d",
-  colorScheme: "dark",
+  themeColor: "#ffffff",
+  colorScheme: "light",
 }
 
-const rethinkSans = Rethink_Sans({
-  variable: "--font-rethink-sans",
-  subsets: ["latin"],
+// Fonts are bundled so builds never depend on reaching Google Fonts.
+const dmSans = localFont({
+  variable: "--font-dm-sans",
+  src: [{ path: "./fonts/DMSans.woff2", weight: "400 500", style: "normal" }],
 })
 
-const instrumentSerif = Instrument_Serif({
+const instrumentSerif = localFont({
   variable: "--font-instrument-serif",
-  subsets: ["latin"],
-  weight: "400",
-  style: ["normal", "italic"],
+  src: [
+    { path: "./fonts/InstrumentSerif.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/InstrumentSerif-Italic.woff2", weight: "400", style: "italic" },
+  ],
 })
 
-const ptMono = PT_Mono({
-  variable: "--font-pt-mono",
-  subsets: ["latin"],
-  weight: "400",
+const geistMono = localFont({
+  variable: "--font-geist-mono",
+  src: [{ path: "./fonts/GeistMono.woff2", weight: "400 500", style: "normal" }],
 })
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${rethinkSans.variable} ${ptMono.variable} ${instrumentSerif.variable}`}>{children}</body>
+      <body className={`${dmSans.variable} ${geistMono.variable} ${instrumentSerif.variable}`}>
+        <noscript>
+          <style>{`.reveal{opacity:1;transform:none}`}</style>
+        </noscript>
+        {children}
+      </body>
     </html>
   )
 }
