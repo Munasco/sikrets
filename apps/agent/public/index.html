@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sikrets Security Agent</title>
+<meta name="description" content="Chat with the Sikrets security agent: find leaked keys, check leak notices, rotate credentials.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230e110f'/%3E%3Cpath d='M16 6l8 3v6c0 5-3.4 9-8 11-4.6-2-8-6-8-11V9z' fill='none' stroke='%239ca99a' stroke-width='2'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=PT+Mono&family=Rethink+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0c0e0d; --surface: #0e110f; --field: #121714; --hover: #1a1c1a; --line: #252824; --line-strong: #485544;
+    --sage: #9ca99a; --label: #aeb8ab; --text: #e2e3e0; --soft: #c9d0c8; --muted: #788377; --faint: #626c60; --danger: #e5786d; --ok: #8fc79a;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--ink); color: var(--text); font: 15px/1.6 "Rethink Sans", ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  code, pre, .mono { font-family: "PT Mono", ui-monospace, monospace; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  a { color: var(--sage); }
+  .app { display: grid; grid-template-rows: auto 1fr auto; height: 100dvh; max-width: 820px; margin: 0 auto; padding: 0 16px; }
+  header { display: flex; align-items: center; gap: 10px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  header .name { font-weight: 600; letter-spacing: -0.01em; }
+  header .tag { color: var(--muted); font-size: 13px; }
+  header .spacer { flex: 1; }
+  .pill { font-size: 12px; color: var(--label); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
+  .pill.enclave { border-color: var(--line-strong); }
+  .icon-btn { background: none; border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; color: var(--label); }
+  .icon-btn:hover { background: var(--hover); }
+  #log { overflow-y: auto; padding: 24px 0 8px; scroll-behavior: smooth; }
+  .empty { text-align: center; padding: 8vh 0 0; }
+  .empty h1 { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; margin: 14px 0 6px; }
+  .empty p { color: var(--muted); margin: 0 0 26px; }
+  .chips { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; text-align: left; }
+  .chip { text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; color: var(--soft); font-size: 14px; }
+  .chip:hover { background: var(--hover); border-color: var(--line-strong); }
+  .chip b { display: block; color: var(--text); font-weight: 600; margin-bottom: 2px; }
+  .msg { margin: 0 0 18px; }
+  .msg.user { display: flex; justify-content: flex-end; }
+  .msg.user .bubble { background: var(--field); border: 1px solid var(--line); border-radius: 14px 14px 4px 14px; padding: 10px 14px; max-width: 85%; white-space: pre-wrap; word-break: break-word; }
+  .msg.assistant .body { word-break: break-word; }
+  .body p { margin: 0 0 10px; }
+  .body ul, .body ol { margin: 0 0 10px; padding-left: 22px; }
+  .body li { margin: 2px 0; }
+  .body hr { border: 0; border-top: 1px solid var(--line); margin: 14px 0; }
+  .body h3 { font-size: 15px; margin: 14px 0 6px; }
+  .body code { background: var(--field); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; font-size: 13px; }
+  .body pre { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; overflow-x: auto; }
+  .body pre code { background: none; border: 0; padding: 0; }
+  .body table { border-collapse: collapse; margin: 0 0 10px; font-size: 14px; display: block; overflow-x: auto; }
+  .body th, .body td { border: 1px solid var(--line); padding: 5px 9px; text-align: left; }
+  .tool { border: 1px solid var(--line); border-radius: 10px; margin: 0 0 10px; background: var(--surface); font-size: 13px; }
+  .tool summary { list-style: none; display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; color: var(--label); }
+  .tool summary::-webkit-details-marker { display: none; }
+  .tool .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sage); flex: none; }
+  .tool.running .dot { animation: pulse 1s ease-in-out infinite; }
+  .tool.error .dot { background: var(--danger); }
+  .tool .ms { margin-left: auto; color: var(--faint); }
+  .tool pre { margin: 0; padding: 10px 12px; border-top: 1px solid var(--line); max-height: 320px; overflow: auto; color: var(--soft); white-space: pre-wrap; word-break: break-all; }
+  .thinking { color: var(--faint); font-size: 13px; margin: 0 0 8px; display: flex; gap: 6px; align-items: center; }
+  .thinking .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); animation: pulse 1s ease-in-out infinite; }
+  .note { color: var(--muted); font-size: 12px; margin: -6px 0 14px; }
+  .err { color: var(--danger); }
+  @keyframes pulse { 50% { opacity: .3; } }
+  footer { padding: 10px 0 14px; }
+  form.composer { display: flex; gap: 8px; align-items: flex-end; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 8px; }
+  form.composer:focus-within { border-color: var(--line-strong); }
+  textarea { flex: 1; resize: none; background: none; border: 0; outline: 0; color: var(--text); font: inherit; padding: 6px 8px; max-height: 40vh; min-height: 24px; }
+  textarea::placeholder { color: var(--faint); }
+  .send { background: var(--text); color: var(--ink); border: 0; border-radius: 10px; width: 38px; height: 38px; display: grid; place-items: center; flex: none; }
+  .send:disabled { opacity: .35; cursor: default; }
+  .fine { color: var(--faint); font-size: 12px; text-align: center; margin-top: 8px; }
+  .gate { display: grid; place-items: center; height: 100dvh; padding: 16px; }
+  .gate form { width: min(360px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 24px; }
+  .gate h1 { font-size: 20px; margin: 10px 0 4px; }
+  .gate p { color: var(--muted); margin: 0 0 16px; font-size: 14px; }
+  .gate input { width: 100%; background: var(--field); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; color: var(--text); font: inherit; outline: 0; }
+  .gate input:focus { border-color: var(--line-strong); }
+  .gate button { width: 100%; margin-top: 12px; background: var(--text); color: var(--ink); border: 0; border-radius: 10px; padding: 10px; font-weight: 600; }
+  .gate .err { font-size: 13px; margin-top: 10px; min-height: 1em; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="shield" viewBox="0 0 24 24"><path d="M12 3l7 2.6v5.2c0 4.6-3 8.3-7 10.2-4-1.9-7-5.6-7-10.2V5.6z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+
+<div id="gate" class="gate" hidden>
+  <form id="gate-form">
+    <svg width="28" height="28" style="color:var(--sage)"><use href="#shield"/></svg>
+    <h1>Sikrets security agent</h1>
+    <p>Enter your access code.</p>
+    <label class="sr" for="code">Access code</label>
+    <input id="code" type="password" autocomplete="current-password" required>
+    <button type="submit">Continue</button>
+    <div id="gate-err" class="err" role="alert"></div>
+  </form>
+</div>
+
+<div id="app" class="app" hidden>
+  <header>
+    <svg width="22" height="22" style="color:var(--sage)" aria-hidden="true"><use href="#shield"/></svg>
+    <span class="name">Sikrets</span><span class="tag">security agent</span>
+    <span class="spacer"></span>
+    <a id="enclave" class="pill enclave" href="/attestation" target="_blank" rel="noopener" hidden title="Attestation document for the enclave this agent runs in">Nitro Enclave</a>
+    <span id="model" class="pill mono" title="Model"></span>
+    <button id="reset" class="icon-btn" type="button" title="New chat" aria-label="New chat">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+  </header>
+  <main id="log" aria-live="polite"></main>
+  <footer>
+    <form id="composer" class="composer">
+      <label class="sr" for="input">Message</label>
+      <textarea id="input" rows="1" placeholder="Paste code, a repo, or a leak notice…"></textarea>
+      <button id="send" class="send" type="submit" aria-label="Send" disabled>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+      </button>
+    </form>
+    <div class="fine">Keys you paste are swapped for placeholders before the model sees them.</div>
+  </footer>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const log = $("#log"), input = $("#input"), send = $("#send");
+let messages = [];
+let busy = false;
+
+const EXAMPLES = [
+  { t: "Scan a public repo", p: "Scan github.com/Munasco/sikrets for leaked keys." },
+  { t: "Check pasted config", p: "Is anything sensitive in this?\n\nDATABASE_URL=postgres://app:Pa55w0rd-9f8e7d6c@db.internal:5432/app\nGITHUB_TOKEN=ghp_" + "Z8kQ2mN4pR7sT1vX3yB5cD6fG9hJ0kL2mN4p" + "\nNODE_ENV=production" },
+  { t: "Rotate a leaked key", p: "My Stripe live key leaked in a public repo. What do I do, in order?" },
+  { t: "Check a package", p: "Does lodash 4.17.15 have known vulnerabilities?" },
+];
+
+function esc(s) { return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]); }
+
+// Small Markdown renderer: code blocks, inline code, bold, italics, links, lists, headings, tables.
+function md(src) {
+  const blocks = [];
+  src = src.replace(/```[\w-]*\n?([\s\S]*?)(```|$)/g, (_, code) => { blocks.push(`<pre><code>${esc(code.replace(/\n$/, ""))}</code></pre>`); return `\u0000${blocks.length - 1}\u0000`; });
+  const inline = (s) => esc(s)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+    .replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>');
+  const lines = src.split("\n");
+  let html = "", list = null, para = [], table = [];
+  const flushPara = () => { if (para.length) html += `<p>${para.map(inline).join("<br>")}</p>`; para = []; };
+  const flushList = () => { if (list) html += `</${list}>`; list = null; };
+  const flushTable = () => {
+    if (!table.length) return;
+    const rows = table.filter((r) => !/^\s*\|?\s*:?-{2,}/.test(r)).map((r) => r.trim().replace(/^\||\|$/g, "").split("|").map((c) => inline(c.trim())));
+    html += "<table>" + rows.map((r, i) => "<tr>" + r.map((c) => i ? `<td>${c}</td>` : `<th>${c}</th>`).join("") + "</tr>").join("") + "</table>";
+    table = [];
+  };
+  for (const line of lines) {
+    const block = /^\u0000(\d+)\u0000$/.exec(line.trim());
+    if (block) { flushPara(); flushList(); flushTable(); html += blocks[+block[1]]; continue; }
+    if (/^\s*\|.*\|\s*$/.test(line)) { flushPara(); flushList(); table.push(line); continue; } else flushTable();
+    const h = /^#{1,4}\s+(.*)/.exec(line);
+    const ul = /^\s*[-*•]\s+(.*)/.exec(line);
+    const ol = /^\s*\d+[.)]\s+(.*)/.exec(line);
+    if (/^\s*(?:-{3,}|\*{3,})\s*$/.test(line)) { flushPara(); flushList(); html += "<hr>"; }
+    else if (h) { flushPara(); flushList(); html += `<h3>${inline(h[1])}</h3>`; }
+    else if (ul || ol) {
+      flushPara();
+      const kind = ul ? "ul" : "ol";
+      if (list !== kind) { flushList(); html += `<${kind}>`; list = kind; }
+      html += `<li>${inline((ul || ol)[1])}</li>`;
+    } else if (!line.trim()) { flushPara(); flushList(); }
+    else { flushList(); para.push(line); }
+  }
+  flushPara(); flushList(); flushTable();
+  return html.replace(/\u0000(\d+)\u0000/g, (_, i) => blocks[+i]);
+}
+
+function scrollDown() { log.scrollTop = log.scrollHeight; }
+
+function renderEmpty() {
+  log.innerHTML = `<div class="empty">
+    <svg width="40" height="40" style="color:var(--sage)" aria-hidden="true"><use href="#shield"/></svg>
+    <h1>Find leaked keys. Fix them fast.</h1>
+    <p>Scans code and repos, checks leak notices, and walks you through rotation.</p>
+    <div class="chips">${EXAMPLES.map((e, i) => `<button class="chip" data-i="${i}" type="button"><b>${esc(e.t)}</b>${esc(e.p.split("\n")[0])}</button>`).join("")}</div>
+  </div>`;
+  log.querySelectorAll(".chip").forEach((b) => b.addEventListener("click", () => { input.value = EXAMPLES[+b.dataset.i].p; resize(); submit(); }));
+}
+
+function addUser(text) {
+  const el = document.createElement("div");
+  el.className = "msg user";
+  el.innerHTML = `<div class="bubble"></div>`;
+  el.firstChild.textContent = text;
+  log.append(el);
+}
+
+const TOOL_LABEL = { scan_text: "Scanning text", scan_github_repo: "Scanning repo", check_leak_hashes: "Checking leak hashes", how_to_rotate: "Looking up rotation", osv_lookup: "Checking OSV" };
+
+function toolSummary(name, input) {
+  if (name === "scan_github_repo") return `${input.repo}${input.ref ? "@" + input.ref : ""}`;
+  if (name === "how_to_rotate") return input.service;
+  if (name === "osv_lookup") return `${input.name}${input.version ? "@" + input.version : ""}`;
+  if (name === "check_leak_hashes") return `${(input.hashes || []).length} hash(es)`;
+  return "";
+}
+
+async function submit() {
+  const text = input.value.trim();
+  if (!text || busy) return;
+  if (!messages.length) log.innerHTML = "";
+  busy = true; send.disabled = true;
+  input.value = ""; resize();
+  messages.push({ role: "user", content: text });
+  addUser(text);
+
+  const el = document.createElement("div");
+  el.className = "msg assistant";
+  const thinking = document.createElement("div");
+  thinking.className = "thinking";
+  thinking.innerHTML = `<span class="dot"></span><span>Thinking…</span>`;
+  el.append(thinking);
+  log.append(el);
+  scrollDown();
+
+  let body = null, answer = "", full = "";
+  const tools = {};
+  const newBody = () => { body = document.createElement("div"); body.className = "body"; el.append(body); answer = ""; };
+
+  try {
+    const res = await fetch("/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ messages }) });
+    if (res.status === 401) { showGate(); throw new Error("Enter the access code first."); }
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Error ${res.status}`);
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf("\n\n")) >= 0) {
+        const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
+        if (!chunk.startsWith("data: ")) continue;
+        const ev = JSON.parse(chunk.slice(6));
+        if (ev.type === "text") {
+          thinking.hidden = true;
+          if (!body) newBody();
+          answer += ev.delta; full += ev.delta;
+          body.innerHTML = md(answer);
+        } else if (ev.type === "reasoning") {
+          thinking.querySelector("span:last-child").textContent = "Thinking…";
+        } else if (ev.type === "hidden") {
+          const n = document.createElement("div");
+          n.className = "note";
+          n.textContent = `${ev.count} secret${ev.count > 1 ? "s" : ""} in your message ${ev.count > 1 ? "were" : "was"} hidden from the model.`;
+          el.insertBefore(n, thinking);
+        } else if (ev.type === "tool") {
+          const d = document.createElement("details");
+          d.className = "tool running";
+          d.innerHTML = `<summary><span class="dot"></span><span></span><span class="ms"></span></summary><pre></pre>`;
+          d.querySelector("summary span:nth-child(2)").textContent = `${TOOL_LABEL[ev.name] || ev.name} ${toolSummary(ev.name, ev.input || {})}`.trim();
+          el.insertBefore(d, thinking);
+          tools[ev.id] = d;
+          body = null;
+          thinking.hidden = false;
+          thinking.querySelector("span:last-child").textContent = `${TOOL_LABEL[ev.name] || "Working"}…`;
+        } else if (ev.type === "tool_result") {
+          const d = tools[ev.id];
+          if (d) {
+            d.classList.remove("running");
+            if (ev.result && ev.result.error) d.classList.add("error");
+            d.querySelector(".ms").textContent = ev.ms < 1000 ? `${ev.ms} ms` : `${(ev.ms / 1000).toFixed(1)} s`;
+            d.querySelector("pre").textContent = JSON.stringify(ev.result, null, 2);
+          }
+          thinking.querySelector("span:last-child").textContent = "Thinking…";
+        } else if (ev.type === "error") {
+          throw new Error(ev.message);
+        } else if (ev.type === "done") {
+          thinking.remove();
+        }
+        if (body) el.append(body);
+        scrollDown();
+      }
+    }
+    thinking.remove();
+    messages.push({ role: "assistant", content: full || "(no answer)" });
+  } catch (e) {
+    thinking.remove();
+    const p = document.createElement("p");
+    p.className = "err";
+    p.textContent = e.message || String(e);
+    el.append(p);
+    messages.pop();
+  } finally {
+    busy = false;
+    send.disabled = !input.value.trim();
+    scrollDown();
+    input.focus();
+  }
+}
+
+function resize() { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, window.innerHeight * 0.4) + "px"; send.disabled = busy || !input.value.trim(); }
+input.addEventListener("input", resize);
+input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); submit(); } });
+$("#composer").addEventListener("submit", (e) => { e.preventDefault(); submit(); });
+$("#reset").addEventListener("click", () => { if (busy) return; messages = []; renderEmpty(); input.focus(); });
+
+function showGate() { $("#app").hidden = true; $("#gate").hidden = false; $("#code").focus(); }
+function showApp() { $("#gate").hidden = true; $("#app").hidden = false; renderEmpty(); input.focus(); }
+
+$("#gate-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("#gate-err").textContent = "";
+  const res = await fetch("/api/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code: $("#code").value }) });
+  if (res.ok) { $("#code").value = ""; showApp(); }
+  else $("#gate-err").textContent = (await res.json().catch(() => ({}))).error || "Couldn't sign in.";
+});
+
+(async () => {
+  const me = await fetch("/api/me").then((r) => r.json()).catch(() => ({ authed: true }));
+  $("#model").textContent = (me.model || "").replace(/^openai\./, "").replace(/-\d+:\d+$/, "");
+  fetch("/api/attestation").then((r) => r.json()).then((a) => { if (a.enclave) $("#enclave").hidden = false; }).catch(() => {});
+  me.authed ? showApp() : showGate();
+})();
+</script>
+</body>
+</html>
