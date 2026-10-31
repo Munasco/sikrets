@@ -2,10 +2,10 @@ import "./globals.css"
 import type { Metadata, Viewport } from "next"
 import { DM_Sans, Geist_Mono, Instrument_Serif } from "next/font/google"
 import type { ReactNode } from "react"
-import { site } from "@/lib/site"
+import { metadataOrigin, site } from "@/lib/site"
 
 export const metadata: Metadata = {
-  metadataBase: new URL(site.url),
+  metadataBase: new URL(metadataOrigin),
   title: { default: site.title, template: `%s — ${site.name}` },
   description: site.description,
   applicationName: site.name,
@@ -20,9 +20,9 @@ export const metadata: Metadata = {
     "non-human identities",
     "MCP server credentials",
     "time-limited access",
-    "attack path analysis",
-    "policy gateway",
-    "audit ledger",
+    "agent sessions",
+    "credential proxy",
+    "sandboxed AI agents",
   ],
   alternates: { canonical: "/" },
   openGraph: {

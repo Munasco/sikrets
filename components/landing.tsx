@@ -22,8 +22,8 @@ export function Headline({ children, sub, eyebrow, align = "left", light, classN
   return (
     <div className={cn(align === "center" ? "mx-auto max-w-3xl text-center" : "max-w-3xl", className)}>
       {eyebrow && <Eyebrow light={light} className={cn("mb-6", align === "center" && "justify-center")}>{eyebrow}</Eyebrow>}
-      <h2 className={cn("display text-[2.5rem] sm:text-5xl md:text-[3.75rem]", light ? "text-white" : "text-ink")}>{children}</h2>
-      {sub && <p className={cn("mt-5 text-[17px] leading-relaxed md:text-lg", light ? "text-white/75" : "text-ink-soft")}>{sub}</p>}
+      <h2 className={cn("display text-balance text-[2.5rem] sm:text-5xl md:text-[3.75rem]", light ? "text-white" : "text-ink")}>{children}</h2>
+      {sub && <p className={cn("mt-5 text-pretty text-[17px] leading-relaxed md:text-lg", light ? "text-white/75" : "text-ink-soft")}>{sub}</p>}
     </div>
   )
 }
@@ -122,16 +122,16 @@ export function Accordion({ items, defaultOpen = 0 }: { items: { q: string; a: R
   )
 }
 
-/** A time-limited grant, as it would appear in the product. */
-export function GrantCard() {
+/** A running agent session with its countdown and a revoke control. */
+export function SessionCard() {
   return (
     <div className="rounded-xl border border-line bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
       <div className="flex items-center gap-3">
-        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-sand font-serif text-lg text-ink">G</span>
+        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-sand font-serif text-lg text-ink">C</span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-medium text-ink">Gabby</p>
+          <p className="truncate text-[15px] font-medium text-ink">claude</p>
           <p className="truncate font-mono text-[11.5px] text-ink-soft">
-            read-only · <span className="text-ink">prod/db</span>
+            github, slack
           </p>
         </div>
         <span className="rounded-full border border-rust/40 px-3 py-1 font-serif text-[15px] leading-none text-rust">Revoke</span>
@@ -140,51 +140,59 @@ export function GrantCard() {
         <div className="drain h-full rounded-full bg-pine" style={{ width: "92%" }} />
       </div>
       <div className="mt-2 flex items-center justify-between font-mono text-[11px] text-ink-soft">
-        <span>granted 14:02</span>
-        <span className="text-ink">41 min left</span>
+        <span>sks_7f3a9c…</span>
+        <span className="text-ink">1h 12m left</span>
       </div>
     </div>
   )
 }
 
-/** Rows from the decision ledger. */
-export function LedgerMock() {
-  const rows: { seq: string; kind: string; color: keyof typeof chipColor; what: string; hash: string }[] = [
-    { seq: "416", kind: "allow", color: "pine", what: "gabby → prod/db · read", hash: "9f2c…e1" },
-    { seq: "417", kind: "deny", color: "rust", what: "withdrawal-service → btc-hot-wallet · transfer", hash: "a71e…04" },
-    { seq: "418", kind: "revoke", color: "ink", what: "gabby → prod/db", hash: "04d9…7b" },
+/** Rows from a session's request log. */
+export function SessionLog() {
+  const rows: { method: string; service: string; what: string; status: string; color: keyof typeof chipColor }[] = [
+    { method: "GET", service: "github", what: "/repos/acme/web/pulls", status: "200", color: "pine" },
+    { method: "POST", service: "slack", what: "/api/chat.postMessage", status: "200", color: "pine" },
+    { method: "DELETE", service: "github", what: "/repos/acme/web", status: "403", color: "rust" },
   ]
   return (
     <div className="overflow-hidden rounded-xl border border-line bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
       <ul className="divide-y divide-line-soft font-mono text-[11.5px]">
         {rows.map((r) => (
-          <li key={r.seq} className="flex items-center gap-3 px-3.5 py-2.5">
-            <span className="w-7 shrink-0 text-muted">{r.seq}</span>
-            <Chip color={r.color} className="w-[4.25rem] text-center">
-              {r.kind}
-            </Chip>
+          <li key={r.what} className="flex items-center gap-3 px-3.5 py-2.5">
+            <span className="w-12 shrink-0 text-ink-soft">{r.method}</span>
+            <span className="w-12 shrink-0 text-ink-soft">{r.service}</span>
             <span className="min-w-0 flex-1 truncate text-ink">{r.what}</span>
-            <span className="hidden shrink-0 text-muted sm:inline">{r.hash}</span>
+            <Chip color={r.color} className="shrink-0 text-center">
+              {r.status}
+            </Chip>
           </li>
         ))}
-        <li className="flex items-center justify-between gap-3 bg-cream px-3.5 py-2.5 text-ink-soft">
-          <span>checkpoint · ed25519</span>
-          <span className="flex items-center gap-1.5 text-pine">
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden>
-              <path d="M3 8.5l3 3 7-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            signed
-          </span>
-        </li>
+        <li className="bg-cream px-3.5 py-2.5 text-rust">denied: DELETE isn&apos;t allowed for github in this session</li>
       </ul>
     </div>
+  )
+}
+
+/** A line in a deny list: a cross and a monospace name. */
+export function Denied({ items }: { items: string[] }) {
+  return (
+    <ul className="grid grid-cols-2 gap-2 font-mono text-[11.5px]">
+      {items.map((x) => (
+        <li key={x} className="flex min-w-0 items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-ink">
+          <span className="text-rust" aria-hidden>
+            ✗
+          </span>
+          <span className="truncate">{x}</span>
+        </li>
+      ))}
+    </ul>
   )
 }
 
 /** A big number with a caption, for the dark stats grid. */
 export function Stat({ value, unit, label, className }: { value: string; unit?: string; label: string; className?: string }) {
   return (
-    <div className={cn("flex flex-col justify-center px-6 py-8 sm:px-8 sm:py-10", className)}>
+    <div className={cn("flex flex-col justify-start px-6 py-8 sm:px-8 sm:py-10 md:justify-center", className)}>
       <p className="display text-[2.75rem] text-white sm:text-5xl">
         {value}
         {unit && <span className="ml-1 text-[0.5em] text-white/60">{unit}</span>}

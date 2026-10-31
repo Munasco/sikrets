@@ -1,7 +1,8 @@
-import { Accordion, Card, Check, Chip, Container, Eyebrow, GrantCard, Headline, HeroButton, Kw, LedgerMock, Pill, Stat, Terminal } from "@/components/landing"
+import { Accordion, Card, Check, Chip, Container, Denied, Eyebrow, Headline, HeroButton, Pill, SessionCard, SessionLog, Stat, Terminal } from "@/components/landing"
 import { SikretsMark } from "@/components/logo"
 import { PathToggle } from "@/components/path-toggle"
 import { Reveal } from "@/components/reveal"
+import { SessionFlow } from "@/components/session-flow"
 import { site } from "@/lib/site"
 
 const { tennantUrl, waitlistUrl, demoUrl, githubUrl } = site
@@ -19,20 +20,22 @@ const jsonLd = {
 }
 
 const nav = [
-  { label: "Product", href: "#product" },
+  { label: "How it works", href: "#product" },
   { label: "The case", href: "#case" },
   { label: "Developers", href: "#developers" },
   { label: "Pricing", href: "#pricing" },
   { label: "FAQ", href: "#faq" },
 ]
 
-const providers = ["Upstash", "Anthropic", "AWS", "OpenAI", "Cloudflare", "Neon", "Resend", "Supabase"]
+/** Services with hand-written proxy support; the rest of the catalog is brokered from its known API hosts. */
+const services = ["GitHub", "Slack", "Anthropic", "OpenAI", "Stripe", "Resend"]
 
 const faq = [
-  { q: "What is Sikrets?", a: "A security agent for people and AI agents. It keeps your credentials in custody, hands out time-limited access instead of standing access, revokes it, and keeps signed evidence of every decision." },
-  { q: "What does the scan look at?", a: "An access graph: who and what can reach which resource, and through which standing access. It sees names and structure, never secret values." },
-  { q: "What's a stand-in?", a: "A placeholder that sits in your .env, CI and hosting instead of the real key. On its own it opens nothing." },
-  { q: "How do agents use it?", a: "Through sikrets run, the SDK, or the MCP server. The key is available to the work, not shown to the agent." },
+  { q: "What is Sikrets?", a: "1Password for agents. Your keys stay with you; an agent gets a session that works through a local proxy, ends on time and logs every request." },
+  { q: "What does the agent actually see?", a: "A session token (sks_…) in the usual variables, like GITHUB_TOKEN. It only works through this session's proxy, for the services you named, until the session ends." },
+  { q: "What is sandboxed?", a: "On macOS the agent can't read the keychain, ~/.ssh, ~/.aws or other credential files, and can only reach the network through the proxy. Linux is next." },
+  { q: "Which services work?", a: `${site.servicesBrokered} from the catalog, including GitHub (with git over HTTPS), Slack, Anthropic, OpenAI, Stripe and Resend. Find one with sikrets proxy ls.` },
+  { q: "Can Sikrets read my keys?", a: "Hosted storage is zero-knowledge: values are encrypted on your device before upload. Session keys stay in your local keychain." },
   { q: "Is it free?", a: "The CLI, SDK and MCP server are open source. There is a free hosted plan; Team and Enterprise are coming." },
 ]
 
@@ -93,29 +96,34 @@ export default function LandingPage() {
         <section className="px-2 sm:px-4 md:px-6">
           <div className="dusk grain relative overflow-hidden rounded-2xl md:rounded-[1.75rem]">
             <div className="relative z-10 mx-auto flex max-w-4xl flex-col items-center px-5 pt-20 text-center sm:pt-24 md:pt-32">
-              <h1 className="display text-[2.75rem] text-pine sm:text-6xl md:text-[5rem] lg:text-[5.5rem]">
-                Find the attack path <br className="hidden sm:block" />
-                before <em>the attacker does.</em>
+              <h1 className="display text-balance text-[2.75rem] text-pine sm:text-6xl md:text-[5rem] lg:text-[5.5rem]">
+                Give agents access. <br className="hidden sm:block" />
+                <em>Never the keys.</em>
               </h1>
-              <p className="mt-6 max-w-xl text-[17px] leading-relaxed text-ink md:text-lg">
-                Credentials in custody. Time-limited access for people and agents. Signed evidence of every decision.
-              </p>
+              <p className="mt-6 max-w-2xl text-balance text-[17px] leading-relaxed text-ink md:text-lg">A session that ends on time. Your keys stay with you. Every request is logged.</p>
               <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
                 <HeroButton href={waitlistUrl}>Get started</HeroButton>
-                <a href={demoUrl} className="font-serif text-[1.2rem] text-ink underline-offset-4 hover:underline">
-                  Book a demo
+                <a href={githubUrl} className="font-serif text-[1.2rem] text-ink underline-offset-4 hover:underline">
+                  View on GitHub
                 </a>
               </div>
             </div>
             <div className="relative z-10 mx-auto mt-14 max-w-3xl px-3 sm:px-6 md:mt-20">
-              <Terminal title="sikrets-auto scan" className="rounded-b-none border-b-0 shadow-[0_-20px_60px_rgba(20,30,25,0.18)]">
-                <span className="text-muted">$</span> sikrets-auto scan graph.json{"\n"}
-                <span className="text-rust">✗</span> 2 of 6 entry points can reach a critical action through standing access alone.{"\n\n"}
-                <span className="font-medium text-rust">CRITICAL</span>  devops-laptop → withdrawal-service → hot-wallet-signer → 11 critical resources <span className="text-muted">(transfer, sign)</span>
+              <Terminal title="terminal" className="rounded-b-none border-b-0 shadow-[0_-20px_60px_rgba(20,30,25,0.18)]">
+                <span className="text-muted">$</span> sikrets session run github,slack \{"\n"}
+                {"    "}--for 2h -- claude{"\n"}
+                <span className="text-pine">sikrets:</span> session sks_7f3a9c… · ends in 2h{"\n"}
+                <span className="text-pine">sikrets:</span> github, slack · sandboxed{"\n\n"}
+                <span className="text-muted">claude › </span>echo $GITHUB_TOKEN{"\n"}
+                sks_7f3a9c… <span className="text-muted"># a session token, not a key</span>
                 {"\n"}
-                {"          "}
-                <span className="text-pine">fix:</span> require a time-limited grant for hot-wallet-signer → 11 critical resources,{"\n"}
-                {"               "}and for devops-laptop → withdrawal-service
+                <span className="text-muted">claude › </span>git push origin main{"\n"}
+                <span className="text-pine">  ✓ authenticated through the proxy</span>
+                {"\n"}
+                <span className="text-muted">claude › </span>cat ~/.ssh/id_ed25519{"\n"}
+                <span className="text-rust">  ✗ Operation not permitted</span>
+                {"\n\n"}
+                <span className="text-pine">sikrets:</span> ended · 38 requests, 0 denied
               </Terminal>
             </div>
           </div>
@@ -123,17 +131,69 @@ export default function LandingPage() {
 
         {/* Works with */}
         <Container className="py-12 md:py-16">
-          <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
-            {providers.map((p) => (
+          <p className="text-center font-mono text-[11px] uppercase tracking-[0.08em] text-muted">Works with {site.servicesBrokered} services</p>
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
+            {services.map((p) => (
               <span key={p} className="text-xl font-medium tracking-tight text-faint">
                 {p}
               </span>
             ))}
+            <span className="font-mono text-[13px] text-muted">+{site.servicesBrokered - services.length} more</span>
           </div>
         </Container>
 
+        {/* How it works */}
+        <section id="product" className="scroll-mt-24 py-20 md:py-28">
+          <Container>
+            <Reveal>
+              <Headline eyebrow="How a session works" sub="The agent holds a token that ends. A proxy on your machine adds the real key on the way out.">
+                The agent holds a session. <em>You hold the keys.</em>
+              </Headline>
+            </Reveal>
+            <Reveal className="mt-14" delay={100}>
+              <SessionFlow />
+            </Reveal>
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <Reveal>
+                <Card title="Sandboxed" body="Credential files and direct network are off limits." className="h-full">
+                  <Denied items={["keychain", "~/.ssh", "~/.aws", "~/.kube", "~/.npmrc", "direct network"]} />
+                </Card>
+              </Reveal>
+              <Reveal delay={80}>
+                <Card title="Rules per service" body="Name a bundle once. Limit methods where it matters." className="h-full">
+                  <Terminal title="sikrets.json" size="sm">
+                    <span className="text-teal">&quot;bundles&quot;</span>: {"{\n"}
+                    {"  "}
+                    <span className="text-teal">&quot;code-review&quot;</span>: [{"\n"}
+                    {"    "}
+                    <span className="text-pine">&quot;github&quot;</span>,{"\n"}
+                    {"    { "}
+                    <span className="text-teal">&quot;service&quot;</span>: <span className="text-pine">&quot;slack&quot;</span>,{"\n"}
+                    {"      "}
+                    <span className="text-teal">&quot;methods&quot;</span>: [<span className="text-pine">&quot;GET&quot;</span>] {"}\n"}
+                    {"  ]\n}"}
+                    {"\n\n"}
+                    <span className="text-muted">$</span> sikrets session run code-review \{"\n"}
+                    {"    "}-- codex
+                  </Terminal>
+                </Card>
+              </Reveal>
+              <Reveal>
+                <Card title="Ends on time" body="Expiry or exit revokes the token. Its CA is deleted." className="h-full">
+                  <SessionCard />
+                </Card>
+              </Reveal>
+              <Reveal delay={80}>
+                <Card title="Every request logged" body="Service, method, path, status, and why it was denied." className="h-full">
+                  <SessionLog />
+                </Card>
+              </Reveal>
+            </div>
+          </Container>
+        </section>
+
         {/* The case */}
-        <section id="case" className="scroll-mt-24 py-20 md:py-32">
+        <section id="case" className="scroll-mt-24 py-20 md:py-24">
           <Container>
             <Reveal>
               <Headline eyebrow="29 October 2026 · $6.36B" sub="A compromised DevOps laptop reached the container that could ask the signer for withdrawals. Standing access did the rest.">
@@ -161,69 +221,25 @@ export default function LandingPage() {
           </Container>
         </section>
 
-        {/* How it works */}
-        <section id="product" className="scroll-mt-24 py-20 md:py-32">
-          <Container>
-            <Reveal>
-              <Headline eyebrow="Custody · Grants · Evidence" sub="Real keys stay in one place. Everything else gets a grant that ends, and a record that can't be edited.">
-                Standing access <em>becomes a grant.</em>
-              </Headline>
-            </Reveal>
-            <div className="mt-14 grid grid-cols-1 gap-4 md:grid-cols-2">
-              <Reveal>
-                <Card title="Custody" body="Keys live in the vault. Projects, CI and agents hold stand-ins." className="h-full">
-                  <Terminal title=".env">
-                    ANTHROPIC_API_KEY=<span className="text-teal">sk-sikrets-8f2a…</span>
-                    {"\n"}UPSTASH_TOKEN=<span className="text-teal">sk-sikrets-41c9…</span>
-                    {"\n\n"}
-                    <span className="text-muted">$</span> sikrets run -- bun dev{"\n"}
-                    <span className="text-muted">  2 keys resolved for this run only</span>
-                  </Terminal>
-                </Card>
-              </Reveal>
-              <Reveal delay={80}>
-                <Card title="Time-limited access" body="A grant names who, what and for how long. Then it ends." className="h-full">
-                  <GrantCard />
-                </Card>
-              </Reveal>
-              <Reveal>
-                <Card title="Policy, not judgement" body="A deterministic gate in front of every consequential action. Models explain and propose; they never decide." className="h-full">
-                  <div className="rounded-xl border border-line bg-white px-4 py-4 leading-7 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
-                    <Kw>WHEN </Kw>
-                    <Chip color="tan">principal</Chip> <Kw>is</Kw> <Chip color="ink">withdrawal-service</Chip> <Kw>AND</Kw> <Chip color="tan">resource</Chip> <Kw>is</Kw> <Chip color="plum">hot-wallet-signer</Chip>
-                    <br />
-                    <Kw>THEN </Kw>
-                    <Chip color="pine">require grant</Chip> <Kw>of</Kw> <Chip color="teal">45 min</Chip> <Kw>AND</Kw> <Chip color="rust">deny</Chip> <Chip color="moss">delegate</Chip> <Kw>always</Kw>
-                  </div>
-                </Card>
-              </Reveal>
-              <Reveal delay={80}>
-                <Card title="Evidence" body="Every decision is appended to a hash-chained ledger with signed checkpoints." className="h-full">
-                  <LedgerMock />
-                </Card>
-              </Reveal>
-            </div>
-          </Container>
-        </section>
-
         {/* Developers */}
-        <section id="developers" className="scroll-mt-24 py-20 md:py-32">
+        <section id="developers" className="scroll-mt-24 py-20 md:py-24">
           <Container>
             <Reveal>
-              <Headline eyebrow="Ships today" sub="Open source. The agent gets the work done; the key stays out of its context.">
+              <Headline eyebrow="Open source" sub="The agent gets the work done. The key stays out of its context.">
                 CLI, SDK <em>and MCP.</em>
               </Headline>
             </Reveal>
             <div className="mt-14 grid grid-cols-1 gap-4 md:grid-cols-3">
               <Reveal>
-                <Card title="CLI" body="Run anything with its keys. Built with Bun." className="h-full">
+                <Card title="CLI" body="Store a key once. Run anything with access." className="h-full">
                   <Terminal title="terminal" size="sm">
-                    <span className="text-muted">$</span> sikrets run -- claude{"\n"}
-                    <span className="text-muted">  ANTHROPIC_API_KEY  ready</span>
+                    <span className="text-muted">$</span> sikrets proxy add github{"\n"}
+                    <span className="text-muted">  # real token → your keychain</span>
                     {"\n\n"}
-                    <span className="text-muted">$</span> sikrets status{"\n"}
-                    <span className="text-muted">  NAME       STATE  ROTATE</span>
-                    {"\n"}  anthropic  <span className="text-pine">live</span>   in 30d
+                    <span className="text-muted">$</span> sikrets proxy ls stripe{"\n"}
+                    <span className="text-muted">  # search {site.servicesBrokered} services</span>
+                    {"\n\n"}
+                    <span className="text-muted">$</span> sikrets run -- bun dev
                   </Terminal>
                 </Card>
               </Reveal>
@@ -232,22 +248,20 @@ export default function LandingPage() {
                   <Terminal title="app.ts" size="sm">
                     <span className="text-plum">import</span> {"{ sikrets }"} <span className="text-plum">from</span> <span className="text-teal">&quot;@sikrets/sdk&quot;</span>
                     {"\n\n"}
-                    <span className="text-plum">const</span> anthropic = <span className="text-plum">new</span> Anthropic({"{"}
-                    {"\n"}  apiKey: <span className="text-plum">await</span> sikrets.get(<span className="text-teal">&quot;ANTHROPIC_API_KEY&quot;</span>),{"\n"}
-                    {"}"})
+                    <span className="text-plum">const</span> key = <span className="text-plum">await</span> sikrets.get({"\n"}
+                    {"  "}
+                    <span className="text-teal">&quot;ANTHROPIC_API_KEY&quot;</span>
+                    {"\n"})
                   </Terminal>
                 </Card>
               </Reveal>
               <Reveal delay={160}>
-                <Card title="MCP" body="One server over stdio. Any agent that speaks MCP." className="h-full">
-                  <Terminal title="mcp.json" size="sm">
-                    {"{\n"}
-                    {"  "}
-                    <span className="text-teal">&quot;mcpServers&quot;</span>: {"{\n"}
-                    {"    "}
-                    <span className="text-teal">&quot;sikrets&quot;</span>: {"{ "}
-                    <span className="text-teal">&quot;command&quot;</span>: <span className="text-pine">&quot;sikrets&quot;</span>, <span className="text-teal">&quot;args&quot;</span>: [<span className="text-pine">&quot;mcp&quot;</span>] {"}\n"}
-                    {"  }\n}"}
+                <Card title="MCP" body="Agents run commands with secrets. Output comes back scrubbed." className="h-full">
+                  <Terminal title="terminal" size="sm">
+                    <span className="text-muted">$</span> claude mcp add sikrets \{"\n"}
+                    {"    "}-- sikrets mcp --allow bun{"\n\n"}
+                    <span className="text-muted">› run_with_secrets</span> bun run seed.ts{"\n"}
+                    {"  "}connected to <span className="text-teal">[secret:DB_URL]</span>
                   </Terminal>
                 </Card>
               </Reveal>
@@ -259,14 +273,14 @@ export default function LandingPage() {
         <section id="performance" className="bg-night py-20 text-white md:py-32">
           <Container>
             <Reveal>
-              <Headline light align="center" eyebrow="The hot path" sub="A Rust policy gateway and a signed ledger, fast enough to sit in front of everything.">
-                Every action asks. <em>Every answer is kept.</em>
+              <Headline light align="center" eyebrow="Measured" sub="A local proxy for sessions. A Rust gateway and signed ledger for policy.">
+                Fast enough to <em>stay out of the way.</em>
               </Headline>
             </Reveal>
             <Reveal className="mt-14" delay={100}>
               <div className="grid grid-cols-2 border border-white/15 md:grid-cols-[1fr_1.1fr_1fr]">
-                <Stat value="9.4" unit="ns" label="per policy decision" className="border-b border-r border-white/15 md:col-start-1 md:row-start-1" />
-                <Stat value="83" unit="ns" label="per ledger append" className="border-b border-white/15 md:col-start-1 md:row-start-2 md:border-b-0 md:border-r" />
+                <Stat value="48" unit="ms" label="to start a session" className="border-b border-r border-white/15 md:col-start-1 md:row-start-1" />
+                <Stat value="0.08" unit="ms" label="added per request by the proxy" className="border-b border-white/15 md:col-start-1 md:row-start-2 md:border-b-0 md:border-r" />
                 <div className="blueprint relative col-span-2 flex h-44 items-center justify-center border-b border-white/15 md:col-span-1 md:col-start-2 md:row-span-2 md:row-start-1 md:h-auto md:border-b-0 md:border-r">
                   <span className="absolute left-4 top-4 size-4 border-l border-t border-white/50" aria-hidden />
                   <span className="absolute right-4 top-4 size-4 border-r border-t border-white/50" aria-hidden />
@@ -278,16 +292,16 @@ export default function LandingPage() {
                     <path d="M11 10H16M14 10V12.5" stroke="#fff" strokeWidth="0.8" />
                   </svg>
                 </div>
-                <Stat value="1.5" unit="ms" label="to scan 58k nodes and 210k edges" className="border-r border-white/15 md:col-start-3 md:row-start-1 md:border-b md:border-r-0" />
-                <Stat value="187k" unit="req/s" label="gateway deny path, p50 0.27 ms" className="md:col-start-3 md:row-start-2" />
+                <Stat value="9.4" unit="ns" label="per policy decision" className="border-r border-white/15 md:col-start-3 md:row-start-1 md:border-b md:border-r-0" />
+                <Stat value="83" unit="ns" label="per signed ledger append" className="md:col-start-3 md:row-start-2" />
               </div>
-              <p className="mt-4 text-center font-mono text-[11px] text-white/45">Apple M3 Pro, release build.</p>
+              <p className="mx-auto mt-4 max-w-2xl text-center font-mono text-[11px] leading-relaxed text-white/45">Proxy: p50 0.116 ms through it vs 0.035 ms direct, reused connection. Gateway and ledger: Apple M3 Pro, release build.</p>
             </Reveal>
           </Container>
         </section>
 
         {/* Pricing */}
-        <section id="pricing" className="scroll-mt-24 py-20 md:py-32">
+        <section id="pricing" className="scroll-mt-24 py-20 md:py-24">
           <Container>
             <Reveal>
               <Headline eyebrow="Simple and open" sub="Open source to run yourself. Hosted when you'd rather not.">
@@ -296,8 +310,8 @@ export default function LandingPage() {
             </Reveal>
             <div className="mt-14 grid grid-cols-1 gap-4 md:grid-cols-3">
               {[
-                { name: "Free", price: "Free", note: "Open source and hosted", href: waitlistUrl, cta: "Get started", variant: "outline" as const, points: ["CLI, SDK and MCP server", "Hosted vault", "Stand-ins and rotation", "Activity log"] },
-                { name: "Team", price: "Per identity", note: "People and agents alike", href: waitlistUrl, cta: "Join the waitlist", variant: "primary" as const, badge: "Coming soon", points: ["Everything in Free", "Grants and revocation", "Scan on every change", "Signed ledger export"] },
+                { name: "Free", price: "Free", note: "Open source and hosted", href: waitlistUrl, cta: "Get started", variant: "outline" as const, points: ["CLI, SDK and MCP server", "Agent sessions and proxy", "Zero-knowledge hosted vault", "Request and activity logs"] },
+                { name: "Team", price: "Per identity", note: "People and agents alike", href: waitlistUrl, cta: "Join the waitlist", variant: "primary" as const, badge: "Coming soon", points: ["Everything in Free", "Shared bundles and revocation", "Access for people, too", "Signed ledger export"] },
                 { name: "Enterprise", price: "Custom", note: "For regulated teams", href: demoUrl, cta: "Talk to us", variant: "outline" as const, points: ["Everything in Team", "Self-hosted gateway", "SSO and SCIM", "Security review and SLA"] },
               ].map((p, i) => (
                 <Reveal key={p.name} delay={i * 80}>
@@ -327,7 +341,7 @@ export default function LandingPage() {
         </section>
 
         {/* FAQ */}
-        <section id="faq" className="scroll-mt-24 py-20 md:py-32">
+        <section id="faq" className="scroll-mt-24 py-20 md:py-24">
           <Container className="grid gap-12 md:grid-cols-[1fr_1.6fr]">
             <Reveal>
               <Headline eyebrow="FAQ">Questions</Headline>
@@ -350,8 +364,8 @@ export default function LandingPage() {
           <div className="rounded-2xl bg-night px-5 py-24 text-center text-white md:rounded-[1.75rem] md:py-36">
             <Reveal>
               <h2 className="display text-[2.5rem] sm:text-5xl md:text-[3.75rem]">
-                <span className="block text-white/50">Standing access is the attack path.</span>
-                <span className="block">Close it before it&apos;s used.</span>
+                <span className="block text-white/50">Your agents need access.</span>
+                <span className="block">Not your keys.</span>
               </h2>
               <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
                 <Pill href={waitlistUrl}>Get started</Pill>
