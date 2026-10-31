@@ -100,7 +100,10 @@ export async function startProxy(opts: ProxyOptions) {
 
       const headers = new Headers();
       for (const [k, v] of req.headers) if (!HOP.includes(k) && !(AUTH_HEADERS as readonly string[]).includes(k)) headers.set(k, v);
-      for (const [k, v] of Object.entries(svc.hosts[host]!(opts.tokens.get(svc.id)!.reveal()))) headers.set(k, v);
+      const credential = svc.hosts[host]!(opts.tokens.get(svc.id)!.reveal());
+      for (const [k, v] of Object.entries(credential.headers ?? {})) headers.set(k, v);
+      // A service's own key header is replaced too, whatever the agent put in it.
+      for (const [k, v] of Object.entries(credential.query ?? {})) url.searchParams.set(k, v);
 
       let res: Response;
       try {

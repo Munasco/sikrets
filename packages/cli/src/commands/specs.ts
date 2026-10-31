@@ -125,10 +125,10 @@ export const commands: CommandSpec[] = [
   },
   {
     name: "catalog",
-    description: "Search the provider catalog and see what can be added",
+    description: "Search every service Sikrets can keep a key for, and how to add it",
     arguments: [{ name: "query", required: false }],
     options: [jsonOption],
-    examples: ["sikrets catalog", "sikrets catalog redis", "sikrets catalog --json"],
+    examples: ["sikrets catalog", "sikrets catalog stripe", "sikrets catalog --json"],
     load: () => import("./catalog.ts"),
   },
   {
