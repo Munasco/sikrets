@@ -27,7 +27,20 @@ export type AgentEvent =
   | { type: "done"; model: string; usage?: { inputTokens?: number; outputTokens?: number } }
   | { type: "error"; message: string };
 
-const client = new BedrockRuntimeClient({ region: MODEL.region });
+// Inside a Nitro Enclave there is no instance metadata service, so the host hands the enclave
+// short-lived role credentials through a file it refreshes; elsewhere the default chain is used.
+const credentialsFile = Bun.env.AWS_CREDENTIALS_FILE;
+const client = new BedrockRuntimeClient({
+  region: MODEL.region,
+  ...(credentialsFile
+    ? {
+        credentials: async () => {
+          const c = (await Bun.file(credentialsFile).json()) as { AccessKeyId: string; SecretAccessKey: string; Token: string; Expiration: string };
+          return { accessKeyId: c.AccessKeyId, secretAccessKey: c.SecretAccessKey, sessionToken: c.Token, expiration: new Date(c.Expiration) };
+        },
+      }
+    : {}),
+});
 
 const toolConfig = {
   tools: Object.entries(TOOLS).map(([name, t]): Tool => ({ toolSpec: { name, description: t.description, inputSchema: { json: t.schema as never } } })),

@@ -35,11 +35,9 @@ Wants=network-online.target
 [Service]
 User=sikrets
 WorkingDirectory=/opt/sikrets-agent/src/apps/agent
-PermissionsStartOnly=true
-ExecStartPre=/usr/local/bin/sikrets-agent-env
-EnvironmentFile=/run/sikrets-agent.env
+ExecStartPre=+/usr/local/bin/sikrets-agent-env
 Environment=HOST=0.0.0.0 PORT=8787 BEDROCK_REGION=us-east-1
-ExecStart=/opt/sikrets-agent/.bun/bin/bun src/server.ts
+ExecStart=/bin/bash -c 'set -a; . /run/sikrets-agent.env; exec /opt/sikrets-agent/.bun/bin/bun src/server.ts'
 Restart=always
 RestartSec=2
 NoNewPrivileges=true
