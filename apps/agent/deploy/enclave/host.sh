@@ -28,7 +28,8 @@ if [ "${1:-up}" = "down" ]; then down; exit 0; fi
 dnf install -y -q socat docker >/dev/null
 systemctl enable --now docker >/dev/null
 
-# Allocator: reserve the enclave's CPUs and memory.
+# Allocator: reserve the enclave's CPUs and memory (it can't change while an enclave runs).
+nitro-cli terminate-enclave --all >/dev/null 2>&1 || true
 sed -i "s/^cpu_count:.*/cpu_count: $CPUS/; s/^memory_mib:.*/memory_mib: $MEM/" /etc/nitro_enclaves/allocator.yaml
 systemctl restart nitro-enclaves-allocator
 
