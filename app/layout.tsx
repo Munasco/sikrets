@@ -1,6 +1,6 @@
 import "./globals.css"
 import type { Metadata, Viewport } from "next"
-import { Instrument_Serif, Rethink_Sans, PT_Mono } from "next/font/google"
+import { DM_Sans, Geist_Mono, Instrument_Serif } from "next/font/google"
 import type { ReactNode } from "react"
 import { site } from "@/lib/site"
 
@@ -16,11 +16,13 @@ export const metadata: Metadata = {
     "credential management",
     "secrets management",
     "API key rotation",
-    "automatic secret rotation",
     "AI agent security",
     "non-human identities",
     "MCP server credentials",
-    "dynamic secrets",
+    "time-limited access",
+    "attack path analysis",
+    "policy gateway",
+    "audit ledger",
   ],
   alternates: { canonical: "/" },
   openGraph: {
@@ -41,13 +43,14 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: "#0c0e0d",
-  colorScheme: "dark",
+  themeColor: "#ffffff",
+  colorScheme: "light",
 }
 
-const rethinkSans = Rethink_Sans({
-  variable: "--font-rethink-sans",
+const dmSans = DM_Sans({
+  variable: "--font-dm-sans",
   subsets: ["latin"],
+  weight: ["400", "500"],
 })
 
 const instrumentSerif = Instrument_Serif({
@@ -57,16 +60,21 @@ const instrumentSerif = Instrument_Serif({
   style: ["normal", "italic"],
 })
 
-const ptMono = PT_Mono({
-  variable: "--font-pt-mono",
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
   subsets: ["latin"],
-  weight: "400",
+  weight: ["400", "500"],
 })
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${rethinkSans.variable} ${ptMono.variable} ${instrumentSerif.variable}`}>{children}</body>
+      <body className={`${dmSans.variable} ${geistMono.variable} ${instrumentSerif.variable}`}>
+        <noscript>
+          <style>{`.reveal{opacity:1;transform:none}`}</style>
+        </noscript>
+        {children}
+      </body>
     </html>
   )
 }

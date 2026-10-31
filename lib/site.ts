@@ -1,9 +1,9 @@
 export const site = {
   name: "Sikrets",
   url: "https://sikrets.usetennant.com",
-  title: "Sikrets — Security for the agent era",
+  title: "Sikrets — Find the attack path before the attacker does",
   description:
-    "The security platform for the agent era. Secure every API key your agents and apps use, without ever handing them over. Free and open source.",
+    "Sikrets keeps credentials in custody, gives people and AI agents time-limited access instead of standing access, and keeps signed evidence of every decision. Open source, by Tennant.",
   githubUrl: "https://github.com/Munasco/sikrets",
   tennantUrl: "https://usetennant.com",
   twitter: "@tennantcloud",

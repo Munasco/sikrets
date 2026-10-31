@@ -4,57 +4,148 @@
 /* Font tokens are inline so they resolve where they're used: next/font defines its variables on
    <body>, not :root, so a non-inline token would resolve to nothing and fall back. */
 @theme inline {
-  --font-sans: var(--font-rethink-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-pt-mono), ui-monospace, monospace;
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
   --font-serif: var(--font-instrument-serif), ui-serif, Georgia, serif;
 }
 
-/* Tennant palette — mirrors tennant-frontend so Sikrets reads as part of the same product. */
+/* Light, warm palette: paper and cream surfaces, near-black ink, one deep green for actions,
+   and a few muted chip colours for diagrams. */
 @theme {
-  --color-ink: #0c0e0d;
-  --color-surface: #0e110f;
-  --color-field: #121714;
-  --color-hover: #1a1c1a;
-  --color-line: #252824;
-  --color-line-strong: #485544;
-  --color-sage: #9ca99a;
-  --color-label: #aeb8ab;
-  --color-text: #e2e3e0;
-  --color-text-soft: #c9d0c8;
-  --color-muted: #788377;
-  --color-faint: #626c60;
-  --color-danger: #e5786d;
-
+  --color-paper: #ffffff;
+  --color-cream: #f8f6f5;
+  --color-sand: #f2f0ef;
+  --color-line: #e5e5e5;
+  --color-line-soft: #efecea;
+  --color-ink: #181818;
+  --color-ink-soft: #555555;
+  --color-muted: #948b81;
+  --color-faint: #b5ada4;
+  --color-pine: #1c4a40;
+  --color-pine-deep: #0f2e27;
+  --color-night: #121b22;
+  --color-night-line: #2a343c;
+  --color-tan: #a08a66;
+  --color-rust: #a8522f;
+  --color-teal: #387689;
+  --color-plum: #5e2c4d;
+  --color-moss: #475850;
 }
 
 @layer base {
   * {
-    @apply border-line outline-sage/50;
+    @apply border-line outline-pine/40;
   }
   html {
-    color-scheme: dark;
+    color-scheme: light;
+    scroll-behavior: smooth;
   }
   body {
-    @apply bg-ink text-text font-sans antialiased;
+    @apply bg-paper text-ink font-sans antialiased;
+    font-size: 17px;
+    line-height: 1.45;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--color-pine) 18%, white);
   }
 }
 
-/* Hero diagram: dashes drift toward the services, the rotate glyph turns. */
+/* Display type: tight leading and tracking like a magazine headline. */
+.display {
+  /* The next/font variable directly: `@theme inline` tokens are not emitted as CSS variables. */
+  font-family: var(--font-instrument-serif), ui-serif, Georgia, serif;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+.display em {
+  font-style: italic;
+}
+
+/* Hero backdrop: a dusk gradient with a little film grain, drawn in CSS instead of a photo. */
+.dusk {
+  background:
+    radial-gradient(120% 70% at 50% 110%, #5b6b5a 0%, rgba(91, 107, 90, 0) 55%),
+    radial-gradient(80% 60% at 20% 90%, rgba(168, 130, 100, 0.55) 0%, rgba(168, 130, 100, 0) 60%),
+    radial-gradient(90% 60% at 85% 85%, rgba(140, 150, 135, 0.6) 0%, rgba(140, 150, 135, 0) 60%),
+    linear-gradient(180deg, #dfe4e6 0%, #e8e1da 45%, #cdbfb0 75%, #8d9686 100%);
+}
+.grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.35;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.5 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+/* Blueprint grid behind the stats mark. */
+.blueprint {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Scroll reveal: elements fade and rise a little as they enter. Without JavaScript or with
+   reduced motion they are simply visible. */
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 0.8s cubic-bezier(0.2, 0.7, 0.2, 1),
+    transform 0.8s cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+.reveal.is-in {
+  opacity: 1;
+  transform: none;
+}
+
+/* Dashed edges drift along the attack path. */
 .flow {
   stroke-dasharray: 4 6;
-  animation: flow 1.6s linear infinite;
-}
-.spin {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: spin 6s linear infinite;
+  animation: flow 1.4s linear infinite;
 }
 @keyframes flow {
-  to { stroke-dashoffset: -20; }
+  to {
+    stroke-dashoffset: -20;
+  }
 }
-@keyframes spin {
-  to { transform: rotate(360deg); }
+
+/* Grant countdown bar. */
+.drain {
+  animation: drain 40s linear forwards;
 }
+@keyframes drain {
+  from {
+    width: 92%;
+  }
+  to {
+    width: 4%;
+  }
+}
+
+/* Hide scrollbars on snap rows. */
+.no-bar {
+  scrollbar-width: none;
+}
+.no-bar::-webkit-scrollbar {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .flow, .spin { animation: none; }
+  html {
+    scroll-behavior: auto;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .flow,
+  .drain {
+    animation: none;
+  }
 }

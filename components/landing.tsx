@@ -1,141 +1,203 @@
-import Image from "next/image"
 import type { ReactNode } from "react"
-import { SikretsTileMark } from "@/components/landing-mark"
 import { cn } from "@/lib/utils"
 
-// Landing page building blocks, in a monochrome editorial style: black canvas, white serif
-// display type with one italic word, neutral greys, rounded cards with an image or mock on top
-// and a one-line caption below.
+// Landing page building blocks. White paper, cream cards with a hairline border, a serif
+// display face for headlines and buttons, monospace for labels, one deep green for actions.
 
-export function Headline({ children, sub, align = "center", className }: { children: ReactNode; sub?: ReactNode; align?: "center" | "left"; className?: string }) {
+export function Container({ children, className }: { children: ReactNode; className?: string }) {
+  return <div className={cn("mx-auto w-full max-w-[1100px] px-5 sm:px-8", className)}>{children}</div>
+}
+
+/** Small mono label with a tan dot, above a headline. */
+export function Eyebrow({ children, className, light }: { children: ReactNode; className?: string; light?: boolean }) {
+  return (
+    <p className={cn("flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.08em]", light ? "text-white/70" : "text-ink-soft", className)}>
+      <span className="inline-block size-2 rounded-full bg-tan" aria-hidden />
+      {children}
+    </p>
+  )
+}
+
+export function Headline({ children, sub, eyebrow, align = "left", light, className }: { children: ReactNode; sub?: ReactNode; eyebrow?: ReactNode; align?: "left" | "center"; light?: boolean; className?: string }) {
   return (
     <div className={cn(align === "center" ? "mx-auto max-w-3xl text-center" : "max-w-3xl", className)}>
-      <h2 className="font-serif text-5xl leading-[1.02] tracking-tight text-white md:text-[4.25rem] [&_em]:italic">{children}</h2>
-      {sub && <p className="mt-5 text-base text-neutral-400 md:text-lg">{sub}</p>}
+      {eyebrow && <Eyebrow light={light} className={cn("mb-6", align === "center" && "justify-center")}>{eyebrow}</Eyebrow>}
+      <h2 className={cn("display text-[2.5rem] sm:text-5xl md:text-[3.75rem]", light ? "text-white" : "text-ink")}>{children}</h2>
+      {sub && <p className={cn("mt-5 text-[17px] leading-relaxed md:text-lg", light ? "text-white/75" : "text-ink-soft")}>{sub}</p>}
     </div>
   )
 }
 
-export function Card({ title, body, image, alt, children, className, imageClassName }: { title: string; body: string; image?: string; alt?: string; children?: ReactNode; className?: string; imageClassName?: string }) {
+/** Cream card: title, one line of body, then a visual. */
+export function Card({ title, body, children, className }: { title: string; body?: ReactNode; children?: ReactNode; className?: string }) {
   return (
-    <div className={cn("group relative flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-neutral-900 to-neutral-950", className)}>
-      <div className="relative min-h-60 flex-1 overflow-hidden">
-        {image && <Image src={image} alt={alt ?? ""} fill sizes="(min-width: 1024px) 50vw, 100vw" className={cn("object-cover transition-transform duration-700 group-hover:scale-[1.03]", imageClassName)} />}
-        {children && <div className="relative flex h-full items-center justify-center p-6">{children}</div>}
-      </div>
-      <div className="relative px-6 pb-6 pt-4">
-        <p className="text-sm leading-relaxed text-neutral-400">
-          <span className="font-medium text-white">{title}.</span> {body}
-        </p>
-      </div>
+    <div className={cn("flex min-w-0 flex-col rounded-2xl border border-line bg-cream p-5 sm:p-6", className)}>
+      <h3 className="text-[1.35rem] font-medium tracking-[-0.01em] text-ink">{title}</h3>
+      {body && <p className="mt-1.5 max-w-md text-[15px] leading-relaxed text-ink-soft">{body}</p>}
+      {children && <div className="mt-6 flex flex-1 flex-col justify-end">{children}</div>}
     </div>
   )
 }
 
-export function Mock({ title, lines, hot = [], className }: { title: string; lines: string[]; hot?: number[]; className?: string }) {
+/** White terminal or code panel with a titled strip. Lines are passed as children. */
+export function Terminal({ title, children, className, size = "md" }: { title: string; children: ReactNode; className?: string; size?: "sm" | "md" }) {
   return (
-    <div className={cn("w-full overflow-hidden rounded-xl border border-white/10 bg-black/70 shadow-2xl shadow-black/60 backdrop-blur", className)}>
-      <div className="flex items-center gap-1.5 border-b border-white/10 px-3.5 py-2">
-        <span className="h-2 w-2 rounded-full bg-white/15" />
-        <span className="h-2 w-2 rounded-full bg-white/15" />
-        <span className="h-2 w-2 rounded-full bg-white/15" />
-        <span className="ml-2 truncate font-mono text-[11px] text-neutral-500">{title}</span>
+    <div className={cn("w-full overflow-hidden rounded-xl border border-line bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]", className)}>
+      <div className="flex items-center gap-1.5 border-b border-line-soft px-3.5 py-2">
+        <span className="size-2 rounded-full bg-line" />
+        <span className="size-2 rounded-full bg-line" />
+        <span className="size-2 rounded-full bg-line" />
+        <span className="ml-2 truncate font-mono text-[11px] text-muted">{title}</span>
       </div>
-      <pre className="overflow-x-auto px-3.5 py-3 font-mono text-[11.5px] leading-relaxed">
-        {lines.map((l, i) => (
-          <div key={i} className={cn("whitespace-pre", hot.includes(i) ? "text-white" : "text-neutral-400")}>
-            {l || " "}
-          </div>
-        ))}
-      </pre>
+      <pre className={cn("whitespace-pre-wrap [overflow-wrap:anywhere] px-4 py-3.5 font-mono leading-[1.7] text-ink", size === "sm" ? "text-[11.5px]" : "text-[11.5px] sm:text-[12.5px]")}>{children}</pre>
     </div>
+  )
+}
+
+export const chipColor = {
+  tan: "bg-tan text-white",
+  pine: "bg-pine text-white",
+  teal: "bg-teal text-white",
+  plum: "bg-plum text-white",
+  rust: "bg-rust text-white",
+  moss: "bg-moss text-white",
+  ink: "bg-ink text-white",
+  ghost: "bg-sand text-ink-soft",
+} as const
+
+/** Mono tag used in rule and ledger mocks. */
+export function Chip({ children, color = "ghost", className }: { children: ReactNode; color?: keyof typeof chipColor; className?: string }) {
+  return <span className={cn("inline-block rounded-[4px] px-1.5 py-[1px] font-mono text-[11.5px] leading-5", chipColor[color], className)}>{children}</span>
+}
+
+/** Text between chips in a rule. */
+export function Kw({ children }: { children: ReactNode }) {
+  return <span className="font-mono text-[11.5px] leading-5 text-ink-soft">{children}</span>
+}
+
+/** Pill button in the display face. */
+export function Pill({ href, children, variant = "primary", className }: { href: string; children: ReactNode; variant?: "primary" | "outline" | "light"; className?: string }) {
+  const styles = {
+    primary: "bg-pine text-white hover:bg-pine-deep",
+    outline: "border border-line bg-white text-ink hover:bg-cream",
+    light: "bg-white text-ink hover:bg-cream",
+  }[variant]
+  return (
+    <a href={href} className={cn("inline-flex h-11 items-center justify-center rounded-full px-5 font-serif text-[1.2rem] leading-none tracking-[-0.01em] transition-colors", styles, className)}>
+      {children}
+    </a>
+  )
+}
+
+/** Hero button: white pill with a green arrow disc. */
+export function HeroButton({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <a href={href} className="group inline-flex h-12 items-center gap-3 rounded-full bg-white pl-1.5 pr-6 text-[15px] font-medium text-ink shadow-[0_10px_30px_rgba(20,30,25,0.18)] transition-transform hover:-translate-y-px motion-reduce:transition-none motion-reduce:hover:translate-y-0">
+      <span className="grid size-9 place-items-center rounded-full bg-pine text-white">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden className="transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none">
+          <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </span>
+      {children}
+    </a>
   )
 }
 
 /** Native <details> accordion: works without JavaScript and is keyboard accessible. */
 export function Accordion({ items, defaultOpen = 0 }: { items: { q: string; a: ReactNode }[]; defaultOpen?: number }) {
   return (
-    <div className="divide-y divide-white/10">
+    <div className="divide-y divide-line border-y border-line">
       {items.map((it, i) => (
         <details key={it.q} open={i === defaultOpen} className="group py-5">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-6 text-white [&::-webkit-details-marker]:hidden">
-            <span className="text-[15px] md:text-base">{it.q}</span>
-            <svg className="h-4 w-4 shrink-0 text-neutral-500 transition-transform group-open:rotate-180" viewBox="0 0 16 16" fill="none" aria-hidden>
-              <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-6 text-ink [&::-webkit-details-marker]:hidden">
+            <span className="font-serif text-[1.45rem] leading-tight tracking-[-0.01em]">{it.q}</span>
+            <svg className="size-4 shrink-0 text-muted transition-transform group-open:rotate-45 motion-reduce:transition-none" viewBox="0 0 16 16" fill="none" aria-hidden>
+              <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
           </summary>
-          <div className="mt-3 max-w-xl text-sm leading-relaxed text-neutral-400">{it.a}</div>
+          <div className="mt-3 max-w-xl text-[15px] leading-relaxed text-ink-soft">{it.a}</div>
         </details>
       ))}
     </div>
   )
 }
 
-export function Stat({ value, label }: { value: string; label: string }) {
+/** A time-limited grant, as it would appear in the product. */
+export function GrantCard() {
   return (
-    <div className="text-center">
-      <div className="font-serif text-4xl text-white md:text-5xl">{value}</div>
-      <div className="mt-1.5 text-xs text-neutral-500">{label}</div>
-    </div>
-  )
-}
-
-/** Email capture: a plain GET form, so it works without JavaScript. */
-export function EmailForm({ action, cta, id }: { action: string; cta: string; id: string }) {
-  return (
-    <form action={action} method="get" className="flex w-full max-w-md items-center gap-2 rounded-xl border border-white/15 bg-white/[0.04] p-1.5 pl-4 backdrop-blur">
-      <label htmlFor={id} className="sr-only">
-        Work email
-      </label>
-      <input id={id} name="email" type="email" required placeholder="What's your email?" className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-neutral-500" />
-      <button type="submit" className="rounded-lg bg-white px-4 py-2.5 text-sm font-medium text-black transition-colors hover:bg-neutral-200">
-        {cta}
-      </button>
-    </form>
-  )
-}
-
-/** The Sikrets mark as a glossy 3D app tile, built in CSS. */
-export function MarkTile() {
-  return (
-    <div className="relative">
-      <div className="absolute inset-0 -z-10 rounded-[2rem] bg-[#9ca99a]/25 blur-3xl" />
-      <div className="flex h-36 w-36 items-center justify-center rounded-[2rem] border border-white/15 bg-gradient-to-b from-neutral-700 via-neutral-900 to-black shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_30px_60px_rgba(0,0,0,0.8)]">
-        <SikretsTileMark />
+    <div className="rounded-xl border border-line bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+      <div className="flex items-center gap-3">
+        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-sand font-serif text-lg text-ink">G</span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[15px] font-medium text-ink">Gabby</p>
+          <p className="truncate font-mono text-[11.5px] text-ink-soft">
+            read-only · <span className="text-ink">prod/db</span>
+          </p>
+        </div>
+        <span className="rounded-full border border-rust/40 px-3 py-1 font-serif text-[15px] leading-none text-rust">Revoke</span>
+      </div>
+      <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-sand">
+        <div className="drain h-full rounded-full bg-pine" style={{ width: "92%" }} />
+      </div>
+      <div className="mt-2 flex items-center justify-between font-mono text-[11px] text-ink-soft">
+        <span>granted 14:02</span>
+        <span className="text-ink">41 min left</span>
       </div>
     </div>
   )
 }
 
-/** Secure-by-design illustration: one vault, every project holding stand-ins only. */
-export function VaultDiagram() {
-  const projects = [
-    { name: "web", x: 20, y: 20 },
-    { name: "agent", x: 80, y: 20 },
-    { name: "ci", x: 20, y: 80 },
-    { name: "worker", x: 80, y: 80 },
+/** Rows from the decision ledger. */
+export function LedgerMock() {
+  const rows: { seq: string; kind: string; color: keyof typeof chipColor; what: string; hash: string }[] = [
+    { seq: "416", kind: "allow", color: "pine", what: "gabby → prod/db · read", hash: "9f2c…e1" },
+    { seq: "417", kind: "deny", color: "rust", what: "withdrawal-service → btc-hot-wallet · transfer", hash: "a71e…04" },
+    { seq: "418", kind: "revoke", color: "ink", what: "gabby → prod/db", hash: "04d9…7b" },
   ]
   return (
-    <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-neutral-900 to-black">
-      <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 75" preserveAspectRatio="none" aria-hidden>
-        {projects.map((p) => (
-          <line key={p.name} x1="50" y1="37.5" x2={p.x} y2={p.y * 0.75} stroke="rgba(255,255,255,0.14)" strokeWidth="0.3" strokeDasharray="1 1" />
+    <div className="overflow-hidden rounded-xl border border-line bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+      <ul className="divide-y divide-line-soft font-mono text-[11.5px]">
+        {rows.map((r) => (
+          <li key={r.seq} className="flex items-center gap-3 px-3.5 py-2.5">
+            <span className="w-7 shrink-0 text-muted">{r.seq}</span>
+            <Chip color={r.color} className="w-[4.25rem] text-center">
+              {r.kind}
+            </Chip>
+            <span className="min-w-0 flex-1 truncate text-ink">{r.what}</span>
+            <span className="hidden shrink-0 text-muted sm:inline">{r.hash}</span>
+          </li>
         ))}
-      </svg>
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
-        <div className="absolute inset-0 -z-10 rounded-full bg-[#9ca99a]/20 blur-2xl" />
-        <div className="rounded-xl border border-white/15 bg-black/80 px-5 py-3.5 shadow-2xl">
-          <p className="text-[11px] uppercase tracking-widest text-neutral-500">vault</p>
-          <p className="mt-1 font-mono text-sm text-white">ANTHROPIC_API_KEY</p>
-          <p className="font-mono text-[11px] text-[#9ca99a]">encrypted · only you can read</p>
-        </div>
-      </div>
-      {projects.map((p) => (
-        <div key={p.name} className="absolute -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-lg border border-white/10 bg-neutral-950/90 px-3 py-2" style={{ left: `${p.x}%`, top: `${p.y}%` }}>
-          <p className="text-[11px] text-neutral-500">{p.name}</p>
-          <p className="font-mono text-[11px] text-neutral-300">sk-sikrets-…</p>
-        </div>
-      ))}
+        <li className="flex items-center justify-between gap-3 bg-cream px-3.5 py-2.5 text-ink-soft">
+          <span>checkpoint · ed25519</span>
+          <span className="flex items-center gap-1.5 text-pine">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden>
+              <path d="M3 8.5l3 3 7-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            signed
+          </span>
+        </li>
+      </ul>
     </div>
+  )
+}
+
+/** A big number with a caption, for the dark stats grid. */
+export function Stat({ value, unit, label, className }: { value: string; unit?: string; label: string; className?: string }) {
+  return (
+    <div className={cn("flex flex-col justify-center px-6 py-8 sm:px-8 sm:py-10", className)}>
+      <p className="display text-[2.75rem] text-white sm:text-5xl">
+        {value}
+        {unit && <span className="ml-1 text-[0.5em] text-white/60">{unit}</span>}
+      </p>
+      <p className="mt-2 text-[15px] leading-snug text-white/70">{label}</p>
+    </div>
+  )
+}
+
+export function Check() {
+  return (
+    <svg className="mt-[3px] size-4 shrink-0 text-pine" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path d="M3 8.5l3 3 7-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   )
 }
