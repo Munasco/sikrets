@@ -89,7 +89,7 @@ export default function LandingPage() {
               <p className="mt-6 max-w-md text-[17px] leading-snug text-[#3d4540] md:text-[19px]">
                 The AI agent you can paste keys into.
                 <br />
-                Like Grokbot, but for you and your company.
+                Like Grokbot, but for security. For you and your company.
               </p>
               <div className="mt-8">
                 <HeroButton href={waitlistUrl}>Get started</HeroButton>
