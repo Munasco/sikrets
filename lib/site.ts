@@ -17,6 +17,6 @@ export const site = {
 }
 
 /** Origin for absolute metadata URLs. Vercel previews use their own branch URL so Open Graph
- *  images resolve to the preview's image, not production's. */
-export const metadataOrigin =
-  process.env.VERCEL_ENV === "preview" && process.env.VERCEL_BRANCH_URL ? `https://${process.env.VERCEL_BRANCH_URL}` : site.url
+ *  images resolve to the preview's own image, not production's. */
+const previewHost = process.env.VERCEL_ENV === "preview" ? (process.env.VERCEL_BRANCH_URL ?? process.env.VERCEL_URL) : undefined
+export const metadataOrigin = previewHost ? `https://${previewHost}` : site.url
