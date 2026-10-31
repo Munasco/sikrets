@@ -13,6 +13,8 @@ EIF=/opt/sikrets-agent/agent.eif
 CID=16
 MEM=${ENCLAVE_MEMORY_MIB:-3072}
 CPUS=${ENCLAVE_CPUS:-2}
+export HOME=${HOME:-/root} NITRO_CLI_ARTIFACTS=/opt/sikrets-agent/eif-artifacts
+mkdir -p "$NITRO_CLI_ARTIFACTS"
 
 down() {
   systemctl stop sikrets-enclave-feed sikrets-enclave-inbound sikrets-vsock-proxy@8001 sikrets-vsock-proxy@8002 sikrets-vsock-proxy@8003 2>/dev/null || true
