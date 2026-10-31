@@ -1,9 +1,10 @@
 import Image from "next/image"
-import { Accordion, Card, EmailForm, Headline, Mock, VaultDiagram } from "@/components/landing"
+import { Accordion, CardPhoto, Check, Container, GuardCard, Headline, HeroButton, MediaCard, Pill, RotateArt, StandInArt, VaultArt } from "@/components/landing"
 import { SikretsMark } from "@/components/logo"
+import { Reveal } from "@/components/reveal"
 import { site } from "@/lib/site"
 
-const { tennantUrl, waitlistUrl, demoUrl } = site
+const { tennantUrl, waitlistUrl, demoUrl, githubUrl } = site
 
 const jsonLd = {
   "@context": "https://schema.org",
@@ -18,8 +19,8 @@ const jsonLd = {
 }
 
 const nav = [
-  { label: "Product", href: "#product" },
-  { label: "Use cases", href: "#use-cases" },
+  { label: "How it works", href: "#product" },
+  { label: "For you", href: "#tiers" },
   { label: "Security", href: "#security" },
   { label: "Pricing", href: "#pricing" },
   { label: "FAQ", href: "#faq" },
@@ -27,193 +28,215 @@ const nav = [
 
 const providers = ["Upstash", "Anthropic", "AWS", "OpenAI", "Cloudflare", "Neon", "Resend", "Supabase"]
 
-const security = [
-  { q: "Encrypted on your device", a: "Keys are encrypted before they leave your machine. Sikrets only ever stores the encrypted copy." },
-  { q: "Secrets never print", a: "Logs, errors and debug output show dots instead of keys." },
-  { q: "A leaked .env opens nothing", a: "Projects, CI and hosting hold stand-ins, not real keys." },
-  { q: "Each project sees only its own keys", a: "Access is limited per project, enforced by your cloud's IAM." },
+const tiers = [
+  { who: "You", role: "Virtual security guard", image: "/landing/cabin.jpg", alt: "A small cabin with a lit window in a misty forest" },
+  { who: "Your startup", role: "Autonomous security engineer", image: "/landing/tower.jpg", alt: "A fire lookout tower above fog and golden larches" },
+  { who: "Your company", role: "Autonomous security team", image: "/landing/city.jpg", alt: "A city skyline over still water at dawn" },
 ]
 
+const security = ["Encrypted on your device", "Secrets never print", "A leaked .env opens nothing", "Each project sees only its own keys"]
+
 const faq = [
-  { q: "What is Sikrets?", a: "A place for your API keys. Your apps and agents use them without ever holding the real values." },
+  { q: "What is Sikrets?", a: "A security guard for your keys. Your apps and agents use them without ever holding the real values." },
   { q: "What's a stand-in?", a: "A placeholder that sits in your .env, CI and hosting instead of the real key. On its own it opens nothing." },
   { q: "Is it free?", a: "Yes. Sikrets is open source, and there is a free cloud version." },
   { q: "How do agents use it?", a: "They run commands through sikrets run. The key is available while the command runs and is never shown to the agent." },
   { q: "Which services work?", a: "Over 3,000. Paste a key for any of them; Upstash, Anthropic and AWS are fully automatic." },
 ]
 
+const footerLinks = [
+  { h: "Product", l: [["How it works", "#product"], ["Security", "#security"], ["Pricing", "#pricing"], ["FAQ", "#faq"]] },
+  { h: "Open source", l: [["GitHub", githubUrl]] },
+  { h: "Company", l: [["Tennant", tennantUrl], ["Terms", `${tennantUrl}/terms`], ["Privacy", `${tennantUrl}/privacy`]] },
+]
+
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen overflow-x-clip bg-paper text-ink">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-black/80 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-          <a href="/" className="flex items-center gap-2">
-            <SikretsMark size={18} />
-            <span className="font-serif text-2xl tracking-tight">Sikrets</span>
+      <header className="sticky top-0 z-40 bg-paper/95 backdrop-blur">
+        <Container className="flex h-[72px] items-center justify-between">
+          <a href="/" className="flex items-center gap-2.5">
+            <SikretsMark size={20} />
+            <span className="font-serif text-[1.65rem] leading-none tracking-tight text-forest">Sikrets</span>
           </a>
-          <nav className="hidden items-center gap-8 text-sm text-neutral-300 md:flex">
+          <nav className="hidden items-center gap-8 font-mono text-[13px] text-ink-soft md:flex">
             {nav.map((n) => (
-              <a key={n.href} href={n.href} className="hover:text-white">
+              <a key={n.href} href={n.href} className="transition-colors hover:text-ink">
                 {n.label}
               </a>
             ))}
           </nav>
-          <div className="flex items-center gap-4 text-sm">
-            <a href={demoUrl} className="hidden text-neutral-300 hover:text-white sm:inline">
+          <div className="flex items-center gap-2.5">
+            <a href={demoUrl} className="inline-flex h-10 items-center rounded-md border border-line bg-white px-3 font-serif text-[1.05rem] leading-none text-forest transition-colors hover:bg-cream sm:px-3.5 sm:text-[1.1rem]">
               Book a demo
             </a>
-            <a href={waitlistUrl} className="rounded-full border border-white/25 px-4 py-1.5 hover:bg-white hover:text-black">
+            <Pill href={waitlistUrl} className="h-10 rounded-md px-4 text-[1.1rem]">
               Get started
-            </a>
+            </Pill>
           </div>
-        </div>
+        </Container>
       </header>
 
       <main>
-        {/* Hero */}
-        <section className="relative overflow-hidden">
-          <Image src="/landing/hero-key.jpg" alt="A black security key resting on a concrete block" fill priority sizes="100vw" className="object-cover object-[70%_center]" />
-          <div className="absolute inset-0 bg-gradient-to-r from-black via-black/60 to-transparent md:via-black/30" />
-          <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black to-transparent" />
-          <div className="relative mx-auto flex min-h-[720px] max-w-6xl flex-col justify-center px-6 pb-40 pt-24">
-            <h1 className="max-w-2xl font-serif text-6xl leading-[1] tracking-tight md:text-7xl">
-              The security platform for the <em className="italic">agent era</em>
-            </h1>
-            <p className="mt-5 max-w-md text-lg text-neutral-300">Secure every API key your agents and apps use, without ever handing them over.</p>
-            <div className="mt-8">
-              <EmailForm action={waitlistUrl} cta="Get started" id="hero-email" />
+        {/* Hero: a tall pastel photo in a rounded card, headline centred over the sky. */}
+        <section className="px-3 pt-1 sm:px-5 md:px-9">
+          <div className="relative overflow-hidden rounded-2xl bg-sand md:rounded-[20px]">
+            <Image src="/landing/hero.jpg" alt="A lighthouse on a misty headland under a pale dawn sky" fill priority sizes="100vw" className="object-cover object-[48%_center]" />
+            <div className="relative flex min-h-[780px] flex-col items-center px-5 pb-6 pt-20 text-center sm:min-h-[820px] md:min-h-[max(760px,calc(100svh-96px))] md:pb-10 md:pt-32">
+              <h1 className="display text-balance text-[3.3rem] text-forest sm:text-7xl md:text-[5.6rem]">Your virtual security guard.</h1>
+              <p className="mt-6 max-w-md text-[17px] leading-snug text-[#3d4540] md:text-[19px]">
+                The AI agent you can paste keys into.
+                <br />
+                Like Grokbot, but for security. For you and your company.
+              </p>
+              <div className="mt-8">
+                <HeroButton href={waitlistUrl}>Get started</HeroButton>
+              </div>
+              <GuardCard className="mt-auto md:absolute md:bottom-10 md:right-10 md:mt-0" />
             </div>
           </div>
-          <div className="relative -mt-28 pb-14 text-center">
-            <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-center gap-x-10 gap-y-4 px-6">
-              {providers.map((p) => (
-                <span key={p} className="text-xl font-semibold tracking-tight text-neutral-500">
-                  {p}
-                </span>
+        </section>
+
+        {/* Works with */}
+        <Container className="py-12 md:py-16">
+          <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-3 sm:gap-x-10">
+            {providers.map((p) => (
+              <span key={p} className="text-lg font-medium tracking-tight text-faint sm:text-xl">
+                {p}
+              </span>
+            ))}
+          </div>
+        </Container>
+
+        {/* How it works */}
+        <section id="product" className="scroll-mt-24 py-16 md:py-24">
+          <Container>
+            <Reveal>
+              <Headline eyebrow="How it works">
+                Real keys stay in <b>one vault.</b> Everything else gets <b>a placeholder.</b>
+              </Headline>
+            </Reveal>
+            <div className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-3">
+              {[
+                { art: <VaultArt />, title: "The vault", body: "Your keys live encrypted in one place." },
+                { art: <StandInArt />, title: "Stand-ins", body: "Your .env and CI hold a copy that opens nothing." },
+                { art: <RotateArt />, title: "Rotation", body: "Keys renew on a schedule. Nothing to redeploy." },
+              ].map((c, i) => (
+                <Reveal key={c.title} delay={i * 80}>
+                  <MediaCard media={c.art} title={c.title} body={c.body} />
+                </Reveal>
               ))}
             </div>
-          </div>
+          </Container>
         </section>
 
-        {/* Product */}
-        <section id="product" className="mx-auto max-w-6xl scroll-mt-24 px-6 py-28">
-          <Headline sub="Real keys stay in one vault. Everything else gets a placeholder.">How it works</Headline>
-          <div className="mt-14 grid gap-4 md:grid-cols-2">
-            <Card image="/landing/vault.jpg" alt="An open vault door with soft green light" title="The vault" body="Your keys live encrypted in one place." className="min-h-[24rem]" />
-            <Card image="/landing/standin.jpg" alt="A steel key beside an identical glass key" title="Stand-ins" body="Your .env and CI hold a copy that opens nothing." className="min-h-[24rem]" />
-            <Card image="/landing/rotate.jpg" alt="A key turning inside a ring of light" title="Rotation" body="Keys renew on a schedule. Nothing to redeploy." className="min-h-[26rem] md:col-span-2" imageClassName="object-[center_40%]" />
-          </div>
-        </section>
-
-        {/* Use cases */}
-        <section id="use-cases" className="mx-auto max-w-6xl scroll-mt-24 px-6 pb-28">
-          <Headline sub="Whether an agent writes the code or you ship it.">Built for how you work</Headline>
-          <div className="mt-14 grid gap-4 md:grid-cols-3">
-            <Card title="Working with agents" body="They use the key. They never see it.">
-              <Mock title="terminal" hot={[0]} lines={["$ sikrets run -- claude", "  ANTHROPIC_API_KEY  ready"]} />
-            </Card>
-            <Card title="Deploying code" body="CI and hosting hold stand-ins, not real keys.">
-              <Mock title=".env" lines={["ANTHROPIC_API_KEY=sk-sikrets-8f2a…", "UPSTASH_TOKEN=sk-sikrets-41c9…"]} />
-            </Card>
-            <Card title="Knowing what happened" body="See which key was used, and when.">
-              <Mock title="sikrets activity" lines={["10:42  run     bun", "10:40  rotate  upstash", "10:31  add     anthropic"]} />
-            </Card>
-          </div>
-        </section>
-
-        {/* Safe changes */}
-        <section className="mx-auto max-w-6xl px-6 pb-28">
-          <Headline sub="Preview every change. Undo it if you need to.">No surprises</Headline>
-          <div className="mt-14 grid gap-4 md:grid-cols-3">
-            <Card title="Dry run" body="See every change and its cost first.">
-              <Mock title="--dry-run" lines={['+ Create upstash/redis "cache"', "+ Store 2 keys in the vault", "+ Write stand-ins to .env"]} />
-            </Card>
-            <Card title="Rollback" body="Undo an add, step by step.">
-              <Mock title="sikrets rollback" lines={['- Forget "cache"', "- Remove stand-ins from .env", '- Delete upstash/redis "cache"']} />
-            </Card>
-            <Card title="Status" body="Every key, when it was last used, and when it rotates.">
-              <Mock title="sikrets status" hot={[1]} lines={["NAME       STATE  ROTATE", "cache      live   in 28d", "anthropic  live   in 30d"]} />
-            </Card>
-          </div>
+        {/* Tiers */}
+        <section id="tiers" className="scroll-mt-24 py-16 md:py-24">
+          <Container>
+            <Reveal>
+              <Headline eyebrow="For you">
+                <b>One guard, sized to you.</b> It starts with your keys.
+              </Headline>
+            </Reveal>
+            <div className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-3">
+              {tiers.map((t, i) => (
+                <Reveal key={t.who} delay={i * 80}>
+                  <MediaCard media={<CardPhoto src={t.image} alt={t.alt} />} label={t.who} title={t.role} />
+                </Reveal>
+              ))}
+            </div>
+          </Container>
         </section>
 
         {/* Security */}
-        <section id="security" className="mx-auto max-w-6xl scroll-mt-24 px-6 pb-28">
-          <Headline sub="A leak, a log line or a curious agent never exposes a real key.">Secure by design</Headline>
-          <div className="mt-14 grid items-center gap-10 md:grid-cols-2">
-            <VaultDiagram />
-            <Accordion items={security} />
-          </div>
+        <section id="security" className="scroll-mt-24 py-16 md:py-24">
+          <Container>
+            <Reveal>
+              <Headline eyebrow="Security">
+                <b>Secure by design.</b> A leak, a log line or a curious agent never exposes a real key.
+              </Headline>
+            </Reveal>
+            <Reveal className="mt-12" delay={80}>
+              <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
+                {security.map((s) => (
+                  <li key={s} className="flex items-start gap-3 rounded-2xl bg-cream p-6 text-[17px] leading-snug text-forest md:min-h-40 md:flex-col md:justify-between md:gap-6">
+                    <Check />
+                    {s}
+                  </li>
+                ))}
+              </ul>
+            </Reveal>
+          </Container>
         </section>
 
         {/* Pricing */}
-        <section id="pricing" className="mx-auto max-w-4xl scroll-mt-24 px-6 pb-28">
-          <Headline align="left">
-            Free to <em>start</em>
-          </Headline>
-          <div className="mt-12 grid gap-10 border-t border-white/10 pt-10 md:grid-cols-2">
-            {[
-              { name: "Cloud", price: "Free", cta: "Get started", primary: true, points: ["Hosted vault, nothing to set up", "Stand-ins and rotation", "Activity log"] },
-              { name: "Open source", price: "Free", cta: "View on GitHub", primary: false, points: ["Run it on your own AWS", "CLI and SDK", "Every recipe"] },
-            ].map((p) => (
-              <div key={p.name}>
-                <p className="text-sm text-neutral-400">{p.name}</p>
-                <p className="mt-1 font-serif text-5xl">{p.price}</p>
-                <a href={p.primary ? waitlistUrl : site.githubUrl} className={`mt-6 block rounded-full py-2.5 text-center text-sm ${p.primary ? "bg-white text-black hover:bg-neutral-200" : "border border-white/25 hover:bg-white/10"}`}>
-                  {p.cta}
-                </a>
-                <ul className="mt-6 space-y-2.5 text-sm text-neutral-400">
-                  {p.points.map((x) => (
-                    <li key={x}>✓ {x}</li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
+        <section id="pricing" className="scroll-mt-24 py-16 md:py-24">
+          <Container>
+            <Reveal>
+              <Headline eyebrow="Pricing">
+                <b>Free</b> to start.
+              </Headline>
+            </Reveal>
+            <div className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-2">
+              {[
+                { name: "Cloud", note: "Nothing to set up", href: waitlistUrl, cta: "Get started", variant: "primary" as const },
+                { name: "Open source", note: "Run it on your own AWS", href: githubUrl, cta: "View on GitHub", variant: "outline" as const },
+              ].map((p, i) => (
+                <Reveal key={p.name} delay={i * 80}>
+                  <div className="flex h-full flex-col rounded-2xl bg-cream p-6 md:p-8">
+                    <p className="font-mono text-[12px] uppercase tracking-[0.08em] text-muted">{p.name}</p>
+                    <p className="display mt-4 text-5xl text-forest">Free</p>
+                    <p className="mt-2 text-[15px] text-ink-soft">{p.note}</p>
+                    <Pill href={p.href} variant={p.variant} className="mt-8 w-full sm:w-auto sm:self-start">
+                      {p.cta}
+                    </Pill>
+                  </div>
+                </Reveal>
+              ))}
+            </div>
+          </Container>
         </section>
 
         {/* FAQ */}
-        <section id="faq" className="mx-auto grid max-w-6xl scroll-mt-24 gap-12 px-6 pb-28 md:grid-cols-[1fr_1.5fr]">
-          <div>
-            <h2 className="font-serif text-5xl leading-[1.02]">Questions</h2>
-            <p className="mt-4 text-sm text-neutral-400">
-              Something else?{" "}
-              <a href={demoUrl} className="text-white underline underline-offset-4">
-                Get in touch
-              </a>
-              .
-            </p>
-          </div>
-          <Accordion items={faq} defaultOpen={-1} />
+        <section id="faq" className="scroll-mt-24 py-16 md:py-24">
+          <Container className="grid gap-10 md:grid-cols-[1fr_1.6fr] md:gap-12">
+            <Reveal>
+              <Headline eyebrow="FAQ">
+                <b>Questions</b>
+              </Headline>
+            </Reveal>
+            <Reveal delay={80}>
+              <Accordion items={faq} defaultOpen={-1} />
+            </Reveal>
+          </Container>
         </section>
 
-        {/* CTA */}
-        <section className="relative overflow-hidden bg-gradient-to-b from-black via-neutral-900 to-[#2a2b27]">
-          <div className="mx-auto max-w-3xl px-6 py-32 text-center">
-            <h2 className="font-serif text-5xl md:text-6xl">Secure your first key in minutes</h2>
-            <div className="mt-9 flex justify-center">
-              <EmailForm action={waitlistUrl} cta="Get started" id="cta-email" />
-            </div>
+        {/* Closing: the road photo in a rounded card, headline centred over the sky like the hero. */}
+        <section className="px-3 pb-3 pt-8 sm:px-5 md:px-9 md:pb-9">
+          <div className="relative overflow-hidden rounded-2xl bg-sand md:rounded-[20px]">
+            <Image src="/landing/road.jpg" alt="A road winding through an autumn forest with fog in the valleys" fill sizes="100vw" className="object-cover object-[60%_center]" />
+            <Reveal className="relative flex min-h-[560px] flex-col items-center px-5 pt-16 text-center md:min-h-[680px] md:pt-24">
+              <h2 className="display mx-auto max-w-3xl text-balance text-[2.6rem] text-forest sm:text-5xl md:text-[4rem]">Secure your first key in minutes</h2>
+              <div className="mt-8">
+                <HeroButton href={waitlistUrl}>Get started</HeroButton>
+              </div>
+            </Reveal>
           </div>
         </section>
       </main>
 
-      <footer className="bg-[#2a2b27]/40">
-        <div className="mx-auto grid max-w-6xl gap-10 px-6 py-14 md:grid-cols-[1.5fr_1fr_1fr_1fr]">
-          <div className="flex items-center gap-2 self-start">
-            <SikretsMark size={18} />
-            <span className="font-serif text-2xl">Sikrets</span>
+      <footer className="bg-forest text-white">
+        <Container className="grid gap-12 py-16 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
+          <div className="flex items-center gap-2.5 self-start">
+            <SikretsMark size={20} />
+            <span className="font-serif text-[1.65rem] leading-none tracking-tight">Sikrets</span>
           </div>
-          {[
-            { h: "Product", l: [["The vault", "#product"], ["Use cases", "#use-cases"], ["Pricing", "#pricing"]] },
-            { h: "Security", l: [["Secure by design", "#security"], ["FAQ", "#faq"]] },
-            { h: "Company", l: [["Tennant", tennantUrl], ["Terms", `${tennantUrl}/terms`], ["Privacy", `${tennantUrl}/privacy`]] },
-          ].map((c) => (
+          {footerLinks.map((c) => (
             <div key={c.h}>
-              <p className="text-sm text-white">{c.h}</p>
-              <ul className="mt-3 space-y-2 text-sm text-neutral-400">
+              <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-white/50">{c.h}</p>
+              <ul className="mt-4 space-y-3 font-mono text-[13px] text-white/80">
                 {c.l.map(([label, href]) => (
                   <li key={label}>
                     <a href={href} className="hover:text-white">
@@ -224,16 +247,16 @@ export default function LandingPage() {
               </ul>
             </div>
           ))}
-        </div>
-        <div className="mx-auto flex max-w-6xl items-center justify-between border-t border-white/10 px-6 py-6 text-xs text-neutral-500">
+        </Container>
+        <Container className="flex flex-col gap-2 border-t border-white/10 py-6 font-mono text-[11px] uppercase tracking-[0.08em] text-white/45 sm:flex-row sm:items-center sm:justify-between">
           <span>
             A product of{" "}
-            <a href={tennantUrl} className="text-neutral-300 hover:text-white">
+            <a href={tennantUrl} className="text-white/70 hover:text-white">
               Tennant
             </a>
           </span>
           <span>© {new Date().getFullYear()} Tennant</span>
-        </div>
+        </Container>
       </footer>
     </div>
   )

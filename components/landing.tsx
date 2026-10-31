@@ -1,141 +1,200 @@
 import Image from "next/image"
 import type { ReactNode } from "react"
-import { SikretsTileMark } from "@/components/landing-mark"
+import { SikretsMark } from "@/components/logo"
 import { cn } from "@/lib/utils"
 
-// Landing page building blocks, in a monochrome editorial style: black canvas, white serif
-// display type with one italic word, neutral greys, rounded cards with an image or mock on top
-// and a one-line caption below.
+// Landing page building blocks. White page, light grey rounded cards, pastel photography,
+// a serif display face in dark green for headlines, monospace for labels, one deep green for actions.
 
-export function Headline({ children, sub, align = "center", className }: { children: ReactNode; sub?: ReactNode; align?: "center" | "left"; className?: string }) {
+export function Container({ children, className }: { children: ReactNode; className?: string }) {
+  return <div className={cn("mx-auto w-full max-w-[1100px] px-5 sm:px-8", className)}>{children}</div>
+}
+
+/** Small mono label with a green dot, above a statement. */
+export function Eyebrow({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cn(align === "center" ? "mx-auto max-w-3xl text-center" : "max-w-3xl", className)}>
-      <h2 className="font-serif text-5xl leading-[1.02] tracking-tight text-white md:text-[4.25rem] [&_em]:italic">{children}</h2>
-      {sub && <p className="mt-5 text-base text-neutral-400 md:text-lg">{sub}</p>}
+    <p className={cn("flex items-center gap-2 font-mono text-[12px] uppercase tracking-[0.08em] text-ink-soft", className)}>
+      <span className="inline-block size-2 rounded-full bg-pine" aria-hidden />
+      {children}
+    </p>
+  )
+}
+
+/** A section opener: mono eyebrow, then a large serif statement in soft grey with the key words
+ *  (wrapped in <b>) in dark green. */
+export function Headline({ children, eyebrow, align = "left", className }: { children: ReactNode; eyebrow?: ReactNode; align?: "left" | "center"; className?: string }) {
+  return (
+    <div className={cn(align === "center" ? "mx-auto max-w-4xl text-center" : "max-w-4xl", className)}>
+      {eyebrow && <Eyebrow className={cn("mb-6", align === "center" && "justify-center")}>{eyebrow}</Eyebrow>}
+      <h2 className="display text-balance text-[2.4rem] text-faint sm:text-5xl md:text-[3.6rem] [&_b]:font-normal [&_b]:text-forest">{children}</h2>
     </div>
   )
 }
 
-export function Card({ title, body, image, alt, children, className, imageClassName }: { title: string; body: string; image?: string; alt?: string; children?: ReactNode; className?: string; imageClassName?: string }) {
+/** Pill button in the display face. */
+export function Pill({ href, children, variant = "primary", className }: { href: string; children: ReactNode; variant?: "primary" | "outline" | "light"; className?: string }) {
+  const styles = {
+    primary: "bg-pine text-white hover:bg-pine-deep",
+    outline: "border border-line bg-white text-ink hover:bg-cream",
+    light: "bg-white text-ink hover:bg-cream",
+  }[variant]
   return (
-    <div className={cn("group relative flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-neutral-900 to-neutral-950", className)}>
-      <div className="relative min-h-60 flex-1 overflow-hidden">
-        {image && <Image src={image} alt={alt ?? ""} fill sizes="(min-width: 1024px) 50vw, 100vw" className={cn("object-cover transition-transform duration-700 group-hover:scale-[1.03]", imageClassName)} />}
-        {children && <div className="relative flex h-full items-center justify-center p-6">{children}</div>}
-      </div>
-      <div className="relative px-6 pb-6 pt-4">
-        <p className="text-sm leading-relaxed text-neutral-400">
-          <span className="font-medium text-white">{title}.</span> {body}
-        </p>
-      </div>
-    </div>
+    <a href={href} className={cn("inline-flex h-11 items-center justify-center rounded-full px-5 font-serif text-[1.2rem] leading-none tracking-[-0.01em] transition-colors", styles, className)}>
+      {children}
+    </a>
   )
 }
 
-export function Mock({ title, lines, hot = [], className }: { title: string; lines: string[]; hot?: number[]; className?: string }) {
+/** Hero button: white pill with a green arrow disc. */
+export function HeroButton({ href, children }: { href: string; children: ReactNode }) {
   return (
-    <div className={cn("w-full overflow-hidden rounded-xl border border-white/10 bg-black/70 shadow-2xl shadow-black/60 backdrop-blur", className)}>
-      <div className="flex items-center gap-1.5 border-b border-white/10 px-3.5 py-2">
-        <span className="h-2 w-2 rounded-full bg-white/15" />
-        <span className="h-2 w-2 rounded-full bg-white/15" />
-        <span className="h-2 w-2 rounded-full bg-white/15" />
-        <span className="ml-2 truncate font-mono text-[11px] text-neutral-500">{title}</span>
-      </div>
-      <pre className="overflow-x-auto px-3.5 py-3 font-mono text-[11.5px] leading-relaxed">
-        {lines.map((l, i) => (
-          <div key={i} className={cn("whitespace-pre", hot.includes(i) ? "text-white" : "text-neutral-400")}>
-            {l || " "}
-          </div>
-        ))}
-      </pre>
-    </div>
+    <a href={href} className="group inline-flex h-12 items-center gap-3 rounded-full bg-white pl-1.5 pr-6 text-[15px] font-medium text-ink shadow-[0_10px_30px_rgba(20,30,25,0.18)] transition-transform hover:-translate-y-px motion-reduce:transition-none motion-reduce:hover:translate-y-0">
+      <span className="grid size-9 place-items-center rounded-full bg-pine text-white">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden className="transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none">
+          <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </span>
+      {children}
+    </a>
   )
 }
 
 /** Native <details> accordion: works without JavaScript and is keyboard accessible. */
 export function Accordion({ items, defaultOpen = 0 }: { items: { q: string; a: ReactNode }[]; defaultOpen?: number }) {
   return (
-    <div className="divide-y divide-white/10">
+    <div className="divide-y divide-line border-y border-line">
       {items.map((it, i) => (
         <details key={it.q} open={i === defaultOpen} className="group py-5">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-6 text-white [&::-webkit-details-marker]:hidden">
-            <span className="text-[15px] md:text-base">{it.q}</span>
-            <svg className="h-4 w-4 shrink-0 text-neutral-500 transition-transform group-open:rotate-180" viewBox="0 0 16 16" fill="none" aria-hidden>
-              <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-6 text-ink [&::-webkit-details-marker]:hidden">
+            <span className="font-serif text-[1.45rem] leading-tight tracking-[-0.01em]">{it.q}</span>
+            <svg className="size-4 shrink-0 text-muted transition-transform group-open:rotate-45 motion-reduce:transition-none" viewBox="0 0 16 16" fill="none" aria-hidden>
+              <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
           </summary>
-          <div className="mt-3 max-w-xl text-sm leading-relaxed text-neutral-400">{it.a}</div>
+          <div className="mt-3 max-w-xl text-[15px] leading-relaxed text-ink-soft">{it.a}</div>
         </details>
       ))}
     </div>
   )
 }
 
-export function Stat({ value, label }: { value: string; label: string }) {
+export function Check() {
   return (
-    <div className="text-center">
-      <div className="font-serif text-4xl text-white md:text-5xl">{value}</div>
-      <div className="mt-1.5 text-xs text-neutral-500">{label}</div>
-    </div>
+    <svg className="mt-[3px] size-4 shrink-0 text-pine" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path d="M3 8.5l3 3 7-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   )
 }
 
-/** Email capture: a plain GET form, so it works without JavaScript. */
-export function EmailForm({ action, cta, id }: { action: string; cta: string; id: string }) {
+/** Light card: a photo or illustration on top, then a mono label and a serif line. */
+export function MediaCard({ media, label, title, body, className }: { media: ReactNode; label?: string; title: string; body?: string; className?: string }) {
   return (
-    <form action={action} method="get" className="flex w-full max-w-md items-center gap-2 rounded-xl border border-white/15 bg-white/[0.04] p-1.5 pl-4 backdrop-blur">
-      <label htmlFor={id} className="sr-only">
-        Work email
-      </label>
-      <input id={id} name="email" type="email" required placeholder="What's your email?" className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-neutral-500" />
-      <button type="submit" className="rounded-lg bg-white px-4 py-2.5 text-sm font-medium text-black transition-colors hover:bg-neutral-200">
-        {cta}
-      </button>
-    </form>
-  )
-}
-
-/** The Sikrets mark as a glossy 3D app tile, built in CSS. */
-export function MarkTile() {
-  return (
-    <div className="relative">
-      <div className="absolute inset-0 -z-10 rounded-[2rem] bg-[#9ca99a]/25 blur-3xl" />
-      <div className="flex h-36 w-36 items-center justify-center rounded-[2rem] border border-white/15 bg-gradient-to-b from-neutral-700 via-neutral-900 to-black shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_30px_60px_rgba(0,0,0,0.8)]">
-        <SikretsTileMark />
+    <div className={cn("flex h-full flex-col rounded-2xl bg-cream p-2.5", className)}>
+      <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-sand">{media}</div>
+      <div className="px-3.5 pb-4 pt-5 md:px-4 md:pb-5">
+        {label && <p className="font-mono text-[12px] uppercase tracking-[0.08em] text-muted">{label}</p>}
+        <h3 className={cn("display text-[1.9rem] text-forest md:text-[2.1rem]", label && "mt-2")}>{title}</h3>
+        {body && <p className="mt-2 text-[15px] leading-relaxed text-ink-soft">{body}</p>}
       </div>
     </div>
   )
 }
 
-/** Secure-by-design illustration: one vault, every project holding stand-ins only. */
-export function VaultDiagram() {
-  const projects = [
-    { name: "web", x: 20, y: 20 },
-    { name: "agent", x: 80, y: 20 },
-    { name: "ci", x: 20, y: 80 },
-    { name: "worker", x: 80, y: 80 },
+export function CardPhoto({ src, alt }: { src: string; alt: string }) {
+  return <Image src={src} alt={alt} fill sizes="(min-width: 768px) 33vw, 100vw" className="object-cover transition-transform duration-700 hover:scale-[1.03] motion-reduce:transition-none" />
+}
+
+/** The guard's status, frosted white over the hero photo: on duty, what it watches, what it just did. */
+export function GuardCard({ className }: { className?: string }) {
+  const events = [
+    { what: "Agent used a key it never saw", when: "now" },
+    { what: "Upstash key rotated", when: "2m" },
   ]
   return (
-    <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-neutral-900 to-black">
-      <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 75" preserveAspectRatio="none" aria-hidden>
-        {projects.map((p) => (
-          <line key={p.name} x1="50" y1="37.5" x2={p.x} y2={p.y * 0.75} stroke="rgba(255,255,255,0.14)" strokeWidth="0.3" strokeDasharray="1 1" />
-        ))}
-      </svg>
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
-        <div className="absolute inset-0 -z-10 rounded-full bg-[#9ca99a]/20 blur-2xl" />
-        <div className="rounded-xl border border-white/15 bg-black/80 px-5 py-3.5 shadow-2xl">
-          <p className="text-[11px] uppercase tracking-widest text-neutral-500">vault</p>
-          <p className="mt-1 font-mono text-sm text-white">ANTHROPIC_API_KEY</p>
-          <p className="font-mono text-[11px] text-[#9ca99a]">encrypted · only you can read</p>
-        </div>
+    <div className={cn("w-full max-w-sm rounded-2xl border border-white/70 bg-white/70 p-5 text-forest shadow-[0_20px_60px_rgba(40,50,45,0.15)] backdrop-blur-xl md:w-[21rem]", className)}>
+      <div className="flex items-center justify-between">
+        <span className="flex items-center gap-2.5 font-mono text-[12px] uppercase tracking-[0.08em] text-ink-soft">
+          <span className="relative flex size-2.5">
+            <span className="absolute inline-flex size-full animate-ping rounded-full bg-[#3fae6f] opacity-60 motion-reduce:animate-none" />
+            <span className="relative inline-flex size-2.5 rounded-full bg-[#3fae6f]" />
+          </span>
+          On duty
+        </span>
+        <SikretsMark size={16} />
       </div>
-      {projects.map((p) => (
-        <div key={p.name} className="absolute -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-lg border border-white/10 bg-neutral-950/90 px-3 py-2" style={{ left: `${p.x}%`, top: `${p.y}%` }}>
-          <p className="text-[11px] text-neutral-500">{p.name}</p>
-          <p className="font-mono text-[11px] text-neutral-300">sk-sikrets-…</p>
-        </div>
-      ))}
+      <p className="display mt-3 text-[1.6rem] sm:mt-4 sm:text-[1.8rem]">Watching 12 keys · 3 agents</p>
+      <ul className="mt-4 hidden divide-y divide-forest/10 border-t border-forest/10 text-[14px] sm:block">
+        {events.map((e) => (
+          <li key={e.what} className="flex items-center justify-between gap-4 py-2.5">
+            <span className="flex min-w-0 items-center gap-2.5 text-ink">
+              <svg className="size-4 shrink-0 text-pine" viewBox="0 0 16 16" fill="none" aria-hidden>
+                <path d="M3 8.5l3 3 7-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span className="truncate">{e.what}</span>
+            </span>
+            <span className="shrink-0 font-mono text-[11px] text-muted">{e.when}</span>
+          </li>
+        ))}
+      </ul>
     </div>
+  )
+}
+
+/* Small product sketches for the "How it works" cards: white panels on the card's grey well. */
+
+function Panel({ children }: { children: ReactNode }) {
+  return (
+    <div className="absolute inset-0 grid place-items-center p-6">
+      <div className="w-full max-w-[18rem] rounded-xl bg-white p-4 shadow-[0_8px_30px_rgba(40,50,45,0.08)]">{children}</div>
+    </div>
+  )
+}
+
+const Lock = () => (
+  <svg className="size-3.5 shrink-0 text-pine" viewBox="0 0 16 16" fill="none" aria-hidden>
+    <rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M5.5 7V5a2.5 2.5 0 015 0v2" stroke="currentColor" strokeWidth="1.5" />
+  </svg>
+)
+
+export function VaultArt() {
+  return (
+    <Panel>
+      <ul className="space-y-2.5 font-mono text-[12px] text-ink-soft">
+        {["UPSTASH_TOKEN", "ANTHROPIC_KEY", "AWS_SECRET"].map((k) => (
+          <li key={k} className="flex items-center justify-between gap-3 rounded-lg bg-cream px-3 py-2">
+            <span className="truncate">{k}</span>
+            <Lock />
+          </li>
+        ))}
+      </ul>
+    </Panel>
+  )
+}
+
+export function StandInArt() {
+  return (
+    <Panel>
+      <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted">.env</p>
+      <p className="mt-3 truncate rounded-lg bg-cream px-3 py-2 font-mono text-[12px] text-ink-soft">
+        UPSTASH_TOKEN=<span className="text-pine">sk_standin_••••</span>
+      </p>
+    </Panel>
+  )
+}
+
+export function RotateArt() {
+  return (
+    <Panel>
+      <div className="flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.08em] text-muted">
+        <span>Rotation</span>
+        <span>30d</span>
+      </div>
+      <div className="mt-4 flex items-center gap-1.5">
+        {[1, 1, 1, 0.35, 0.35, 0.35].map((o, i) => (
+          <span key={i} className="h-2 flex-1 rounded-full bg-pine" style={{ opacity: o }} />
+        ))}
+      </div>
+    </Panel>
   )
 }
