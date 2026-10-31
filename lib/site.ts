@@ -1,12 +1,10 @@
 export const site = {
   name: "Sikrets",
   url: "https://sikrets.usetennant.com",
-  tagline: "Give agents access, never the keys",
-  title: "Sikrets — Give agents access, never the keys",
+  tagline: "Your virtual security guard",
+  title: "Sikrets — Your virtual security guard",
   description:
-    "Sikrets runs AI agents with a time-limited session instead of your API keys. A local proxy adds the real key on the way out, logs every request and revokes access when the session ends. Open source, by Tennant.",
-  /** Catalog services `sikrets session` can broker (known API host and key style). */
-  servicesBrokered: 426,
+    "An AI that only does security, for you or your company. It starts with your keys: apps and agents use them without ever holding the real values. Open source, by Tennant.",
   githubUrl: "https://github.com/Munasco/sikrets",
   tennantUrl: "https://usetennant.com",
   twitter: "@tennantcloud",

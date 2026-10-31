@@ -1,8 +1,9 @@
-import { Accordion, Card, Check, Chip, Container, Denied, Eyebrow, Headline, HeroButton, Pill, SessionCard, SessionLog, Stat, Terminal } from "@/components/landing"
+import Image from "next/image"
+import { HugeiconsIcon } from "@hugeicons/react"
+import { Building03Icon, UserGroupIcon, UserIcon } from "@hugeicons/core-free-icons"
+import { Accordion, Check, Container, GuardCard, Headline, HeroButton, PhotoCard, Pill } from "@/components/landing"
 import { SikretsMark } from "@/components/logo"
-import { PathToggle } from "@/components/path-toggle"
 import { Reveal } from "@/components/reveal"
-import { SessionFlow } from "@/components/session-flow"
 import { site } from "@/lib/site"
 
 const { tennantUrl, waitlistUrl, demoUrl, githubUrl } = site
@@ -21,33 +22,39 @@ const jsonLd = {
 
 const nav = [
   { label: "How it works", href: "#product" },
-  { label: "The case", href: "#case" },
-  { label: "Developers", href: "#developers" },
+  { label: "For you", href: "#tiers" },
+  { label: "Security", href: "#security" },
   { label: "Pricing", href: "#pricing" },
   { label: "FAQ", href: "#faq" },
 ]
 
-/** Services with hand-written proxy support; the rest of the catalog is brokered from its known API hosts. */
-const services = ["GitHub", "Slack", "Anthropic", "OpenAI", "Stripe", "Resend"]
+const providers = ["Upstash", "Anthropic", "AWS", "OpenAI", "Cloudflare", "Neon", "Resend", "Supabase"]
+
+const tiers = [
+  { who: "You", role: "Virtual security guard", icon: UserIcon },
+  { who: "Your startup", role: "Autonomous security engineer", icon: UserGroupIcon },
+  { who: "Your company", role: "Autonomous security team", icon: Building03Icon },
+]
+
+const security = ["Encrypted on your device", "Secrets never print", "A leaked .env opens nothing", "Each project sees only its own keys"]
 
 const faq = [
-  { q: "What is Sikrets?", a: "1Password for agents. Your keys stay with you; an agent gets a session that works through a local proxy, ends on time and logs every request." },
-  { q: "What does the agent actually see?", a: "A session token (sks_…) in the usual variables, like GITHUB_TOKEN. It only works through this session's proxy, for the services you named, until the session ends." },
-  { q: "What is sandboxed?", a: "On macOS the agent can't read the keychain, ~/.ssh, ~/.aws or other credential files, and can only reach the network through the proxy. Linux is next." },
-  { q: "Which services work?", a: `${site.servicesBrokered} from the catalog, including GitHub (with git over HTTPS), Slack, Anthropic, OpenAI, Stripe and Resend. Find one with sikrets proxy ls.` },
-  { q: "Can Sikrets read my keys?", a: "Hosted storage is zero-knowledge: values are encrypted on your device before upload. Session keys stay in your local keychain." },
-  { q: "Is it free?", a: "The CLI, SDK and MCP server are open source. There is a free hosted plan; Team and Enterprise are coming." },
+  { q: "What is Sikrets?", a: "A security guard for your keys. Your apps and agents use them without ever holding the real values." },
+  { q: "What's a stand-in?", a: "A placeholder that sits in your .env, CI and hosting instead of the real key. On its own it opens nothing." },
+  { q: "Is it free?", a: "Yes. Sikrets is open source, and there is a free cloud version." },
+  { q: "How do agents use it?", a: "They run commands through sikrets run. The key is available while the command runs and is never shown to the agent." },
+  { q: "Which services work?", a: "Over 3,000. Paste a key for any of them; Upstash, Anthropic and AWS are fully automatic." },
 ]
 
 const footerLinks = [
-  { h: "Product", l: [["How it works", "#product"], ["The case", "#case"], ["Pricing", "#pricing"], ["FAQ", "#faq"]] },
-  { h: "Developers", l: [["GitHub", githubUrl], ["CLI", `${githubUrl}/tree/main/packages/cli`], ["SDK", `${githubUrl}/tree/main/packages/sdk`]] },
+  { h: "Product", l: [["How it works", "#product"], ["Security", "#security"], ["Pricing", "#pricing"], ["FAQ", "#faq"]] },
+  { h: "Open source", l: [["GitHub", githubUrl]] },
   { h: "Company", l: [["Tennant", tennantUrl], ["Terms", `${tennantUrl}/terms`], ["Privacy", `${tennantUrl}/privacy`]] },
 ]
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-paper text-ink">
+    <div className="min-h-screen overflow-x-clip bg-paper text-ink">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
       <header className="sticky top-0 z-40 bg-paper/90 backdrop-blur">
@@ -64,29 +71,12 @@ export default function LandingPage() {
             ))}
           </nav>
           <div className="flex items-center gap-2.5">
-            <a href={githubUrl} className="hidden h-10 items-center rounded-lg border border-line bg-white px-3.5 font-serif text-[1.1rem] leading-none transition-colors hover:bg-cream sm:inline-flex">
-              GitHub
+            <a href={demoUrl} className="hidden h-10 items-center rounded-lg border border-line bg-white px-3.5 font-serif text-[1.1rem] leading-none transition-colors hover:bg-cream sm:inline-flex">
+              Book a demo
             </a>
             <Pill href={waitlistUrl} className="h-10 px-4 text-[1.1rem]">
               Get started
             </Pill>
-            <details className="relative md:hidden">
-              <summary aria-label="Menu" className="grid size-10 cursor-pointer list-none place-items-center rounded-lg [&::-webkit-details-marker]:hidden">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
-                  <path d="M3 7h18M3 12h18M3 17h18" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                </svg>
-              </summary>
-              <nav className="absolute right-0 top-12 flex w-56 flex-col rounded-xl border border-line bg-white p-2 font-mono text-[13px] shadow-xl shadow-black/5">
-                {nav.map((n) => (
-                  <a key={n.href} href={n.href} className="rounded-lg px-3 py-2.5 text-ink-soft hover:bg-cream hover:text-ink">
-                    {n.label}
-                  </a>
-                ))}
-                <a href={githubUrl} className="rounded-lg px-3 py-2.5 text-ink-soft hover:bg-cream hover:text-ink">
-                  GitHub
-                </a>
-              </nav>
-            </details>
           </div>
         </Container>
       </header>
@@ -94,245 +84,122 @@ export default function LandingPage() {
       <main>
         {/* Hero */}
         <section className="px-2 sm:px-4 md:px-6">
-          <div className="dusk grain relative overflow-hidden rounded-2xl md:rounded-[1.75rem]">
-            <div className="relative z-10 mx-auto flex max-w-4xl flex-col items-center px-5 pt-20 text-center sm:pt-24 md:pt-32">
-              <h1 className="display text-balance text-[2.75rem] text-pine sm:text-6xl md:text-[5rem] lg:text-[5.5rem]">
-                Give agents access. <br className="hidden sm:block" />
-                <em>Never the keys.</em>
-              </h1>
-              <p className="mt-6 max-w-2xl text-balance text-[17px] leading-relaxed text-ink md:text-lg">A session that ends on time. Your keys stay with you. Every request is logged.</p>
-              <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
-                <HeroButton href={waitlistUrl}>Get started</HeroButton>
-                <a href={githubUrl} className="font-serif text-[1.2rem] text-ink underline-offset-4 hover:underline">
-                  View on GitHub
-                </a>
+          <div className="relative overflow-hidden rounded-2xl bg-black md:rounded-[1.75rem]">
+            <div className="absolute inset-x-0 top-0 h-[400px] sm:h-[480px] md:inset-0 md:h-auto">
+              <Image src="/landing/hero-key.jpg" alt="A black security key with a green light, resting on a concrete block" fill priority sizes="100vw" className="object-cover object-[68%_center]" />
+            </div>
+            <div className="absolute inset-x-0 top-0 h-[400px] bg-gradient-to-b from-transparent via-black/20 to-black sm:h-[480px] md:inset-0 md:h-auto md:bg-gradient-to-r md:from-black/85 md:via-black/45 md:to-transparent" />
+            <Container className="relative flex min-h-[640px] flex-col justify-end gap-10 pb-6 pt-[300px] sm:pb-12 sm:pt-[380px] md:min-h-[720px] md:flex-row md:items-end md:justify-between md:gap-12 md:pb-16 md:pt-40">
+              <div className="max-w-xl text-white">
+                <h1 className="display text-balance text-[3.25rem] sm:text-7xl md:text-[5.5rem]">
+                  Your virtual <em>security guard.</em>
+                </h1>
+                <p className="mt-5 text-[18px] text-white/75 md:text-xl">Like Grok, but for security. For you or your company.</p>
+                <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3">
+                  <HeroButton href={waitlistUrl}>Get started</HeroButton>
+                  <a href={demoUrl} className="font-serif text-[1.2rem] text-white/85 underline-offset-4 hover:text-white hover:underline">
+                    Book a demo
+                  </a>
+                </div>
               </div>
-            </div>
-            <div className="relative z-10 mx-auto mt-14 max-w-3xl px-3 sm:px-6 md:mt-20">
-              <Terminal title="terminal" className="rounded-b-none border-b-0 shadow-[0_-20px_60px_rgba(20,30,25,0.18)]">
-                <span className="text-muted">$</span> sikrets session run github,slack \{"\n"}
-                {"    "}--for 2h -- claude{"\n"}
-                <span className="text-pine">sikrets:</span> session sks_7f3a9c… · ends in 2h{"\n"}
-                <span className="text-pine">sikrets:</span> github, slack · sandboxed{"\n\n"}
-                <span className="text-muted">claude › </span>echo $GITHUB_TOKEN{"\n"}
-                sks_7f3a9c… <span className="text-muted"># a session token, not a key</span>
-                {"\n"}
-                <span className="text-muted">claude › </span>git push origin main{"\n"}
-                <span className="text-pine">  ✓ authenticated through the proxy</span>
-                {"\n"}
-                <span className="text-muted">claude › </span>cat ~/.ssh/id_ed25519{"\n"}
-                <span className="text-rust">  ✗ Operation not permitted</span>
-                {"\n\n"}
-                <span className="text-pine">sikrets:</span> ended · 38 requests, 0 denied
-              </Terminal>
-            </div>
+              <GuardCard />
+            </Container>
           </div>
         </section>
 
         {/* Works with */}
         <Container className="py-12 md:py-16">
-          <p className="text-center font-mono text-[11px] uppercase tracking-[0.08em] text-muted">Works with {site.servicesBrokered} services</p>
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
-            {services.map((p) => (
+          <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
+            {providers.map((p) => (
               <span key={p} className="text-xl font-medium tracking-tight text-faint">
                 {p}
               </span>
             ))}
-            <span className="font-mono text-[13px] text-muted">+{site.servicesBrokered - services.length} more</span>
           </div>
         </Container>
 
         {/* How it works */}
-        <section id="product" className="scroll-mt-24 py-20 md:py-28">
+        <section id="product" className="scroll-mt-24 py-16 md:py-24">
           <Container>
             <Reveal>
-              <Headline eyebrow="How a session works" sub="The agent holds a token that ends. A proxy on your machine adds the real key on the way out.">
-                The agent holds a session. <em>You hold the keys.</em>
-              </Headline>
+              <Headline sub="Real keys stay in one vault. Everything else gets a placeholder.">How it works</Headline>
             </Reveal>
-            <Reveal className="mt-14" delay={100}>
-              <SessionFlow />
-            </Reveal>
-            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-3">
               <Reveal>
-                <Card title="Sandboxed" body="Credential files and direct network are off limits." className="h-full">
-                  <Denied items={["keychain", "~/.ssh", "~/.aws", "~/.kube", "~/.npmrc", "direct network"]} />
-                </Card>
+                <PhotoCard image="/landing/vault.jpg" alt="An open vault door with soft green light" title="The vault" body="Your keys live encrypted in one place." />
               </Reveal>
               <Reveal delay={80}>
-                <Card title="Rules per service" body="Name a bundle once. Limit methods where it matters." className="h-full">
-                  <Terminal title="sikrets.json" size="sm">
-                    <span className="text-teal">&quot;bundles&quot;</span>: {"{\n"}
-                    {"  "}
-                    <span className="text-teal">&quot;code-review&quot;</span>: [{"\n"}
-                    {"    "}
-                    <span className="text-pine">&quot;github&quot;</span>,{"\n"}
-                    {"    { "}
-                    <span className="text-teal">&quot;service&quot;</span>: <span className="text-pine">&quot;slack&quot;</span>,{"\n"}
-                    {"      "}
-                    <span className="text-teal">&quot;methods&quot;</span>: [<span className="text-pine">&quot;GET&quot;</span>] {"}\n"}
-                    {"  ]\n}"}
-                    {"\n\n"}
-                    <span className="text-muted">$</span> sikrets session run code-review \{"\n"}
-                    {"    "}-- codex
-                  </Terminal>
-                </Card>
+                <PhotoCard image="/landing/standin.jpg" alt="A steel key beside an identical glass key" title="Stand-ins" body="Your .env and CI hold a copy that opens nothing." />
               </Reveal>
-              <Reveal>
-                <Card title="Ends on time" body="Expiry or exit revokes the token. Its CA is deleted." className="h-full">
-                  <SessionCard />
-                </Card>
-              </Reveal>
-              <Reveal delay={80}>
-                <Card title="Every request logged" body="Service, method, path, status, and why it was denied." className="h-full">
-                  <SessionLog />
-                </Card>
+              <Reveal delay={160}>
+                <PhotoCard image="/landing/rotate.jpg" alt="A key turning inside a ring of light" title="Rotation" body="Keys renew on a schedule. Nothing to redeploy." />
               </Reveal>
             </div>
           </Container>
         </section>
 
-        {/* The case */}
-        <section id="case" className="scroll-mt-24 py-20 md:py-24">
+        {/* Tiers */}
+        <section id="tiers" className="scroll-mt-24 py-16 md:py-24">
           <Container>
             <Reveal>
-              <Headline eyebrow="29 October 2026 · $6.36B" sub="A compromised DevOps laptop reached the container that could ask the signer for withdrawals. Standing access did the rest.">
-                No key was stolen. <em>A trusted machine was allowed to ask.</em>
-              </Headline>
+              <Headline sub="It starts with your keys.">One guard, sized to you</Headline>
             </Reveal>
-            <Reveal className="mt-14" delay={100}>
-              <PathToggle />
-            </Reveal>
-            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-              {[
-                { v: "$6.36B", l: "Left hot wallets on ten chains, most of it within about twenty minutes." },
-                { v: "0", l: "Private keys leaked. The attacker only needed a machine that was allowed to ask." },
-                { v: "$0", l: "Lost in the replay once standing access is replaced by grants." },
-              ].map((s, i) => (
-                <Reveal key={s.v} delay={i * 80}>
-                  <div className="rounded-2xl border border-line bg-cream p-6">
-                    <p className="display text-5xl text-ink">{s.v}</p>
-                    <p className="mt-3 text-[15px] leading-relaxed text-ink-soft">{s.l}</p>
+            <div className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-3">
+              {tiers.map((t, i) => (
+                <Reveal key={t.who} delay={i * 80}>
+                  <div className="flex h-full flex-col rounded-2xl border border-line bg-cream p-6 md:p-8">
+                    <span className="grid size-11 place-items-center rounded-full bg-white text-pine shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
+                      <HugeiconsIcon icon={t.icon} size={20} strokeWidth={1.6} />
+                    </span>
+                    <p className="mt-10 font-mono text-[12px] uppercase tracking-[0.08em] text-muted md:mt-16">{t.who}</p>
+                    <p className="display mt-2 text-[2rem] text-ink md:text-[2.25rem]">{t.role}</p>
                   </div>
                 </Reveal>
               ))}
             </div>
-            <p className="mt-6 font-mono text-[11px] text-muted">Scenario built from public reporting (TRM Labs, Binance). Internal architecture is illustrative. Not a claim about what would have happened.</p>
           </Container>
         </section>
 
-        {/* Developers */}
-        <section id="developers" className="scroll-mt-24 py-20 md:py-24">
+        {/* Security */}
+        <section id="security" className="scroll-mt-24 py-16 md:py-24">
           <Container>
             <Reveal>
-              <Headline eyebrow="Open source" sub="The agent gets the work done. The key stays out of its context.">
-                CLI, SDK <em>and MCP.</em>
-              </Headline>
+              <Headline sub="A leak, a log line or a curious agent never exposes a real key.">Secure by design</Headline>
             </Reveal>
-            <div className="mt-14 grid grid-cols-1 gap-4 md:grid-cols-3">
-              <Reveal>
-                <Card title="CLI" body="Store a key once. Run anything with access." className="h-full">
-                  <Terminal title="terminal" size="sm">
-                    <span className="text-muted">$</span> sikrets proxy add github{"\n"}
-                    <span className="text-muted">  # real token → your keychain</span>
-                    {"\n\n"}
-                    <span className="text-muted">$</span> sikrets proxy ls stripe{"\n"}
-                    <span className="text-muted">  # search {site.servicesBrokered} services</span>
-                    {"\n\n"}
-                    <span className="text-muted">$</span> sikrets run -- bun dev
-                  </Terminal>
-                </Card>
-              </Reveal>
-              <Reveal delay={80}>
-                <Card title="SDK" body="Ask for the real value at runtime. Stand-ins never come back." className="h-full">
-                  <Terminal title="app.ts" size="sm">
-                    <span className="text-plum">import</span> {"{ sikrets }"} <span className="text-plum">from</span> <span className="text-teal">&quot;@sikrets/sdk&quot;</span>
-                    {"\n\n"}
-                    <span className="text-plum">const</span> key = <span className="text-plum">await</span> sikrets.get({"\n"}
-                    {"  "}
-                    <span className="text-teal">&quot;ANTHROPIC_API_KEY&quot;</span>
-                    {"\n"})
-                  </Terminal>
-                </Card>
-              </Reveal>
-              <Reveal delay={160}>
-                <Card title="MCP" body="Agents run commands with secrets. Output comes back scrubbed." className="h-full">
-                  <Terminal title="terminal" size="sm">
-                    <span className="text-muted">$</span> claude mcp add sikrets \{"\n"}
-                    {"    "}-- sikrets mcp --allow bun{"\n\n"}
-                    <span className="text-muted">› run_with_secrets</span> bun run seed.ts{"\n"}
-                    {"  "}connected to <span className="text-teal">[secret:DB_URL]</span>
-                  </Terminal>
-                </Card>
-              </Reveal>
-            </div>
-          </Container>
-        </section>
-
-        {/* Performance */}
-        <section id="performance" className="bg-night py-20 text-white md:py-32">
-          <Container>
-            <Reveal>
-              <Headline light align="center" eyebrow="Measured" sub="A local proxy for sessions. A Rust gateway and signed ledger for policy.">
-                Fast enough to <em>stay out of the way.</em>
-              </Headline>
-            </Reveal>
-            <Reveal className="mt-14" delay={100}>
-              <div className="grid grid-cols-2 border border-white/15 md:grid-cols-[1fr_1.1fr_1fr]">
-                <Stat value="48" unit="ms" label="to start a session" className="border-b border-r border-white/15 md:col-start-1 md:row-start-1" />
-                <Stat value="0.08" unit="ms" label="added per request by the proxy" className="border-b border-white/15 md:col-start-1 md:row-start-2 md:border-b-0 md:border-r" />
-                <div className="blueprint relative col-span-2 flex h-44 items-center justify-center border-b border-white/15 md:col-span-1 md:col-start-2 md:row-span-2 md:row-start-1 md:h-auto md:border-b-0 md:border-r">
-                  <span className="absolute left-4 top-4 size-4 border-l border-t border-white/50" aria-hidden />
-                  <span className="absolute right-4 top-4 size-4 border-r border-t border-white/50" aria-hidden />
-                  <span className="absolute bottom-4 left-4 size-4 border-b border-l border-white/50" aria-hidden />
-                  <span className="absolute bottom-4 right-4 size-4 border-b border-r border-white/50" aria-hidden />
-                  <svg width="88" height="88" viewBox="0 0 20 20" fill="none" aria-hidden>
-                    <rect x="1" y="1" width="18" height="18" stroke="rgba(255,255,255,0.5)" strokeWidth="0.8" />
-                    <circle cx="8" cy="10" r="3" stroke="#fff" strokeWidth="0.8" />
-                    <path d="M11 10H16M14 10V12.5" stroke="#fff" strokeWidth="0.8" />
-                  </svg>
-                </div>
-                <Stat value="9.4" unit="ns" label="per policy decision" className="border-r border-white/15 md:col-start-3 md:row-start-1 md:border-b md:border-r-0" />
-                <Stat value="83" unit="ns" label="per signed ledger append" className="md:col-start-3 md:row-start-2" />
-              </div>
-              <p className="mx-auto mt-4 max-w-2xl text-center font-mono text-[11px] leading-relaxed text-white/45">Proxy: p50 0.116 ms through it vs 0.035 ms direct, reused connection. Gateway and ledger: Apple M3 Pro, release build.</p>
+            <Reveal className="mt-12" delay={80}>
+              <ul className="grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 md:grid-cols-4">
+                {security.map((s) => (
+                  <li key={s} className="flex items-start gap-3 bg-paper p-6 text-[17px] leading-snug text-ink md:min-h-36 md:flex-col md:gap-6">
+                    <Check />
+                    {s}
+                  </li>
+                ))}
+              </ul>
             </Reveal>
           </Container>
         </section>
 
         {/* Pricing */}
-        <section id="pricing" className="scroll-mt-24 py-20 md:py-24">
+        <section id="pricing" className="scroll-mt-24 py-16 md:py-24">
           <Container>
             <Reveal>
-              <Headline eyebrow="Simple and open" sub="Open source to run yourself. Hosted when you'd rather not.">
+              <Headline>
                 Free to <em>start.</em>
               </Headline>
             </Reveal>
-            <div className="mt-14 grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-2">
               {[
-                { name: "Free", price: "Free", note: "Open source and hosted", href: waitlistUrl, cta: "Get started", variant: "outline" as const, points: ["CLI, SDK and MCP server", "Agent sessions and proxy", "Zero-knowledge hosted vault", "Request and activity logs"] },
-                { name: "Team", price: "Per identity", note: "People and agents alike", href: waitlistUrl, cta: "Join the waitlist", variant: "primary" as const, badge: "Coming soon", points: ["Everything in Free", "Shared bundles and revocation", "Access for people, too", "Signed ledger export"] },
-                { name: "Enterprise", price: "Custom", note: "For regulated teams", href: demoUrl, cta: "Talk to us", variant: "outline" as const, points: ["Everything in Team", "Self-hosted gateway", "SSO and SCIM", "Security review and SLA"] },
+                { name: "Cloud", note: "Nothing to set up", href: waitlistUrl, cta: "Get started", variant: "primary" as const },
+                { name: "Open source", note: "Run it on your own AWS", href: githubUrl, cta: "View on GitHub", variant: "outline" as const },
               ].map((p, i) => (
                 <Reveal key={p.name} delay={i * 80}>
-                  <div className={`flex h-full flex-col rounded-2xl border p-6 ${p.variant === "primary" ? "border-pine/30 bg-cream" : "border-line bg-cream"}`}>
-                    <div className="flex items-center justify-between">
-                      <Eyebrow>{p.name}</Eyebrow>
-                      {p.badge && <Chip color="pine">{p.badge}</Chip>}
-                    </div>
-                    <p className="display mt-5 text-4xl text-ink">{p.price}</p>
-                    <p className="mt-1.5 text-[15px] text-ink-soft">{p.note}</p>
-                    <Pill href={p.href} variant={p.variant} className="mt-6 w-full">
+                  <div className="flex h-full flex-col rounded-2xl border border-line bg-cream p-6 md:p-8">
+                    <p className="font-mono text-[12px] uppercase tracking-[0.08em] text-muted">{p.name}</p>
+                    <p className="display mt-4 text-5xl text-ink">Free</p>
+                    <p className="mt-2 text-[15px] text-ink-soft">{p.note}</p>
+                    <Pill href={p.href} variant={p.variant} className="mt-8 w-full sm:w-auto sm:self-start">
                       {p.cta}
                     </Pill>
-                    <ul className="mt-6 space-y-2.5 text-[15px] text-ink-soft">
-                      {p.points.map((x) => (
-                        <li key={x} className="flex gap-2.5">
-                          <Check />
-                          {x}
-                        </li>
-                      ))}
-                    </ul>
                   </div>
                 </Reveal>
               ))}
@@ -341,36 +208,26 @@ export default function LandingPage() {
         </section>
 
         {/* FAQ */}
-        <section id="faq" className="scroll-mt-24 py-20 md:py-24">
-          <Container className="grid gap-12 md:grid-cols-[1fr_1.6fr]">
+        <section id="faq" className="scroll-mt-24 py-16 md:py-24">
+          <Container className="grid gap-10 md:grid-cols-[1fr_1.6fr] md:gap-12">
             <Reveal>
-              <Headline eyebrow="FAQ">Questions</Headline>
-              <p className="mt-6 text-[15px] text-ink-soft">
-                Something else?{" "}
-                <a href={demoUrl} className="text-ink underline underline-offset-4">
-                  Get in touch
-                </a>
-                .
-              </p>
+              <Headline>Questions</Headline>
             </Reveal>
             <Reveal delay={80}>
-              <Accordion items={faq} />
+              <Accordion items={faq} defaultOpen={-1} />
             </Reveal>
           </Container>
         </section>
 
         {/* Closing */}
         <section className="px-2 pb-2 sm:px-4 md:px-6">
-          <div className="rounded-2xl bg-night px-5 py-24 text-center text-white md:rounded-[1.75rem] md:py-36">
-            <Reveal>
-              <h2 className="display text-[2.5rem] sm:text-5xl md:text-[3.75rem]">
-                <span className="block text-white/50">Your agents need access.</span>
-                <span className="block">Not your keys.</span>
-              </h2>
+          <div className="relative overflow-hidden rounded-2xl bg-night px-5 py-24 text-center text-white md:rounded-[1.75rem] md:py-36">
+            <Image src="/landing/rotate.jpg" alt="" fill sizes="100vw" className="object-cover opacity-35" />
+            <Reveal className="relative">
+              <h2 className="display mx-auto max-w-3xl text-balance text-[2.5rem] sm:text-5xl md:text-[3.75rem]">Secure your first key in minutes</h2>
               <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-                <Pill href={waitlistUrl}>Get started</Pill>
-                <Pill href={demoUrl} variant="light">
-                  Book a demo
+                <Pill href={waitlistUrl} variant="light">
+                  Get started
                 </Pill>
               </div>
             </Reveal>
@@ -380,15 +237,9 @@ export default function LandingPage() {
 
       <footer className="bg-night text-white">
         <Container className="grid gap-12 py-16 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <SikretsMark size={20} />
-              <span className="font-serif text-[1.65rem] leading-none tracking-tight">Sikrets</span>
-            </div>
-            <p className="mt-8 font-mono text-[11px] uppercase tracking-[0.08em] text-white/50">Contact</p>
-            <a href={demoUrl} className="mt-1 block font-serif text-2xl text-white/90 hover:text-white">
-              Book a call
-            </a>
+          <div className="flex items-center gap-2.5 self-start">
+            <SikretsMark size={20} />
+            <span className="font-serif text-[1.65rem] leading-none tracking-tight">Sikrets</span>
           </div>
           {footerLinks.map((c) => (
             <div key={c.h}>
@@ -412,7 +263,7 @@ export default function LandingPage() {
               Tennant
             </a>
           </span>
-          <span>© {new Date().getFullYear()} Tennant · All rights reserved</span>
+          <span>© {new Date().getFullYear()} Tennant</span>
         </Container>
       </footer>
     </div>
