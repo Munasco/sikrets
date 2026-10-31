@@ -29,10 +29,8 @@ export async function renderOg() {
           <img src={photoSrc} alt="" width={1164} height={594} style={{ position: "absolute", inset: 0, width: 1164, height: 594, objectFit: "cover", objectPosition: "center 70%" }} />
           <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", width: "100%", height: "100%", paddingTop: 48 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <svg width="30" height="30" viewBox="0 0 20 20" fill="none">
-                <rect x="1" y="1" width="18" height="18" stroke={forest} strokeOpacity="0.45" strokeWidth="1.5" />
-                <circle cx="8" cy="10" r="3" stroke={forest} strokeWidth="1.5" />
-                <path d="M11 10H16M14 10V12.5" stroke={forest} strokeWidth="1.5" />
+              <svg width="32" height="32" viewBox="0 0 24 24">
+                <path fill={forest} fillRule="evenodd" d="M4 22V10.5a8 8 0 0 1 16 0V22zM12 9.2a2.2 2.2 0 0 0-1.1 4.1L10.4 18h3.2l-.5-4.7A2.2 2.2 0 0 0 12 9.2z" />
               </svg>
               <span style={{ fontSize: 38, letterSpacing: -1 }}>Sikrets</span>
             </div>

@@ -58,7 +58,7 @@ export default function LandingPage() {
       <header className="sticky top-0 z-40 bg-paper/95 backdrop-blur">
         <Container className="flex h-[72px] items-center justify-between">
           <a href="/" className="flex items-center gap-2.5">
-            <SikretsMark size={20} />
+            <SikretsMark size={22} />
             <span className="font-serif text-[1.65rem] leading-none tracking-tight text-forest">Sikrets</span>
           </a>
           <nav className="hidden items-center gap-8 font-mono text-[13px] text-ink-soft md:flex">
@@ -86,7 +86,7 @@ export default function LandingPage() {
             <Image src="/landing/hero.jpg" alt="A lighthouse on a misty headland under a pale dawn sky" fill priority sizes="100vw" className="object-cover object-[48%_center]" />
             <div className="relative flex min-h-[780px] flex-col items-center px-5 pb-6 pt-20 text-center sm:min-h-[820px] md:min-h-[max(760px,calc(100svh-96px))] md:pb-10 md:pt-32">
               <h1 className="display text-balance text-[3.3rem] text-forest sm:text-7xl md:text-[5.6rem]">Your virtual security guard.</h1>
-              <p className="mt-6 max-w-md text-[17px] leading-snug text-[#3d4540] md:text-[19px]">
+              <p className="mt-6 max-w-xl text-[17px] leading-snug text-[#3d4540] md:text-[19px]">
                 The AI agent you can paste keys into.
                 <br />
                 Like Grokbot, but for security. For you and your company.
@@ -230,7 +230,7 @@ export default function LandingPage() {
       <footer className="bg-forest text-white">
         <Container className="grid gap-12 py-16 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div className="flex items-center gap-2.5 self-start">
-            <SikretsMark size={20} />
+            <SikretsMark size={22} />
             <span className="font-serif text-[1.65rem] leading-none tracking-tight">Sikrets</span>
           </div>
           {footerLinks.map((c) => (

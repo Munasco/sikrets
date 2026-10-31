@@ -1,13 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
   <style>
-    .frame { stroke: #485544 }
-    .key { stroke: #0c0e0d }
+    path { fill: #1f3b2d }
     @media (prefers-color-scheme: dark) {
-      .frame { stroke: #9ca99a }
-      .key { stroke: #e2e3e0 }
+      path { fill: #e6efe1 }
     }
   </style>
-  <rect class="frame" x="1" y="1" width="18" height="18" stroke-width="1.5" />
-  <circle class="key" cx="8" cy="10" r="3" stroke-width="1.5" />
-  <path class="key" d="M11 10H16M14 10V12.5" stroke-width="1.5" />
+  <path fill-rule="evenodd" d="M4 22V10.5a8 8 0 0 1 16 0V22zM12 9.2a2.2 2.2 0 0 0-1.1 4.1L10.4 18h3.2l-.5-4.7A2.2 2.2 0 0 0 12 9.2z" />
 </svg>
