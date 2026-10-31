@@ -17,10 +17,9 @@ export HOME=${HOME:-/root} NITRO_CLI_ARTIFACTS=/opt/sikrets-agent/eif-artifacts
 mkdir -p "$NITRO_CLI_ARTIFACTS"
 
 down() {
-  systemctl stop sikrets-enclave-feed sikrets-enclave-inbound sikrets-vsock-proxy@8001 sikrets-vsock-proxy@8002 sikrets-vsock-proxy@8003 2>/dev/null || true
+  systemctl disable --now sikrets-enclave sikrets-enclave-feed sikrets-enclave-inbound sikrets-vsock-proxy@8001 sikrets-vsock-proxy@8002 sikrets-vsock-proxy@8003 2>/dev/null || true
   nitro-cli terminate-enclave --all >/dev/null 2>&1 || true
-  rm -f /etc/sikrets-agent/attestation.json
-  systemctl start sikrets-agent
+  systemctl enable --now sikrets-agent
 }
 
 if [ "${1:-up}" = "down" ]; then down; exit 0; fi
@@ -97,10 +96,30 @@ ExecStart=/usr/local/bin/sikrets-enclave-feed
 Restart=always
 EOF
 
+# The enclave itself, owned by systemd so it outlives this script and comes back after a reboot.
+cat > /etc/systemd/system/sikrets-enclave.service <<EOF
+[Unit]
+Description=Sikrets agent Nitro Enclave
+After=nitro-enclaves-allocator.service
+Requires=nitro-enclaves-allocator.service
+[Service]
+Type=oneshot
+RemainAfterExit=true
+Environment=HOME=/root NITRO_CLI_ARTIFACTS=/opt/sikrets-agent/eif-artifacts
+ExecStartPre=-/usr/bin/nitro-cli terminate-enclave --all
+ExecStart=/bin/bash -c '/usr/bin/nitro-cli run-enclave --eif-path $EIF --cpu-count $CPUS --memory $MEM --enclave-cid $CID ${ENCLAVE_DEBUG:+--debug-mode} > /etc/sikrets-agent/enclave.json'
+ExecStop=/usr/bin/nitro-cli terminate-enclave --all
+[Install]
+WantedBy=multi-user.target
+EOF
+for u in sikrets-vsock-proxy@ sikrets-enclave-inbound sikrets-enclave-feed; do
+  f=/etc/systemd/system/$u.service
+  grep -q '^\[Install\]' $f || printf '[Install]\nWantedBy=multi-user.target\n' >> $f
+done
+
 systemctl daemon-reload
-nitro-cli terminate-enclave --all >/dev/null 2>&1 || true
-nitro-cli run-enclave --eif-path "$EIF" --cpu-count "$CPUS" --memory "$MEM" --enclave-cid $CID ${ENCLAVE_DEBUG:+--debug-mode} > /etc/sikrets-agent/enclave.json
-systemctl restart sikrets-vsock-proxy@8001 sikrets-vsock-proxy@8002 sikrets-vsock-proxy@8003 sikrets-enclave-feed
-systemctl stop sikrets-agent
-systemctl restart sikrets-enclave-inbound
+systemctl disable --now sikrets-agent
+systemctl enable sikrets-enclave sikrets-vsock-proxy@8001 sikrets-vsock-proxy@8002 sikrets-vsock-proxy@8003 sikrets-enclave-feed sikrets-enclave-inbound >/dev/null 2>&1
+systemctl restart sikrets-enclave
+systemctl restart sikrets-vsock-proxy@8001 sikrets-vsock-proxy@8002 sikrets-vsock-proxy@8003 sikrets-enclave-feed sikrets-enclave-inbound
 cat /etc/sikrets-agent/measurements.json
