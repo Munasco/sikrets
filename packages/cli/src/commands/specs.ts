@@ -90,6 +90,28 @@ export const commands: CommandSpec[] = [
     load: () => import("./run.ts"),
   },
   {
+    name: "session",
+    description: "Run an agent with access to a bundle of services (GitHub, Slack, …) but none of their keys",
+    arguments: [{ name: "run", required: true }, { name: "bundle", required: true }, { name: "command", required: true }],
+    options: [
+      { name: "for", type: "string", argument: "DURATION", description: "How long the session lasts (default 2h)" },
+      { name: "only-services", type: "boolean", description: "Block every host except the bundle's services" },
+      { name: "allow-keychain", type: "boolean", description: "Let the agent use the keychain (some agents keep their own login there)" },
+      { name: "no-sandbox", type: "boolean", description: "Run the agent without the OS sandbox (it could then read your keys)" },
+    ],
+    examples: ["sikrets session run github,slack -- claude", "sikrets session run code-review --for 30m -- codex", "sikrets session run github --only-services -- gh pr list"],
+    passthrough: true,
+    load: () => import("./session.ts"),
+  },
+  {
+    name: "proxy",
+    description: "Store the real tokens agent sessions use (add, ls, rm). Agents never see them",
+    arguments: [{ name: "add|ls|rm", required: false }, { name: "service", required: false }],
+    options: [{ name: "value-stdin", type: "boolean", description: "Read the token from stdin instead of a hidden prompt" }, jsonOption],
+    examples: ["sikrets proxy add github", "sikrets proxy ls", "pbpaste | sikrets proxy add slack --value-stdin"],
+    load: () => import("./proxy.ts"),
+  },
+  {
     name: "env",
     description: "List which values this project has (names only), or `env pull` them into a git-ignored .env",
     arguments: [{ name: "pull", required: false }],
