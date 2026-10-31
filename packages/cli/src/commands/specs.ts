@@ -90,6 +90,17 @@ export const commands: CommandSpec[] = [
     load: () => import("./run.ts"),
   },
   {
+    name: "mcp",
+    description: "Serve this project to an AI agent over MCP (stdio): it can run commands with secrets but never sees them",
+    arguments: [],
+    options: [
+      { name: "allow", type: "string", multiple: true, argument: "PROGRAM", description: "Only let the agent run these programs (repeatable; default: any)" },
+      { name: "root", type: "string", argument: "DIR", description: "Project directory (default: current directory)" },
+    ],
+    examples: ["sikrets mcp", "sikrets mcp --allow bun --allow terraform", "claude mcp add sikrets -- sikrets mcp"],
+    load: () => import("./mcp.ts"),
+  },
+  {
     name: "env",
     description: "List which values this project has (names only), or `env pull` them into a git-ignored .env",
     arguments: [{ name: "pull", required: false }],
