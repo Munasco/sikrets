@@ -36,6 +36,16 @@ interface Researched {
   header?: string;
   query?: string;
   verify?: string;
+  hosts?: string[];
+}
+
+interface HostFinding {
+  id: string;
+  hosts: string[];
+  confidence: "high" | "medium" | "low";
+  source?: string;
+  basic?: Service["basic"];
+  note?: string;
 }
 
 /** "Loops.so" → "loops", "Discord Bot" → "discord-bot". */
@@ -152,6 +162,7 @@ async function fromGuru(): Promise<Service[]> {
       ...auth,
       ...(info.contact?.url?.startsWith("https://") ? { website: info.contact.url } : {}),
       ...(base && path ? { verify: `${base}${path}` } : {}),
+      ...(base ? { hosts: [new URL(base).hostname] } : {}),
       sources: ["apis.guru"],
     });
   });
@@ -199,6 +210,37 @@ async function fromTerraform(): Promise<Service[]> {
   }));
 }
 
+// ── Hosts ──────────────────────────────────────────────────────────────────
+
+/** "api.eu.example.co.uk" → "example.co.uk": the part a company owns. */
+export function registrable(host: string): string {
+  const parts = host.toLowerCase().split(".");
+  const two = parts.slice(-2).join(".");
+  return /^(co|com|org|net|gov|ac|edu)\.[a-z]{2}$/.test(two) ? parts.slice(-3).join(".") : two;
+}
+
+/**
+ * The verify URL's host counts as an API host. Every host must sit on a domain the service owns
+ * (its website's or docs' domain, or one of its own API hosts), so a typo or a third-party mirror
+ * in a source can never route someone's key elsewhere.
+ */
+/** Shared platforms: a docs page living there says nothing about who owns a host under it. */
+const SHARED = new Set([
+  "readme.io", "gitbook.io", "github.com", "github.io", "terraform.io", "notion.site", "postman.com", "apiary.io", "swaggerhub.com",
+  "stoplight.io", "mintlify.app", "vercel.app", "netlify.app", "herokuapp.com", "amazonaws.com", "azurewebsites.net", "cloudfront.net",
+  "apis.guru", "rapidapi.com", "google.com", "medium.com", "zendesk.com", "freshdesk.com", "intercom.help", "helpscoutdocs.com",
+]);
+
+function withHosts(s: Service): Service {
+  const own = new Set(
+    [s.website, s.docs, s.verify].filter((u): u is string => !!u?.startsWith("https://")).map((u) => registrable(new URL(u).hostname)).filter((d) => !SHARED.has(d)),
+  );
+  const fromVerify = s.verify ? [new URL(s.verify).hostname] : [];
+  const hosts = [...new Set([...(s.hosts ?? []), ...fromVerify])].filter((h) => own.has(registrable(h)) || fromVerify.includes(h));
+  const { hosts: _, ...rest } = s;
+  return hosts.length ? { ...rest, hosts: hosts.sort() } : rest;
+}
+
 // ── Merge ──────────────────────────────────────────────────────────────────
 
 const AUTH_FROM_SAAS: Record<string, ServiceAuth> = { "api-key": "header", bearer: "bearer", basic: "basic", oauth: "oauth" };
@@ -212,7 +254,8 @@ async function main() {
     const cur = merged.get(s.id);
     if (!cur) return void merged.set(s.id, s);
     // Earlier sources win each fact; later ones only fill gaps.
-    merged.set(s.id, { ...s, ...cur, auth: cur.auth !== "unknown" ? cur.auth : s.auth, sources: [...new Set([...cur.sources, ...s.sources])] });
+    const hosts = [...new Set([...(cur.hosts ?? []), ...(s.hosts ?? [])])];
+    merged.set(s.id, { ...s, ...cur, auth: cur.auth !== "unknown" ? cur.auth : s.auth, ...(hosts.length ? { hosts } : {}), sources: [...new Set([...cur.sources, ...s.sources])] });
   };
   for (const e of saas) {
     add({ id: e.id, name: e.name, category: e.category, auth: AUTH_FROM_SAAS[e.auth] ?? "unknown", docs: e.docs, ...(e.terraform ? { terraform: e.terraform } : {}), sources: ["sikrets"] });
@@ -228,9 +271,19 @@ async function main() {
     add(g);
   }
   for (const t of tf) add(t);
+  // API hosts looked up in each provider's docs (scripts and notes in hosts.json); low-confidence
+  // answers are dropped, and withHosts still rejects any host off the service's own domain.
+  const lookedUp = (await Bun.file(new URL("../src/catalog/hosts.json", import.meta.url)).json().catch(() => [])) as HostFinding[];
+  for (const h of lookedUp) {
+    const cur = merged.get(h.id);
+    // Signed requests (HMAC, SigV4) need the secret to compute each request; a header swap can't do it.
+    if (!cur || h.confidence === "low" || !h.hosts.length || /signing/i.test(h.note ?? "")) continue;
+    merged.set(h.id, { ...cur, hosts: [...new Set([...(cur.hosts ?? []), ...h.hosts.map((x) => x.toLowerCase())])], ...(cur.auth === "basic" && h.basic ? { basic: h.basic } : {}) });
+  }
 
   const services = [...merged.values()]
     .map((s) => (s.auth === "header" && !s.header ? { ...s, auth: "unknown" as ServiceAuth } : s))
+    .map(withHosts)
     .sort((a, b) => a.id.localeCompare(b.id));
   await Bun.write(new URL("../src/catalog/services.json", import.meta.url), `${JSON.stringify(services)}\n`);
   const count = (f: (s: Service) => boolean) => services.filter(f).length;

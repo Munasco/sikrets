@@ -21,8 +21,15 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   }
   if (sub && sub !== "ls") throw new Error(`Unknown proxy subcommand "${sub}". Use: add, ls, rm`);
 
-  const rows = await Promise.all(SERVICES.map(async (s) => ({ id: s.id, name: s.name, hosts: Object.keys(s.hosts), stored: (await tokens.get(s.id)) !== undefined })));
+  // `ls` shows what you've stored; `ls <search>` searches every service the proxy can broker.
+  const query = id?.toLowerCase();
+  const matches = query ? SERVICES.filter((s) => s.id.includes(query) || s.name.toLowerCase().includes(query)) : SERVICES;
+  const rows = (await Promise.all(matches.map(async (s) => ({ id: s.id, name: s.name, hosts: Object.keys(s.hosts), stored: (await tokens.get(s.id)) !== undefined })))).filter(
+    (r) => query || r.stored,
+  );
   if (opts.json) return console.log(JSON.stringify(rows));
-  for (const r of rows) console.log(`  ${r.stored ? "●" : "○"} ${r.id.padEnd(10)} ${r.hosts.join(", ")}`);
-  console.log("\n● token stored  ○ none yet: sikrets proxy add <service>");
+  for (const r of rows.slice(0, 50)) console.log(`  ${r.stored ? "●" : "○"} ${r.id.padEnd(22)} ${r.hosts.join(", ")}`);
+  if (rows.length > 50) console.log(`  … and ${rows.length - 50} more`);
+  if (!rows.length) console.log(query ? `No service matches "${id}".` : "No tokens stored yet.");
+  console.log(`\n${SERVICES.length} services can be used in a session. Search: sikrets proxy ls <name> · add: sikrets proxy add <id>`);
 }

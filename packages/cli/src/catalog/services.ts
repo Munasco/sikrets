@@ -19,6 +19,10 @@ export interface Service {
   query?: string;
   /** A read-only GET on the service's own domain; a 401 there means the key is wrong. */
   verify?: string;
+  /** API hostnames the key is sent to; the session proxy attaches it only for these. */
+  hosts?: string[];
+  /** Basic auth only: how the key goes in, e.g. "key:" (key as username) or "api:key". */
+  basic?: "key:" | ":key" | "api:key" | "account:key" | "email:key";
   docs?: string;
   website?: string;
   terraform?: string;

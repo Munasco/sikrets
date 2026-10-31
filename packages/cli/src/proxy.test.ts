@@ -3,6 +3,7 @@ import { makeSessionCerts, type SessionCerts } from "./core/proxy/certs.ts";
 import { sandboxed, seatbeltProfile } from "./core/proxy/sandbox.ts";
 import { startProxy, type Proxy, type RequestLog } from "./core/proxy/server.ts";
 import { Secret } from "./core/secret.ts";
+import { SERVICES } from "./core/proxy/services.ts";
 
 // Real CONNECT and TLS from curl, against a fake provider that records what it was sent.
 const REAL = { github: "real-github-token-0123456789", slack: "real-slack-token-0123456789" };
@@ -87,6 +88,36 @@ describe("credential proxy", () => {
     const p = Bun.spawn(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "-p", "-x", `http://${s.token}:@127.0.0.1:${proxy.port}`, `http://127.0.0.1:${provider.port}/x`], { stdout: "pipe" });
     expect(Number(await new Response(p.stdout).text())).toBe(200);
     expect(seen[0]!.auth).toBeNull();
+  });
+});
+
+describe("catalog services", () => {
+  test("keys go where each service expects them: a custom header or a query parameter", async () => {
+    const pick = (f: (c: ReturnType<(typeof SERVICES)[number]["hosts"][string]>) => boolean) =>
+      SERVICES.find((s) => !["github", "slack", "anthropic", "openai", "resend", "stripe"].includes(s.id) && f(Object.values(s.hosts)[0]!("k")))!;
+    const header = pick((c) => !!c.headers && !("authorization" in c.headers));
+    const query = pick((c) => !!c.query);
+    const hosts = [Object.keys(header.hosts)[0]!, Object.keys(query.hosts)[0]!];
+    const got: { url: string; headers: Record<string, string> }[] = [];
+    const fake = Bun.serve({ port: 0, hostname: "127.0.0.1", fetch: (req) => (got.push({ url: req.url, headers: Object.fromEntries(req.headers) }), Response.json({})) });
+    const c = await makeSessionCerts(hosts);
+    const p = await startProxy({ certs: c, tokens: new Map([[header.id, Secret.of("real-header-key")], [query.id, Secret.of("real-query-key")]]), upstream: () => `http://127.0.0.1:${fake.port}` });
+    const s = p.open("t", [{ service: header.id }, { service: query.id }], 60_000);
+    const run = async (url: string) => {
+      const x = Bun.spawn(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "--cacert", c.bundleFile, "-x", `http://sikrets:${s.token}@127.0.0.1:${p.port}`, url], { stdout: "pipe" });
+      return Number(await new Response(x.stdout).text());
+    };
+    const headerName = Object.keys(Object.values(header.hosts)[0]!("k").headers!)[0]!;
+    const queryName = Object.keys(Object.values(query.hosts)[0]!("k").query!)[0]!;
+    expect(await run(`https://${hosts[0]}/v1/x`)).toBe(200);
+    expect(got[0]!.headers[headerName]).toBe("real-header-key");
+    expect(await run(`https://${hosts[1]}/v1/y?${queryName}=${s.token}&q=1`)).toBe(200);
+    const u = new URL(got[1]!.url);
+    expect(u.searchParams.get(queryName)).toBe("real-query-key");
+    expect(u.searchParams.get("q")).toBe("1");
+    await p.stop();
+    await c.dispose();
+    fake.stop(true);
   });
 });
 
