@@ -25,4 +25,18 @@ bun test
 | `ACCESS_CODE` | unset: open. Set: the page asks for it. |
 | `PORT` / `HOST` | `8787` / `127.0.0.1` |
 
-`deploy/` holds the AWS setup: a Graviton instance with Nitro Enclaves enabled, behind CloudFront.
+## Hosting
+
+`deploy/aws.sh` sets up us-east-1: a Graviton instance (c7g.xlarge, IMDSv2, SSM only, no SSH) with Nitro Enclaves enabled, reachable only from CloudFront, which serves HTTPS. The instance role can call only the agent's Bedrock models and read its access code from SSM. The access code is generated once and also saved to your macOS keychain:
+
+```sh
+security find-generic-password -s sikrets-agent-demo -a access-code -w
+```
+
+`deploy/enclave/host.sh up` (on the instance) runs the agent inside the Nitro Enclave:
+
+- **Isolation:** the host can't read the enclave's memory. It only relays encrypted bytes: TLS to Bedrock, GitHub and OSV runs from inside the enclave, through vsock proxies allowed to reach just those three hosts.
+- **Credentials:** the host hands the enclave the role's short-lived credentials every 15 minutes.
+- **Attestation:** `/attestation` returns a document signed by the Nitro Security Module. Its PCR0–2 must match the measurements `nitro-cli build-enclave` printed for this build.
+
+`host.sh down` serves from the host again.
