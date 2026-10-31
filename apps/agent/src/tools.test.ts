@@ -31,6 +31,7 @@ describe("scan", () => {
   test("skips placeholders and low-entropy values", () => {
     expect(scan(`api_key = "your-api-key-goes-here"\ntoken: "xxxxxxxxxxxxxxxxxxxxxxxx"\npassword = "aaaaaaaaaaaaaaaaaaaa"`)).toHaveLength(0);
     expect(scan(`client_secret = "q8F3kZ0pL1mV7wX2yR9tB4nC6"`)).toHaveLength(1);
+    expect(scan(`apiKeys: "https://console.upstash.com/account/api",\ntokenPath: "/v1/oauth/token/refresh"`)).toHaveLength(0);
   });
 
   test("hides a private key's body", () => {

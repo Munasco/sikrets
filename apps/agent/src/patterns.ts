@@ -76,7 +76,7 @@ function entropy(s: string): number {
   return h;
 }
 
-const PLACEHOLDER = /^(?:x+|\*+|\.+|<[^>]+>|\$\{?[A-Z_]+\}?|your[_-]|example|changeme|placeholder|dummy|test[_-]?(?:key|token)|process\.env|os\.environ|env\()/i;
+const PLACEHOLDER = /^(?:https?:\/\/|\.{0,2}\/|x{6,}$|\*{4,}|\.{3,}|<[^>]+>|\$\{?[A-Z_]+\}?|your[_-]|example|changeme|placeholder|dummy|test[_-]?(?:key|token)|process\.env|os\.environ|env\()/i;
 
 function lineAt(text: string, index: number): number {
   let line = 1;

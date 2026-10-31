@@ -44,6 +44,7 @@
   .body p { margin: 0 0 10px; }
   .body ul, .body ol { margin: 0 0 10px; padding-left: 22px; }
   .body li { margin: 2px 0; }
+  .body hr { border: 0; border-top: 1px solid var(--line); margin: 14px 0; }
   .body h3 { font-size: 15px; margin: 14px 0 6px; }
   .body code { background: var(--field); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; font-size: 13px; }
   .body pre { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; overflow-x: auto; }
@@ -165,7 +166,8 @@ function md(src) {
     const h = /^#{1,4}\s+(.*)/.exec(line);
     const ul = /^\s*[-*•]\s+(.*)/.exec(line);
     const ol = /^\s*\d+[.)]\s+(.*)/.exec(line);
-    if (h) { flushPara(); flushList(); html += `<h3>${inline(h[1])}</h3>`; }
+    if (/^\s*(?:-{3,}|\*{3,})\s*$/.test(line)) { flushPara(); flushList(); html += "<hr>"; }
+    else if (h) { flushPara(); flushList(); html += `<h3>${inline(h[1])}</h3>`; }
     else if (ul || ol) {
       flushPara();
       const kind = ul ? "ul" : "ol";
