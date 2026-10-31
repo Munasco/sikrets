@@ -75,3 +75,14 @@ export const PROVIDER_URLS = {
   openai: { login: "https://platform.openai.com/login" },
   x: { login: "https://x.com/i/flow/login" },
 } as const;
+
+// `sikrets mcp`. Output is scrubbed of secret values before it reaches the agent; values shorter
+// than minRedactLength aren't scrubbed (they'd match ordinary text) and shouldn't be secrets anyway.
+export const MCP = {
+  protocolVersion: "2025-11-25",
+  defaultTimeoutSeconds: 120,
+  maxTimeoutSeconds: 600,
+  maxCaptureBytes: 16 * 1024 * 1024,
+  maxOutputChars: 60_000,
+  minRedactLength: 6,
+} as const;
