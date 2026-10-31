@@ -100,7 +100,7 @@ EOF
 systemctl daemon-reload
 nitro-cli terminate-enclave --all >/dev/null 2>&1 || true
 nitro-cli run-enclave --eif-path "$EIF" --cpu-count "$CPUS" --memory "$MEM" --enclave-cid $CID ${ENCLAVE_DEBUG:+--debug-mode} > /etc/sikrets-agent/enclave.json
-systemctl start sikrets-vsock-proxy@8001 sikrets-vsock-proxy@8002 sikrets-vsock-proxy@8003 sikrets-enclave-feed
+systemctl restart sikrets-vsock-proxy@8001 sikrets-vsock-proxy@8002 sikrets-vsock-proxy@8003 sikrets-enclave-feed
 systemctl stop sikrets-agent
-systemctl start sikrets-enclave-inbound
+systemctl restart sikrets-enclave-inbound
 cat /etc/sikrets-agent/measurements.json
