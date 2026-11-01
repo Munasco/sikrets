@@ -2,6 +2,7 @@ import { providerEnv, toProcessEnv, type Env } from "../core/credentials.ts";
 import { projectContext } from "../core/config.ts";
 import { state } from "../core/state.ts";
 import { record } from "../core/activity.ts";
+import { externalKeys } from "../core/keys.ts";
 import { openVault } from "../core/vault.ts";
 import { authorize, currentAgent } from "../core/agents.ts";
 import { recordUse } from "../core/usage.ts";
@@ -15,7 +16,9 @@ export async function projectEnv(root: string, agent?: string): Promise<Env> {
   const { ctx } = await projectContext(root, { log: () => {} });
   const vault = await openVault(ctx.project, ctx.vault);
   const live = resources.filter((x) => x.applied);
-  const allowed = agent ? new Set(await authorize(root, agent, live.flatMap((r) => r.envKeys.map((key) => ({ key, resource: r.name }))))) : undefined;
+  const external = (await externalKeys(root)).map(({ key }) => key);
+  const offers = [...live.flatMap((r) => r.envKeys.map((key) => ({ key, resource: r.name }))), ...external.map((key) => ({ key }))];
+  const allowed = agent ? new Set(await authorize(root, agent, offers)) : undefined;
   const env: Env = {};
   for (const r of live) {
     for (const key of r.envKeys.filter((k) => !allowed || allowed.has(k))) {
@@ -23,6 +26,11 @@ export async function projectEnv(root: string, agent?: string): Promise<Env> {
       if (!value) throw new Error(`${key} is missing from the ${vault.name} vault; run sikrets apply`);
       env[key] = value;
     }
+  }
+  // Keys imported or linked from outside Sikrets.
+  for (const key of external.filter((k) => !env[k] && (!allowed || allowed.has(k)))) {
+    const value = await vault.get(key);
+    if (value) env[key] = value;
   }
   return env;
 }

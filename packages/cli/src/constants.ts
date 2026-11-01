@@ -18,6 +18,10 @@ export const ENV = {
   project: "SIKRETS_PROJECT",
   /** Agent a command hands keys to (same as --agent); see `sikrets agent`. */
   agent: "SIKRETS_AGENT",
+  /** Bitwarden CLI command to run instead of `bw` (e.g. "bunx @bitwarden/cli"). */
+  bw: "SIKRETS_BW",
+  /** 1Password CLI command to run instead of `op`. */
+  op: "SIKRETS_OP",
 } as const;
 
 // ── Files and folders ─────────────────────────────────────────────────────
@@ -33,6 +37,8 @@ export const FILES = {
   activity: "activity.jsonl",
   connections: "connections.json",
   agents: "agents.json",
+  /** Keys imported or linked from outside Sikrets (names and item references only). */
+  keys: "keys.json",
 } as const;
 /** Folder under the user dir for per-project usage logs (local only, never in the project). */
 export const USAGE_DIR = "usage";
@@ -218,4 +224,39 @@ export const TOTP = {
   algorithm: "SHA1",
   algorithms: ["SHA1", "SHA256", "SHA512"],
   scheme: "otpauth:",
+} as const;
+
+// ── Password managers ─────────────────────────────────────────────────────
+export const PASSWORD_MANAGERS = {
+  bitwarden: {
+    name: "Bitwarden",
+    bin: "bw",
+    binEnv: ENV.bw,
+    /** Env var the bw CLI reads its unlocked session from. */
+    sessionEnv: "BW_SESSION",
+    /** Env var we hand the master password through, so it never appears in argv. */
+    passwordEnv: "SIKRETS_BW_PASSWORD",
+    /** Where bw keeps its config and encrypted cache; set it to isolate a test run. */
+    appDataEnv: "BITWARDENCLI_APPDATA_DIR",
+    refScheme: "bw://",
+    install: "https://bitwarden.com/help/cli/",
+  },
+  onepassword: {
+    name: "1Password",
+    bin: "op",
+    binEnv: ENV.op,
+    /** `op signin --raw` sessions go in OP_SESSION_<user uuid>. */
+    sessionEnvPrefix: "OP_SESSION_",
+    /** Service accounts skip sign-in entirely. */
+    serviceAccountEnv: "OP_SERVICE_ACCOUNT_TOKEN",
+    refScheme: "op://",
+    install: "https://developer.1password.com/docs/cli/get-started/",
+  },
+} as const;
+
+// ── Import ────────────────────────────────────────────────────────────────
+export const IMPORT = {
+  /** 1Password's .1pux export is a zip; its items are in this file inside it. */
+  onePuxData: "export.data",
+  unzip: "unzip",
 } as const;
