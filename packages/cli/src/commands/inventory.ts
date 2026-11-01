@@ -1,5 +1,6 @@
 import { lastUsed, readActivity } from "../core/activity.ts";
 import { projectContext } from "../core/config.ts";
+import { externalKeys } from "../core/keys.ts";
 import { checkScope, type ScopeFinding } from "../core/scopes.ts";
 import { outputKeys } from "../core/standin.ts";
 import { state, type Resource } from "../core/state.ts";
@@ -25,6 +26,10 @@ export interface InventoryRow {
   agents: string[];
   stale: boolean;
   scope: ScopeFinding | null;
+  /** Imported or linked keys: where the value came from (they have no resource to rotate). */
+  source?: string;
+  /** Password manager item this key mirrors (bw://… or op://…). */
+  ref?: string;
 }
 
 /** Stale: the current value is older than 90 days and nothing was handed it in 30. */
@@ -61,6 +66,27 @@ export async function inventory(root: string, opts: { offline?: boolean } = {}):
         scope: (value && (await checkScope(value, opts))) ?? null,
       });
     }
+  }
+  // Keys imported or linked from outside Sikrets.
+  const listed = new Set(rows.map((r) => r.key));
+  for (const ext of (await externalKeys(root)).filter((k) => !listed.has(k.key))) {
+    const u = usage.get(ext.key);
+    const last = [u?.lastUsed, ran.get(ext.key)].filter((x): x is string => Boolean(x)).sort().at(-1);
+    const value = await vault.get(ext.key);
+    rows.push({
+      key: ext.key,
+      resource: "",
+      recipe: "import",
+      createdAt: ext.addedAt,
+      lastRotatedAt: null,
+      lastUsed: last ?? null,
+      apps: [...(u?.apps ?? [])].sort(),
+      agents: [...(u?.agents ?? [])].sort(),
+      stale: isStale({ createdAt: ext.addedAt }, last),
+      scope: (value && (await checkScope(value, opts))) ?? null,
+      source: ext.source,
+      ...(ext.ref ? { ref: ext.ref } : {}),
+    });
   }
   return rows;
 }

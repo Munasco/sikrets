@@ -1,4 +1,5 @@
 import { agents, agentStatus, checkAgentName, type Agent } from "../core/agents.ts";
+import { externalKeys } from "../core/keys.ts";
 import { state } from "../core/state.ts";
 import { after, until } from "../core/ttl.ts";
 import { log } from "../ui.ts";
@@ -35,7 +36,8 @@ export async function run(args: string[], opts: Record<string, unknown>) {
     const scope = list(opts.key);
     if (!scope.length) throw new Error(`Give ${name} at least one key: sikrets agent add ${name} --key <resource or KEY_NAME>`);
     const { resources } = await state.load(root);
-    const known = new Set([AWS_SESSION.profileScope, ...resources.flatMap((r) => [r.name, ...r.envKeys])]);
+    const imported = (await externalKeys(root)).map((k) => k.key);
+    const known = new Set([AWS_SESSION.profileScope, ...resources.flatMap((r) => [r.name, ...r.envKeys]), ...imported]);
     const unknown = scope.filter((s) => !known.has(s));
     if (unknown.length) throw new Error(`Not in this project: ${unknown.join(", ")}. Use resource names or key names (see sikrets inventory)`);
     const agent: Agent = { name, scope, createdAt: new Date().toISOString(), ...(typeof opts.expires === "string" ? { expiresAt: after(opts.expires) } : {}) };
