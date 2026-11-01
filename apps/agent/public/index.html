@@ -127,7 +127,7 @@
 <script>
 const $ = (s) => document.querySelector(s);
 const log = $("#log"), input = $("#input"), send = $("#send");
-let messages = [];
+let session = null; // opencode session id, from the gateway
 let busy = false;
 
 const EXAMPLES = [
@@ -198,6 +198,15 @@ function addUser(text) {
   el.innerHTML = `<div class="bubble"></div>`;
   el.firstChild.textContent = text;
   log.append(el);
+  return el.firstChild;
+}
+
+async function newSession() {
+  const res = await fetch("/api/session", { method: "POST" });
+  if (res.status === 401) { showGate(); throw new Error("Enter the access code first."); }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+  session = data.session;
 }
 
 const TOOL_LABEL = { scan_text: "Scanning text", scan_github_repo: "Scanning repo", check_leak_hashes: "Checking leak hashes", how_to_rotate: "Looking up rotation", osv_lookup: "Checking OSV" };
@@ -213,11 +222,10 @@ function toolSummary(name, input) {
 async function submit() {
   const text = input.value.trim();
   if (!text || busy) return;
-  if (!messages.length) log.innerHTML = "";
+  if (!session) log.innerHTML = "";
   busy = true; send.disabled = true;
   input.value = ""; resize();
-  messages.push({ role: "user", content: text });
-  addUser(text);
+  const bubble = addUser(text);
 
   const el = document.createElement("div");
   el.className = "msg assistant";
@@ -228,12 +236,14 @@ async function submit() {
   log.append(el);
   scrollDown();
 
-  let body = null, answer = "", full = "";
+  let body = null, answer = "";
   const tools = {};
   const newBody = () => { body = document.createElement("div"); body.className = "body"; el.append(body); answer = ""; };
 
   try {
-    const res = await fetch("/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ messages }) });
+    if (!session) await newSession();
+    let res = await fetch("/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ session, text }) });
+    if (res.status === 404) { await newSession(); res = await fetch("/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ session, text }) }); }
     if (res.status === 401) { showGate(); throw new Error("Enter the access code first."); }
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Error ${res.status}`);
     const reader = res.body.getReader();
@@ -251,11 +261,12 @@ async function submit() {
         if (ev.type === "text") {
           thinking.hidden = true;
           if (!body) newBody();
-          answer += ev.delta; full += ev.delta;
+          answer += ev.delta;
           body.innerHTML = md(answer);
         } else if (ev.type === "reasoning") {
           thinking.querySelector("span:last-child").textContent = "Thinking…";
         } else if (ev.type === "hidden") {
+          bubble.textContent = ev.text; // show what the agent saw: placeholders, not keys
           const n = document.createElement("div");
           n.className = "note";
           n.textContent = `${ev.count} secret${ev.count > 1 ? "s" : ""} in your message ${ev.count > 1 ? "were" : "was"} hidden from the model.`;
@@ -289,14 +300,12 @@ async function submit() {
       }
     }
     thinking.remove();
-    messages.push({ role: "assistant", content: full || "(no answer)" });
   } catch (e) {
     thinking.remove();
     const p = document.createElement("p");
     p.className = "err";
     p.textContent = e.message || String(e);
     el.append(p);
-    messages.pop();
   } finally {
     busy = false;
     send.disabled = !input.value.trim();
@@ -309,7 +318,7 @@ function resize() { input.style.height = "auto"; input.style.height = Math.min(i
 input.addEventListener("input", resize);
 input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); submit(); } });
 $("#composer").addEventListener("submit", (e) => { e.preventDefault(); submit(); });
-$("#reset").addEventListener("click", () => { if (busy) return; messages = []; renderEmpty(); input.focus(); });
+$("#reset").addEventListener("click", () => { if (busy) return; session = null; renderEmpty(); input.focus(); });
 
 function showGate() { $("#app").hidden = true; $("#gate").hidden = false; $("#code").focus(); }
 function showApp() { $("#gate").hidden = true; $("#app").hidden = false; renderEmpty(); input.focus(); }
@@ -324,7 +333,7 @@ $("#gate-form").addEventListener("submit", async (e) => {
 
 (async () => {
   const me = await fetch("/api/me").then((r) => r.json()).catch(() => ({ authed: true }));
-  $("#model").textContent = (me.model || "").replace(/^openai\./, "").replace(/-\d+:\d+$/, "");
+  $("#model").textContent = me.model || "";
   fetch("/api/attestation").then((r) => r.json()).then((a) => { if (a.enclave) $("#enclave").hidden = false; }).catch(() => {});
   me.authed ? showApp() : showGate();
 })();

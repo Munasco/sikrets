@@ -84,7 +84,7 @@ export function untar(buf: Uint8Array): TarEntry[] {
 }
 
 export async function scanGithubRepo(input: { repo: string; ref?: string }) {
-  const m = /^(?:https?:\/\/github\.com\/)?([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/.exec(String(input.repo ?? "").trim());
+  const m = /^(?:(?:https?:\/\/)?github\.com\/)?([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/.exec(String(input.repo ?? "").trim());
   if (!m) return { error: "Give the repo as owner/name or a github.com URL." };
   const [, owner, name] = m;
   const ref = input.ref?.trim() || "HEAD";
@@ -124,7 +124,7 @@ export async function checkLeakHashes(input: { hashes: string[]; text?: string; 
   const sources: { file?: string; text: string }[] = [];
   if (input.text) sources.push({ text: String(input.text).slice(0, LIMITS.textBytes) });
   if (input.repo) {
-    const m = /^(?:https?:\/\/github\.com\/)?([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/.exec(input.repo.trim());
+    const m = /^(?:(?:https?:\/\/)?github\.com\/)?([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/.exec(input.repo.trim());
     if (!m) return { error: "Give the repo as owner/name." };
     const res = await fetch(`https://codeload.github.com/${m[1]}/${m[2]}/tar.gz/HEAD`, { signal: AbortSignal.timeout(30_000) });
     if (!res.ok) return { error: `Couldn't download ${m[1]}/${m[2]} (${res.status}).` };

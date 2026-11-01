@@ -1,12 +1,30 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import path from "node:path";
-import { chat, type ChatMessage } from "./agent.ts";
-import { MODEL, SERVER } from "./constants.ts";
+import { chat, createSession, removeSession } from "./chat.ts";
+import { start } from "./opencode.ts";
+import { LIMITS, MODEL, SERVER } from "./constants.ts";
 
-// A small server: the chat page, a streaming chat API (server-sent events), an access-code gate
-// for the hosted demo, and per-client rate limits so strangers can't run up the model bill.
+// The gateway in front of opencode: the chat page, two API calls (start a session, send a message
+// and stream the answer as server-sent events), an access-code gate for the hosted demo, and
+// per-client rate limits so strangers can't run up the model bill. opencode itself listens on
+// loopback only; none of its other endpoints (files, shell, config) are reachable through here.
 
 const PUBLIC = path.join(import.meta.dir, "..", "public");
+const oc = await start();
+process.on("exit", () => oc.stop());
+for (const sig of ["SIGINT", "SIGTERM"] as const) process.on(sig, () => process.exit(0));
+
+/** Sessions this gateway created, so a client can only talk to those. Oldest first. */
+const sessions = new Map<string, number>();
+const busy = new Set<string>();
+function forgetOld() {
+  const cutoff = Date.now() - LIMITS.sessionHours * 3_600_000;
+  for (const [id, at] of sessions) {
+    if (sessions.size <= LIMITS.sessions && at >= cutoff) break;
+    sessions.delete(id);
+    void removeSession(oc, id);
+  }
+}
 const signingKey = SERVER.accessCode ? createHmac("sha256", "sikrets-agent").update(SERVER.accessCode).digest() : undefined;
 
 const sign = (expires: number) => `${expires}.${createHmac("sha256", signingKey!).update(String(expires)).digest("base64url")}`;
@@ -69,7 +87,7 @@ const server = Bun.serve({
       return new Response(Bun.file(path.join(PUBLIC, "index.html")), { headers: { ...SECURITY_HEADERS, "content-type": "text/html; charset=utf-8", "cache-control": "no-cache" } });
     }
 
-    if (url.pathname === "/api/me") return json({ authed: authed(req), gated: Boolean(signingKey), model: MODEL.id });
+    if (url.pathname === "/api/me") return json({ authed: authed(req), gated: Boolean(signingKey), model: MODEL.name });
 
     if (url.pathname === "/api/login" && req.method === "POST") {
       const ip = clientOf(req, server);
@@ -90,26 +108,42 @@ const server = Bun.serve({
       return json(data);
     }
 
+    if (url.pathname === "/api/session" && req.method === "POST") {
+      if (!authed(req)) return json({ error: "Enter the access code first." }, 401);
+      const id = await createSession(oc).catch(() => undefined);
+      if (!id) return json({ error: "The agent is unavailable; try again shortly." }, 503);
+      sessions.set(id, Date.now());
+      forgetOld();
+      return json({ session: id });
+    }
+
     if (url.pathname === "/api/chat" && req.method === "POST") {
       if (!authed(req)) return json({ error: "Enter the access code first." }, 401);
-      const busy = limited(clientOf(req, server));
-      if (busy) return json({ error: busy }, 429);
-      const body = (await req.json().catch(() => ({}))) as { messages?: ChatMessage[] };
-      const messages = (body.messages ?? []).filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string");
-      if (!messages.length || messages.at(-1)!.role !== "user") return json({ error: "Send at least one user message." }, 400);
+      const body = (await req.json().catch(() => ({}))) as { session?: string; text?: string };
+      const session = String(body.session ?? "");
+      const text = typeof body.text === "string" ? body.text.slice(0, LIMITS.messageChars) : "";
+      if (!sessions.has(session)) return json({ error: "That chat has expired; start a new one." }, 404);
+      if (!text.trim()) return json({ error: "Send a message." }, 400);
+      if (busy.has(session)) return json({ error: "Wait for the answer to finish." }, 409);
+      const limit = limited(clientOf(req, server));
+      if (limit) return json({ error: limit }, 429);
 
+      busy.add(session);
       const enc = new TextEncoder();
       const stream = new ReadableStream({
         async start(controller) {
           const send = (data: unknown) => controller.enqueue(enc.encode(`data: ${JSON.stringify(data)}\n\n`));
           const ping = setInterval(() => controller.enqueue(enc.encode(": ping\n\n")), 15_000);
           try {
-            for await (const ev of chat(messages, req.signal)) send(ev);
+            for await (const ev of chat(oc, session, text, req.signal)) send(ev);
           } catch (error) {
-            send({ type: "error", message: error instanceof Error ? error.message : String(error) });
+            if (!req.signal.aborted) send({ type: "error", message: error instanceof Error ? error.message : String(error) });
           } finally {
             clearInterval(ping);
-            controller.close();
+            busy.delete(session);
+            try {
+              controller.close();
+            } catch {}
           }
         },
       });
@@ -120,4 +154,4 @@ const server = Bun.serve({
   },
 });
 
-console.log(`Sikrets security agent on http://${server.hostname}:${server.port} (${MODEL.id}${SERVER.accessCode ? ", access code required" : ""})`);
+console.log(`Sikrets security agent on http://${server.hostname}:${server.port} (opencode, ${MODEL.provider}/${MODEL.id}${SERVER.accessCode ? ", access code required" : ""})`);

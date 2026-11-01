@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { shield } from "./agent.ts";
+import { Vault } from "./redact.ts";
 import { redact, scan, sha256 } from "./patterns.ts";
 import { checkLeakHashes, howToRotate, osvLookup, scanGithubRepo, scanText, untar } from "./tools.ts";
 
@@ -34,6 +34,14 @@ describe("scan", () => {
     expect(scan(`apiKeys: "https://console.upstash.com/account/api",\ntokenPath: "/v1/oauth/token/refresh"`)).toHaveLength(0);
   });
 
+  test("catches prefixed names and unquoted .env values", () => {
+    const v = "q8F3kZ0pL1mV7wX2yR9tB4nC6dE1fG2h";
+    expect(scan(`SUPABASE_KEY="${v}"`)).toHaveLength(1);
+    expect(scan(`DB_PASSWORD=${v}`)).toHaveLength(1);
+    expect(scan(`export MY_AUTH_TOKEN=${v}`)).toHaveLength(1);
+    expect(scan(`NEXT_PUBLIC_API_URL=https://api.example.com/v1/items`)).toHaveLength(0);
+  });
+
   test("hides a private key's body", () => {
     const pem = "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEAsecretbody\n-----END RSA PRIVATE KEY-----";
     const [f] = scan(pem);
@@ -41,13 +49,43 @@ describe("scan", () => {
   });
 });
 
-describe("shield", () => {
+describe("vault", () => {
   test("the model sees placeholders and tools get the real values back", () => {
-    const { safe, reveal, hidden } = shield([{ role: "user", content: `my key is ${FAKE.stripe} help` }]);
+    const vault = new Vault();
+    const { text, hidden } = vault.shield("s1", `my key is ${FAKE.stripe} help`);
     expect(hidden).toBe(1);
-    expect(safe[0]!.content).not.toContain(FAKE.stripe);
-    expect(safe[0]!.content).toContain("sk_live_…cdef");
-    expect(reveal({ text: safe[0]!.content })).toEqual({ text: `my key is ${FAKE.stripe} help` });
+    expect(text).not.toContain(FAKE.stripe);
+    expect(text).toContain("sk_live_…cdef");
+    expect(vault.reveal("s1", { text })).toEqual({ text: `my key is ${FAKE.stripe} help` });
+    // Another session's placeholders don't resolve.
+    expect(vault.reveal("s2", { text })).toEqual({ text });
+  });
+
+  test("redacts bare high-entropy tokens in chat, but not prose or placeholders", () => {
+    const vault = new Vault();
+    const hex = "a3f9c2e17b4d8e0f6a1c9b2d4e7f8a0c";
+    const b64 = "Zm9vYmFyYmF6cXV4MTIzNDU2Nzg5MGFiY2RlZg";
+    const r = vault.shield("s1", `is this leaked? ${hex} and ${b64}`);
+    expect(r.hidden).toBe(2);
+    expect(r.text).not.toContain(hex);
+    expect(r.text).not.toContain(b64);
+    expect(vault.reveal("s1", { t: r.text })).toEqual({ t: `is this leaked? ${hex} and ${b64}` });
+    const prose = "Please rotate the production credentials before the deployment window closes tonight";
+    expect(vault.shield("s1", prose).hidden).toBe(0);
+    expect(vault.shield("s1", "https://github.com/Munasco/sikrets/blob/main/packages/cli/src/index.ts").hidden).toBe(0);
+    expect(vault.shield("s1", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx").hidden).toBe(0);
+  });
+
+  test("redacts nested request content and spots leaks, raw or JSON-escaped", () => {
+    const vault = new Vault();
+    const messages = [{ role: "user", content: [{ type: "text", text: `GITHUB_TOKEN=${FAKE.github}` }] }];
+    vault.shieldAll("s1", messages);
+    expect(JSON.stringify(messages)).not.toContain(FAKE.github);
+    expect(vault.leaks(JSON.stringify(messages))).toBe(false);
+    expect(vault.leaks(`{"text":"${FAKE.github}"}`)).toBe(true);
+    const pem = "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEAsecretbody\n-----END RSA PRIVATE KEY-----";
+    vault.shield("s1", pem);
+    expect(vault.leaks(JSON.stringify({ text: pem }))).toBe(true);
   });
 });
 
@@ -94,7 +132,7 @@ describe("how_to_rotate", () => {
 // Network: real GitHub and OSV.
 describe("live", () => {
   test("scans a public repo", async () => {
-    const r = (await scanGithubRepo({ repo: "octocat/Hello-World" })) as { filesScanned: number; count: number };
+    const r = (await scanGithubRepo({ repo: "github.com/octocat/Hello-World" })) as { filesScanned: number; count: number };
     expect(r.filesScanned).toBeGreaterThan(0);
     expect(r.count).toBe(0);
   });
