@@ -1,10 +1,11 @@
 #!/bin/bash
 # Runs on the agent host as root: builds the enclave image from the checked-out app, starts it,
 # and wires the host side. The host keeps three jobs: relay inbound chat traffic to the enclave,
-# relay the enclave's TLS connections to its allowed hosts (the model API, GitHub, OSV), and hand
-# it the access code and the model API key. It never sees the conversation in clear text past
-# CloudFront's origin hop, and it can't read the enclave's memory. It does read the model key from
-# SSM to pass it on, so whoever controls the host can use that key; that's this demo's trust gap.
+# relay the enclave's TLS connections to its allowed hosts (the model API, GitHub, OSV, KMS), and
+# hand it the access code, the model API key's KMS ciphertext and temporary AWS credentials. The
+# enclave decrypts the key itself through KMS with an attestation document; the key policy only
+# allows that for this image's PCR0, so the host never sees the key. It never sees the conversation
+# in clear text past CloudFront's origin hop, and it can't read the enclave's memory.
 #   host.sh up     build and start (switches traffic from the host service to the enclave)
 #   host.sh down   stop the enclave and serve from the host again
 set -euo pipefail
@@ -22,7 +23,8 @@ install -m 755 "$APP/deploy/agent-env.sh" /usr/local/bin/sikrets-agent-env
 # Outbound hosts, one vsock port each. The model host comes from src/constants.ts, so switching
 # models there also switches what the enclave may reach.
 MODEL_HOST=$(cd "$APP" && "$BUN" -e 'import { MODEL } from "./src/constants.ts"; console.log(MODEL.host)')
-HOSTS=("$MODEL_HOST" codeload.github.com api.osv.dev)
+REGION=us-east-1
+HOSTS=("$MODEL_HOST" codeload.github.com api.osv.dev "kms.$REGION.amazonaws.com")
 PORTS=() PROXIES=()
 for i in "${!HOSTS[@]}"; do PORTS+=($((8001 + i))); PROXIES+=("sikrets-vsock-proxy@$((8001 + i))"); done
 
@@ -90,23 +92,44 @@ ExecStart=/usr/bin/socat TCP-LISTEN:8787,fork,reuseaddr VSOCK-CONNECT:$CID:8787
 Restart=always
 EOF
 
-# Secrets: the access code and the model API key from SSM, sent every 15 minutes so a rotated
-# value reaches the enclave without a rebuild.
+# Secrets: the access code (SSM SecureString), the model key's KMS ciphertext (SSM String) and the
+# instance role's temporary credentials, sent every 15 minutes so a rotated value reaches the
+# enclave without a rebuild. The enclave answers with a status (never a secret), logged here; after
+# a failure the feed retries every minute.
 cat > /usr/local/bin/sikrets-enclave-feed <<'EOF'
 #!/usr/bin/env python3
-import json, socket, subprocess, time
-def param(name):
-    return subprocess.check_output(["aws", "ssm", "get-parameter", "--region", "us-east-1", "--name", "/sikrets-agent-demo/" + name, "--with-decryption", "--query", "Parameter.Value", "--output", "text"]).decode().strip()
+import json, socket, subprocess, time, urllib.request
+REGION = "us-east-1"
+def param(name, decrypt=True):
+    return subprocess.check_output(["aws", "ssm", "get-parameter", "--region", REGION, "--name", "/sikrets-agent-demo/" + name] + (["--with-decryption"] if decrypt else []) + ["--query", "Parameter.Value", "--output", "text"]).decode().strip()
+def imds(path, token=None):
+    req = urllib.request.Request("http://169.254.169.254/latest/" + path, method="PUT" if token is None else "GET")
+    if token is None:
+        req.add_header("X-aws-ec2-metadata-token-ttl-seconds", "300")
+    else:
+        req.add_header("X-aws-ec2-metadata-token", token)
+    return urllib.request.urlopen(req, timeout=5).read().decode()
+def credentials():
+    token = imds("api/token")
+    role = imds("meta-data/iam/security-credentials/", token).strip()
+    c = json.loads(imds("meta-data/iam/security-credentials/" + role, token))
+    return {"AccessKeyId": c["AccessKeyId"], "SecretAccessKey": c["SecretAccessKey"], "Token": c["Token"]}
 while True:
     try:
-        msg = json.dumps({"accessCode": param("access-code"), "modelKey": param("model-key")}).encode()
+        msg = json.dumps({"accessCode": param("access-code"), "modelKeyCiphertext": param("model-key-ciphertext", False), "credentials": credentials(), "region": REGION, "now": time.time()}).encode()
         s = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
-        s.settimeout(10)
+        s.settimeout(60)
         s.connect((16, 9000))
         s.sendall(msg)
-        s.close()
+        s.shutdown(socket.SHUT_WR)
         del msg
-        time.sleep(900)
+        reply = b""
+        while chunk := s.recv(4096):
+            reply += chunk
+        s.close()
+        status = json.loads(reply or b"{}")
+        print("enclave:", json.dumps(status), flush=True)
+        time.sleep(900 if status.get("modelKey") == "ok" else 60)
     except Exception as e:
         print("feed failed, retrying:", type(e).__name__, flush=True)
         time.sleep(5)
@@ -114,7 +137,7 @@ EOF
 chmod 755 /usr/local/bin/sikrets-enclave-feed
 cat > /etc/systemd/system/sikrets-enclave-feed.service <<'EOF'
 [Unit]
-Description=Hand the agent enclave its access code and model key
+Description=Hand the agent enclave its access code and the model key's ciphertext
 [Service]
 ExecStart=/usr/local/bin/sikrets-enclave-feed
 Restart=always
@@ -136,13 +159,31 @@ ExecStop=/usr/bin/nitro-cli terminate-enclave --all
 [Install]
 WantedBy=multi-user.target
 EOF
-# Watch: an enclave that exits (it can't be inspected in production mode) is started again.
+# Watch: an enclave that exits (it can't be inspected in production mode) is started again. Every
+# minute it also sends a heartbeat to CloudWatch: 1 if the enclave runs and its gateway answers
+# /healthz, else 0. An alarm (deploy/aws.sh) fires on 0 or on no heartbeat at all.
+cat > /usr/local/bin/sikrets-enclave-watch <<'EOF'
+#!/bin/bash
+while sleep 60; do
+  healthy=1
+  if ! nitro-cli describe-enclaves | grep -q RUNNING; then
+    healthy=0
+    echo "enclave not running; restarting"
+    systemctl restart sikrets-enclave
+    systemctl restart sikrets-enclave-feed
+  elif ! curl -fsS -m 10 -o /dev/null http://127.0.0.1:8787/healthz; then
+    healthy=0
+  fi
+  aws cloudwatch put-metric-data --region us-east-1 --namespace Sikrets/AgentDemo --metric-name EnclaveHealthy --value $healthy --unit Count || true
+done
+EOF
+chmod 755 /usr/local/bin/sikrets-enclave-watch
 cat > /etc/systemd/system/sikrets-enclave-watch.service <<'EOF'
 [Unit]
-Description=Restart the agent enclave if it stops running
+Description=Restart the agent enclave if it stops running, and report its health
 After=sikrets-enclave.service
 [Service]
-ExecStart=/bin/bash -c 'while sleep 30; do nitro-cli describe-enclaves | grep -q RUNNING || { echo "enclave not running; restarting"; systemctl restart sikrets-enclave; systemctl restart sikrets-enclave-feed; }; done'
+ExecStart=/usr/local/bin/sikrets-enclave-watch
 Restart=always
 EOF
 
