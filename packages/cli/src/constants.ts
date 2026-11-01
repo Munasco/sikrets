@@ -87,6 +87,59 @@ export const MCP = {
   minRedactLength: 6,
 } as const;
 
+// `sikrets mcp --http`: the same server over Streamable HTTP, for apps that can't spawn a local
+// process. Every client is an agent with its own bearer token (or OAuth grant); only hashes are on
+// disk, and the bearer token itself lives in the keychain.
+export const MCP_HTTP = {
+  defaultHost: "127.0.0.1",
+  defaultPort: 7787,
+  path: "/mcp",
+  loopbackHosts: ["127.0.0.1", "localhost", "::1", "[::1]"],
+  /** Client registry under the user dir: names, token hashes, OAuth registrations. Never a token. */
+  clientsFile: "mcp-clients.json",
+  /** OS keychain service holding each bearer client's token, so `sikrets mcp clients token` can hand it over again. */
+  keychainService: `${KEYCHAIN_SERVICE}.mcp`,
+  /** Env var the printed config snippets read the token from; snippets never contain a token. */
+  tokenEnv: "SIKRETS_MCP_TOKEN",
+  tokenPrefix: { bearer: "sik_mcp_", access: "sik_at_", refresh: "sik_rt_", code: "sik_ac_", clientSecret: "sik_cs_" },
+  tokenBytes: 32,
+  clientName: /^[a-z0-9][a-z0-9._-]{0,47}$/,
+  maxBodyBytes: 1024 * 1024,
+  /** Requests per client: a bucket of `burst` refilled at `perMinute`. */
+  rateLimit: { perMinute: 120, burst: 30 },
+  /** Bad or missing tokens tolerated per remote address before 429s. */
+  authFailures: { perMinute: 10, burst: 10 },
+  /** OAuth sign-ups and approval prompts, across everyone (they open a dialog on your screen). */
+  oauthPrompts: { perMinute: 3, burst: 3 },
+  /** SSE comment sent while a long tool call runs, so tunnels and proxies keep the request open. */
+  keepAliveMs: 15_000,
+  oauth: {
+    codeTtlSeconds: 60,
+    accessTtlSeconds: 60 * 60,
+    refreshTtlSeconds: 30 * 24 * 60 * 60,
+    maxRegistrations: 50,
+    scopes: ["sikrets", "offline_access"],
+  },
+} as const;
+
+// Where each app keeps its MCP config, for `sikrets mcp config|install <app>`. "~" is the home folder.
+export const MCP_APPS = {
+  serverName: "sikrets",
+  claudeDesktopConfig: {
+    darwin: "~/Library/Application Support/Claude/claude_desktop_config.json",
+    win32: "%APPDATA%\\Claude\\claude_desktop_config.json",
+    linux: "~/.config/Claude/claude_desktop_config.json",
+  },
+  cursorConfig: "~/.cursor/mcp.json",
+  windsurfConfig: "~/.codeium/windsurf/mcp_config.json",
+  geminiConfig: "~/.gemini/settings.json",
+  antigravityConfig: "~/.gemini/config/mcp_config.json",
+  zedConfig: "~/.config/zed/settings.json",
+  codexConfig: "~/.codex/config.toml",
+  vscodeConfig: ".vscode/mcp.json",
+  claudeCodeConfig: ".mcp.json",
+} as const;
+
 // ── Website logins for agents ─────────────────────────────────────────────
 // `sikrets logins` stores website sign-ins; the MCP `login` tool fills them into the agent's
 // browser without the agent ever seeing the password or the 2FA code.

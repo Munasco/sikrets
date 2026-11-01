@@ -14,10 +14,10 @@ import type { Approver, Decision } from "./grants.ts";
 const BUTTONS = { deny: "Deny", once: "Allow once", always: "Always allow" } as const;
 
 // Arguments go in through argv, never spliced into the script, so an agent name can't inject AppleScript.
-const DIALOG = [
+const dialog = (buttons: readonly string[]) => [
   "on run argv",
-  `set r to display dialog (item 1 of argv) with title "${LOGINS.dialogTitle}" buttons {"${BUTTONS.deny}", "${BUTTONS.once}", "${BUTTONS.always}"} ` +
-    `default button "${BUTTONS.once}" cancel button "${BUTTONS.deny}" with icon caution giving up after (item 2 of argv as integer)`,
+  `set r to display dialog (item 1 of argv) with title "${LOGINS.dialogTitle}" buttons {${buttons.map((b) => `"${b}"`).join(", ")}} ` +
+    `default button "${buttons[buttons.length > 2 ? 1 : buttons.length - 1]}" cancel button "${buttons[0]}" with icon caution giving up after (item 2 of argv as integer)`,
   "if gave up of r then return \"\"",
   "return button returned of r",
   "end run",
@@ -62,14 +62,18 @@ async function confirmWithTouchId(reason: string): Promise<"yes" | "no" | "unava
   return code === 0 ? "yes" : code === 2 ? "unavailable" : "no";
 }
 
-export const macApprover: Approver = async ({ login, origin, agent }) => {
-  if (process.platform !== "darwin") return "deny";
-  const message = `"${agent}" wants to sign in to ${login} (${origin}).\n\nIt won't see the password or the 2FA code.`;
-  const proc = Bun.spawn(["osascript", ...DIALOG.flatMap((l) => ["-e", l]), message, String(LOGINS.approvalTimeoutSeconds)], { stdout: "pipe", stderr: "ignore" });
+/** Asks on this Mac with the given buttons, then confirms any non-deny answer with Touch ID. Anywhere else: undefined (deny). */
+export async function askOnMac(message: string, buttons: readonly [deny: string, ...rest: string[]], reason: string): Promise<string | undefined> {
+  if (process.platform !== "darwin") return undefined;
+  const proc = Bun.spawn(["osascript", ...dialog(buttons).flatMap((l) => ["-e", l]), message, String(LOGINS.approvalTimeoutSeconds)], { stdout: "pipe", stderr: "ignore" });
   const [out, code] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
-  const button = code === 0 ? out.trim() : BUTTONS.deny; // the cancel button exits non-zero
-  const decision: Decision = button === BUTTONS.always ? "always" : button === BUTTONS.once ? "once" : "deny";
-  if (decision === "deny") return decision;
-  const confirmed = await confirmWithTouchId(`let ${agent} sign in to ${login}`);
-  return confirmed === "no" ? "deny" : decision;
+  const button = code === 0 ? out.trim() : buttons[0]; // the cancel button exits non-zero
+  if (!button || button === buttons[0] || !buttons.includes(button)) return undefined;
+  return (await confirmWithTouchId(reason)) === "no" ? undefined : button;
+}
+
+export const macApprover: Approver = async ({ login, origin, agent }) => {
+  const message = `"${agent}" wants to sign in to ${login} (${origin}).\n\nIt won't see the password or the 2FA code.`;
+  const button = await askOnMac(message, [BUTTONS.deny, BUTTONS.once, BUTTONS.always], `let ${agent} sign in to ${login}`);
+  return button === BUTTONS.always ? "always" : button === BUTTONS.once ? "once" : "deny";
 };
