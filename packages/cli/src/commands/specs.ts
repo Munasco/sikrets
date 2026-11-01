@@ -164,6 +164,15 @@ export const commands: CommandSpec[] = [
     examples: ["sikrets ls", "sikrets ls --json"],
     load: () => import("./ls.ts"),
   },
+  {
+    name: "update",
+    aliases: ["upgrade"],
+    description: "Update sikrets to the latest release (checksum-verified, replaced in place)",
+    arguments: [],
+    options: [{ name: "check", type: "boolean", description: "Only report whether an update is available" }, jsonOption],
+    examples: ["sikrets update", "sikrets update --check --json"],
+    load: () => import("./update.ts"),
+  },
 ];
 
 export const findCommand = (name: string) => commands.find((c) => c.name === name || c.aliases?.includes(name));
