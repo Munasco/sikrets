@@ -123,6 +123,36 @@ export const commands: CommandSpec[] = [
     load: () => import("./rotate.ts"),
   },
   {
+    name: "approvals",
+    description: "Rotation requests waiting for a person: list, request, approve (Touch ID or a dialog) or deny",
+    arguments: [
+      { name: "list|request|approve|deny", required: false },
+      { name: "resource|id", required: false },
+    ],
+    options: [
+      { name: "reason", type: "string", argument: "exposed|expired|requested", description: "request: why the key should rotate (default: requested)" },
+      { name: "queue", type: "boolean", description: "request: file it without asking now" },
+      { name: "all", type: "boolean", description: "list: include decided and expired requests" },
+      jsonOption,
+    ],
+    examples: ["sikrets approvals", "sikrets approvals request cache --reason exposed", "sikrets approvals request cache --queue --json", "sikrets approvals approve apr_1a2b3c4d", "sikrets approvals deny apr_1a2b3c4d"],
+    load: () => import("./approvals.ts"),
+  },
+  {
+    name: "recovery",
+    description: "Recovery code for your vault's data key: setup shows it once, restore uses it on a new device, rotate replaces it",
+    arguments: [{ name: "status|setup|restore|rotate", required: false }],
+    options: [
+      { name: "split", type: "boolean", description: "setup/rotate: split the code into 3 shares, any 2 restore (for emergency contacts)" },
+      { name: "file", type: "string", argument: "FILE", description: "restore: the recovery record you kept (default: ~/.sikrets/recovery.json)" },
+      { name: "code-stdin", type: "boolean", description: "restore: read the code, or shares one per line, from stdin" },
+      { name: "force", type: "boolean", description: "restore: replace a different data key already on this device" },
+      jsonOption,
+    ],
+    examples: ["sikrets recovery setup", "sikrets recovery setup --split", "sikrets recovery restore --file ./recovery.json", "sikrets recovery rotate"],
+    load: () => import("./recovery.ts"),
+  },
+  {
     name: "rollback",
     description: "Undo an add: delete what it created, remove its credentials and generated files",
     arguments: [{ name: "operation", required: false }],
