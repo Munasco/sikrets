@@ -96,9 +96,10 @@ export const commands: CommandSpec[] = [
     options: [
       { name: "file", type: "string", argument: "FILE", description: "Where `env pull` writes (default: .env)" },
       { name: "real", type: "boolean", short: "r", description: "Write real secrets instead of stand-ins" },
+      { name: "project-key", type: "boolean", description: "Also write SIKRETS_PROJECT_KEY, which lets a deployed app's SDK open this project's values" },
       jsonOption,
     ],
-    examples: ["sikrets env", "sikrets env pull", "sikrets env pull --real --file .env.local"],
+    examples: ["sikrets env", "sikrets env pull", "sikrets env pull --real --file .env.local", "sikrets env pull --project-key --file .env.production"],
     load: () => import("./env.ts"),
   },
   {
@@ -151,6 +152,45 @@ export const commands: CommandSpec[] = [
     ],
     examples: ["sikrets recovery setup", "sikrets recovery setup --split", "sikrets recovery restore --file ./recovery.json", "sikrets recovery rotate"],
     load: () => import("./recovery.ts"),
+  },
+  {
+    name: "migrate",
+    description: "Encrypt this project's existing plaintext values in SSM with your data key, in place (safe to re-run)",
+    arguments: [{ name: "encrypt", required: true }],
+    options: [
+      dryRunOption,
+      { name: "purge-history", type: "boolean", description: "Delete and recreate each parameter so SSM's version history drops the plaintext" },
+      yesOption,
+      jsonOption,
+    ],
+    examples: ["sikrets migrate encrypt --dry-run", "sikrets migrate encrypt", "sikrets migrate encrypt --purge-history --yes"],
+    load: () => import("./migrate.ts"),
+  },
+  {
+    name: "backup",
+    description: "Encrypted backup of this project's values plus your logins and links: create, verify or restore",
+    arguments: [
+      { name: "create|verify|restore", required: true },
+      { name: "file", required: false },
+    ],
+    options: [
+      { name: "passphrase", type: "boolean", description: "Seal with a passphrase (Argon2id) instead of your data key, so it opens anywhere" },
+      { name: "passphrase-stdin", type: "boolean", description: "Read the passphrase from stdin instead of prompting" },
+      { name: "dir", type: "string", argument: "DIR", description: "create: write a timestamped file into this folder (for cron)" },
+      { name: "keep", type: "string", argument: "N", description: "create --dir: keep the newest N backups there (default 14)" },
+      { name: "no-logins", type: "boolean", description: "create: leave provider logins out" },
+      { name: "force", type: "boolean", description: "restore: into a project with a different name" },
+      dryRunOption,
+      jsonOption,
+    ],
+    examples: [
+      "sikrets backup create",
+      "sikrets backup create backup.sikrets-backup --passphrase",
+      "sikrets backup create --dir ~/Backups/sikrets --keep 30",
+      "sikrets backup verify backup.sikrets-backup",
+      "sikrets backup restore backup.sikrets-backup --dry-run",
+    ],
+    load: () => import("./backup.ts"),
   },
   {
     name: "rollback",

@@ -1,5 +1,6 @@
 import { CONFIG_FILE, defaultConfig, hasConfig, validateConfig, writeConfig } from "../core/config.ts";
 import { log } from "../ui.ts";
+import { ENCRYPTION_REQUIRED } from "../constants.ts";
 
 // Creates sikrets.json for the project in the current directory. Safe to re-run: never overwrites.
 export async function run(_args: string[], opts: Record<string, unknown>) {
@@ -9,6 +10,8 @@ export async function run(_args: string[], opts: Record<string, unknown>) {
   const config = validateConfig(
     {
       ...defaultConfig(root),
+      // A new project has no legacy plaintext, so it refuses plaintext from day one.
+      encryption: ENCRYPTION_REQUIRED,
       ...(typeof opts.project === "string" ? { project: opts.project } : {}),
       ...(typeof opts.vault === "string" ? { vault: opts.vault } : {}),
     },

@@ -9,8 +9,13 @@
 //   2. It holds a stand-in, or nothing → fetch the real value from the project's vault with the
 //      app's own credentials (an IAM role in production, your AWS profile locally).
 // Values are cached briefly so a rotated key is picked up without a restart.
+//
+// Values in SSM are sealed by the CLI before upload (`sk1:…`), so the AWS account holds ciphertext.
+// The SDK opens them with the project key: SIKRETS_PROJECT_KEY in a deployment, or, under Bun on a
+// developer machine, one derived from the data key in the OS keychain. Legacy plaintext passes through.
 
 import { DEFAULT_TTL_MS, DEFAULT_VAULT, ENV, KEY_PATTERN, keychainVaultService, SSM_PREFIX, STAND_IN_PATTERN } from "./constants.ts";
+import { deriveProjectKey, importProjectKey, isSealed, keychainDataKey, openSealed } from "./envelope.ts";
 
 export type VaultName = "ssm" | "keychain";
 
@@ -25,10 +30,14 @@ export interface SikretsOptions {
   readonly env?: Readonly<Record<string, string | undefined>>;
   /** Replaces the vault lookup (tests, custom backends). Returns undefined when the key doesn't exist. */
   readonly fetch?: (project: string, key: string) => Promise<string | undefined>;
+  /** Base64 project key (or its 32 raw bytes) for sealed values; defaults to SIKRETS_PROJECT_KEY, then the Bun keychain. */
+  readonly projectKey?: string | Uint8Array;
+  /** Refuse legacy plaintext from the vault, once the project is migrated, so a planted value is never used. */
+  readonly requireEncrypted?: boolean;
   readonly now?: () => number;
 }
 
-export type SikretsErrorCode = "invalid-key" | "not-found" | "vault";
+export type SikretsErrorCode = "invalid-key" | "not-found" | "vault" | "decrypt";
 
 export class SikretsError extends Error {
   constructor(
@@ -98,6 +107,19 @@ export function createSikrets(opts: SikretsOptions = {}): Sikrets {
   let project: string | undefined = opts.project;
   const cache = new Map<string, { value: string; until: number }>();
   const inflight = new Map<string, Promise<string>>();
+  let sealKey: Promise<CryptoKey> | undefined;
+
+  const keyFor = (project: string) =>
+    (sealKey ??= (async () => {
+      const given = opts.projectKey ?? env[ENV.projectKey];
+      if (given) return importProjectKey(given);
+      const dataKey = await keychainDataKey();
+      if (!dataKey) throw new Error(`it is encrypted; set ${ENV.projectKey} (sikrets env pull --project-key) or restore your data key (sikrets recovery restore)`);
+      return deriveProjectKey(dataKey, project);
+    })().catch((error) => {
+      sealKey = undefined; // a later call can retry, e.g. after the env is fixed
+      throw error;
+    }));
 
   async function resolve(key: string): Promise<string> {
     const present = env[key];
@@ -114,6 +136,15 @@ export function createSikrets(opts: SikretsOptions = {}): Sikrets {
       throw new SikretsError("vault", key, error instanceof Error ? error.message : "vault unavailable");
     }
     if (!value) throw new SikretsError("not-found", key, `not in the ${opts.fetch ? "configured" : vault} vault for project "${project}"`);
+    if (isSealed(value)) {
+      try {
+        value = await openSealed(await keyFor(project), `${SSM_PREFIX}/${project}/${key}`, value);
+      } catch (error) {
+        throw new SikretsError("decrypt", key, error instanceof Error ? error.message : "can't decrypt");
+      }
+    } else if (opts.requireEncrypted) {
+      throw new SikretsError("decrypt", key, "the vault holds it unencrypted, and this app requires encryption; run sikrets migrate encrypt");
+    }
     if (isStandIn(value)) throw new SikretsError("vault", key, "the vault returned a stand-in instead of a real value");
     cache.set(key, { value, until: now() + ttl });
     return value;

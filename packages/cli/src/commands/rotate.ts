@@ -63,7 +63,7 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   if (!opts.yes && process.stdin.isTTY && !(await confirm("Rotate now? The old credential will stop working."))) return say("Cancelled; nothing changed.");
 
   const changed = await plan.run();
-  const vault = await openVault(ctx.project, ctx.vault);
+  const vault = await openVault(ctx.project, ctx.vault, ctx);
   const outputs = { ...res.outputs };
   for (const [key, value] of Object.entries(changed)) {
     const spec = r.outputs[key];
