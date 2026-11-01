@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { MODEL } from "./constants.ts";
 import { createGateway } from "./gateway.ts";
+import { Owners } from "./proxy.ts";
 import { start, type Server } from "./opencode.ts";
 import { sha256 } from "./patterns.ts";
 import { TOOLS } from "./tools.ts";
@@ -238,5 +239,15 @@ describe("the gateway's proxy, end to end", () => {
       expect([p, res.status]).toEqual([p, 404]);
     }
     expect(upstream.slice(before)).toEqual([]);
+  });
+});
+
+describe("owners", () => {
+  test("survive a gateway restart when saved to a file", () => {
+    const file = path.join(mkdtempSync(path.join(os.tmpdir(), "sikrets-owners-")), "owners.json");
+    new Owners(file).own("ses_abcdefghijk", "web:1");
+    const again = new Owners(file);
+    expect(again.owns("ses_abcdefghijk", "web:1")).toBe(true);
+    expect(again.owns("ses_abcdefghijk", "web:2")).toBe(false);
   });
 });

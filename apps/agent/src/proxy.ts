@@ -1,3 +1,4 @@
+import { readFileSync, writeFileSync } from "node:fs";
 import { OPENCODE, PROXY } from "./constants.ts";
 import type { Server } from "./opencode.ts";
 
@@ -39,12 +40,21 @@ const at = (ctx: Ctx) => ({ location: { directory: ctx.oc.directory } });
 const empty = (ctx: Ctx) => ({ ...at(ctx), data: [] });
 const pick = (body: Body, keys: string[]) => Object.fromEntries(keys.filter((k) => body[k] !== undefined).map((k) => [k, body[k]]));
 
-/** Sessions and their owners. Oldest first, so the map doubles as an LRU. */
+/** Sessions and their owners. Oldest first, so the map doubles as an LRU. Saved next to
+ * opencode's own data when a file is given, so a gateway restart doesn't orphan open chats
+ * (opencode's desktop app fails to load when a tab's session turns into a 404). */
 export class Owners {
   private map = new Map<string, { owner: Owner; at: number }>();
+  constructor(private file?: string) {
+    if (!file) return;
+    try {
+      this.map = new Map(Object.entries(JSON.parse(readFileSync(file, "utf8")) as Record<string, { owner: Owner; at: number }>));
+    } catch {}
+  }
   own(session: string, owner: Owner) {
     this.map.set(session, { owner, at: Date.now() });
     while (this.map.size > PROXY.sessions) this.map.delete(this.map.keys().next().value!);
+    if (this.file) writeFileSync(this.file, JSON.stringify(Object.fromEntries(this.map)), { mode: 0o600 });
   }
   known(session: string) {
     return this.map.has(session);

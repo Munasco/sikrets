@@ -2,7 +2,7 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypt
 import path from "node:path";
 import { MODEL, PROXY, SERVER } from "./constants.ts";
 import type { Server } from "./opencode.ts";
-import { proxy, type Owner } from "./proxy.ts";
+import { Owners, proxy, type Owner } from "./proxy.ts";
 
 // The gateway in front of opencode: the chat page, the access code, rate limits, the attestation
 // document, and a filtered proxy for opencode's own API (src/proxy.ts), so the stock opencode
@@ -16,6 +16,8 @@ import { proxy, type Owner } from "./proxy.ts";
 export interface Options {
   accessCode?: string;
   attestationFile?: string;
+  /** Where to keep the session-to-owner map across restarts. */
+  ownersFile?: string;
 }
 
 const UI = path.join(import.meta.dir, "..", SERVER.uiDir);
@@ -45,7 +47,7 @@ function window(ms: number, max: number) {
 export function createGateway(oc: Server, opts: Options = {}) {
   const code = opts.accessCode;
   const key = code ? createHmac("sha256", "sikrets-agent").update(code).digest() : undefined;
-  const api = proxy(oc);
+  const api = proxy(oc, new Owners(opts.ownersFile));
 
   const sign = (payload: string) => `${payload}.${createHmac("sha256", key!).update(payload).digest("base64url")}`;
   const same = (a: string, b: string) => {

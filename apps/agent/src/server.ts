@@ -1,6 +1,7 @@
 import { createGateway } from "./gateway.ts";
 import { start } from "./opencode.ts";
-import { MODEL, SERVER } from "./constants.ts";
+import path from "node:path";
+import { MODEL, OPENCODE, SERVER } from "./constants.ts";
 
 // Starts opencode on loopback and the gateway in front of it (src/gateway.ts).
 
@@ -8,7 +9,7 @@ const oc = await start();
 process.on("exit", () => oc.stop());
 for (const sig of ["SIGINT", "SIGTERM"] as const) process.on(sig, () => process.exit(0));
 
-const gateway = createGateway(oc, { accessCode: SERVER.accessCode });
+const gateway = createGateway(oc, { accessCode: SERVER.accessCode, ownersFile: path.join(OPENCODE.home, "owners.json") });
 
 const clientOf = (req: Request, server: Bun.Server<unknown>) =>
   req.headers.get("cloudfront-viewer-address")?.replace(/:\d+$/, "") ?? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? server.requestIP(req)?.address ?? "unknown";
