@@ -109,7 +109,7 @@ describe("how_to_rotate", () => {
 // Network: real GitHub and OSV.
 describe("live", () => {
   test("scans a public repo", async () => {
-    const r = (await scanGithubRepo({ repo: "octocat/Hello-World" })) as { filesScanned: number; count: number };
+    const r = (await scanGithubRepo({ repo: "github.com/octocat/Hello-World" })) as { filesScanned: number; count: number };
     expect(r.filesScanned).toBeGreaterThan(0);
     expect(r.count).toBe(0);
   });
