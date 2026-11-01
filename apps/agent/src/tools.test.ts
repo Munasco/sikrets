@@ -34,6 +34,14 @@ describe("scan", () => {
     expect(scan(`apiKeys: "https://console.upstash.com/account/api",\ntokenPath: "/v1/oauth/token/refresh"`)).toHaveLength(0);
   });
 
+  test("catches prefixed names and unquoted .env values", () => {
+    const v = "q8F3kZ0pL1mV7wX2yR9tB4nC6dE1fG2h";
+    expect(scan(`SUPABASE_KEY="${v}"`)).toHaveLength(1);
+    expect(scan(`DB_PASSWORD=${v}`)).toHaveLength(1);
+    expect(scan(`export MY_AUTH_TOKEN=${v}`)).toHaveLength(1);
+    expect(scan(`NEXT_PUBLIC_API_URL=https://api.example.com/v1/items`)).toHaveLength(0);
+  });
+
   test("hides a private key's body", () => {
     const pem = "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEAsecretbody\n-----END RSA PRIVATE KEY-----";
     const [f] = scan(pem);
@@ -51,6 +59,21 @@ describe("vault", () => {
     expect(vault.reveal("s1", { text })).toEqual({ text: `my key is ${FAKE.stripe} help` });
     // Another session's placeholders don't resolve.
     expect(vault.reveal("s2", { text })).toEqual({ text });
+  });
+
+  test("redacts bare high-entropy tokens in chat, but not prose or placeholders", () => {
+    const vault = new Vault();
+    const hex = "a3f9c2e17b4d8e0f6a1c9b2d4e7f8a0c";
+    const b64 = "Zm9vYmFyYmF6cXV4MTIzNDU2Nzg5MGFiY2RlZg";
+    const r = vault.shield("s1", `is this leaked? ${hex} and ${b64}`);
+    expect(r.hidden).toBe(2);
+    expect(r.text).not.toContain(hex);
+    expect(r.text).not.toContain(b64);
+    expect(vault.reveal("s1", { t: r.text })).toEqual({ t: `is this leaked? ${hex} and ${b64}` });
+    const prose = "Please rotate the production credentials before the deployment window closes tonight";
+    expect(vault.shield("s1", prose).hidden).toBe(0);
+    expect(vault.shield("s1", "https://github.com/Munasco/sikrets/blob/main/packages/cli/src/index.ts").hidden).toBe(0);
+    expect(vault.shield("s1", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx").hidden).toBe(0);
   });
 
   test("redacts nested request content and spots leaks, raw or JSON-escaped", () => {

@@ -1,4 +1,4 @@
-import { extract } from "./patterns.ts";
+import { entropy, extract, PLACEHOLDER, redact, sha256 } from "./patterns.ts";
 import { LIMITS } from "./constants.ts";
 
 // Keeps pasted secrets away from the model. Each one is swapped for a placeholder that names it
@@ -7,12 +7,31 @@ import { LIMITS } from "./constants.ts";
 
 export const tagFor = (redacted: string, sha256: string) => `[[secret ${redacted} #${sha256.slice(0, 8)}]]`;
 
+/** Bare tokens that look like a secret but have no recognisable prefix or `name=` around them:
+ * long and high-entropy. Over-redacting a commit hash costs nothing; missing a key costs the key.
+ * Only for chat text; scan findings keep to the named patterns. */
+export function bareSecrets(text: string): string[] {
+  const out: string[] = [];
+  for (const m of text.matchAll(/(?<![\w/.-])[A-Za-z0-9_+/=-]{32,512}(?![\w/.-])/g)) {
+    const v = m[0];
+    if (PLACEHOLDER.test(v) || entropy(v) < 3.5) continue;
+    if (/^[A-Za-z]+$/.test(v) || /^\d+$/.test(v)) continue;
+    out.push(v);
+  }
+  return out;
+}
+
 /** The text with every secret replaced by its placeholder, and the secrets found. */
 export function shield(text: string): { text: string; secrets: Map<string, string> } {
   const secrets = new Map<string, string>();
   let out = text;
   for (const { value, finding } of extract(text)) {
     const tag = tagFor(finding.redacted, finding.sha256);
+    secrets.set(tag, value);
+    out = out.split(value).join(tag);
+  }
+  for (const value of bareSecrets(out)) {
+    const tag = tagFor(redact(value), sha256(value));
     secrets.set(tag, value);
     out = out.split(value).join(tag);
   }

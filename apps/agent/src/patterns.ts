@@ -43,7 +43,8 @@ export const PATTERNS: Pattern[] = [
   {
     id: "generic-secret",
     name: "Hard-coded secret",
-    re: /\b(?:api[_-]?key|apikey|secret|token|passw(?:or)?d|access[_-]?key|client[_-]?secret|auth)\w*["']?\s*[:=]\s*["'`]([^"'`\s]{16,200})["'`]/gi,
+    // The name may be prefixed (SUPABASE_KEY, DB_PASSWORD) and the value unquoted (.env files).
+    re: /\b[\w-]*?(?:key|secret|token|passw(?:or)?d|credentials?|auth)\w*["']?\s*[:=]\s*["'`]?([^"'`\s]{16,200})["'`]?/gi,
     group: 1,
   },
 ];
@@ -68,7 +69,7 @@ export function redact(secret: string): string {
   return secret.length <= 12 ? `${prefix}…` : `${prefix}…${secret.slice(-4)}`;
 }
 
-function entropy(s: string): number {
+export function entropy(s: string): number {
   const counts = new Map<string, number>();
   for (const c of s) counts.set(c, (counts.get(c) ?? 0) + 1);
   let h = 0;
@@ -76,7 +77,7 @@ function entropy(s: string): number {
   return h;
 }
 
-const PLACEHOLDER = /^(?:https?:\/\/|\.{0,2}\/|x{6,}$|\*{4,}|\.{3,}|<[^>]+>|\$\{?[A-Z_]+\}?|your[_-]|example|changeme|placeholder|dummy|test[_-]?(?:key|token)|process\.env|os\.environ|env\()/i;
+export const PLACEHOLDER = /^(?:https?:\/\/|\.{0,2}\/|x{6,}$|\*{4,}|\.{3,}|<[^>]+>|\$\{?[A-Z_]+\}?|your[_-]|example|changeme|placeholder|dummy|test[_-]?(?:key|token)|process\.env|os\.environ|env\()/i;
 
 function lineAt(text: string, index: number): number {
   let line = 1;
