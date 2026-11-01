@@ -87,14 +87,19 @@ export function Check() {
 }
 
 /** Light card: a photo or illustration on top, then a mono label and a serif line. */
-export function MediaCard({ media, label, title, body, className }: { media: ReactNode; label?: string; title: string; body?: string; className?: string }) {
+export function MediaCard({ media, label, title, body, cta, className }: { media: ReactNode; label?: string; title: string; body?: string; cta?: { label: string; href: string }; className?: string }) {
   return (
     <div className={cn("flex h-full flex-col rounded-2xl bg-cream p-2.5", className)}>
       <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-sand">{media}</div>
-      <div className="px-3.5 pb-4 pt-5 md:px-4 md:pb-5">
+      <div className="flex flex-1 flex-col px-3.5 pb-4 pt-5 md:px-4 md:pb-5">
         {label && <p className="font-mono text-[12px] uppercase tracking-[0.08em] text-muted">{label}</p>}
         <h3 className={cn("display text-[1.6rem] text-forest md:text-[1.75rem]", label && "mt-1.5")}>{title}</h3>
         {body && <p className="mt-2 text-[15px] leading-relaxed text-ink-soft">{body}</p>}
+        {cta && (
+          <Pill href={cta.href} variant="outline" className="mt-5 self-start">
+            {cta.label}
+          </Pill>
+        )}
       </div>
     </div>
   )
@@ -172,13 +177,29 @@ export function VaultArt() {
   )
 }
 
-export function StandInArt() {
+export function SessionArt() {
   return (
     <Panel>
-      <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted">.env</p>
-      <p className="mt-3 truncate rounded-lg bg-cream px-3 py-2 font-mono text-[12px] text-ink-soft">
-        UPSTASH_TOKEN=<span className="text-pine">sk_standin_••••</span>
+      <p className="truncate font-mono text-[12px] text-ink-soft">
+        <span className="text-pine">$</span> sikrets session run stripe --for 1h
       </p>
+      <div className="mt-3 flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.08em] text-muted">
+        <span>Expires</span>
+        <span>59:40</span>
+      </div>
+    </Panel>
+  )
+}
+
+export function GuardArt() {
+  return (
+    <Panel>
+      <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted">Held</p>
+      <p className="mt-2 text-[12px] text-ink">invoice_oct.pdf.app wants your keychain.</p>
+      <div className="mt-3 flex gap-2 text-[11px] font-medium">
+        <span className="rounded-full bg-pine px-2.5 py-1 text-white">Allow once</span>
+        <span className="rounded-full bg-cream px-2.5 py-1 text-ink-soft">Keep blocked</span>
+      </div>
     </Panel>
   )
 }
@@ -188,22 +209,6 @@ export function AgentArt() {
     <Panel>
       <p className="rounded-lg bg-cream px-3 py-2 text-[12px] text-ink-soft">Check this repo for leaks</p>
       <p className="mt-2 rounded-lg bg-pine px-3 py-2 text-[12px] text-white">Found 2 keys. Rotating the Stripe one now.</p>
-    </Panel>
-  )
-}
-
-export function RotateArt() {
-  return (
-    <Panel>
-      <div className="flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.08em] text-muted">
-        <span>Rotation</span>
-        <span>30d</span>
-      </div>
-      <div className="mt-4 flex items-center gap-1.5">
-        {[1, 1, 1, 0.35, 0.35, 0.35].map((o, i) => (
-          <span key={i} className="h-2 flex-1 rounded-full bg-pine" style={{ opacity: o }} />
-        ))}
-      </div>
     </Panel>
   )
 }

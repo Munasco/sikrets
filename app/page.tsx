@@ -1,5 +1,5 @@
 import Image from "next/image"
-import { Accordion, AgentArt, CardPhoto, Check, Container, GuardCard, Headline, HeroButton, MediaCard, Pill, RotateArt, StandInArt, VaultArt } from "@/components/landing"
+import { Accordion, AgentArt, CardPhoto, Check, Container, GuardArt, GuardCard, Headline, HeroButton, MediaCard, Pill, SessionArt, VaultArt } from "@/components/landing"
 import { SikretsMark } from "@/components/logo"
 import { Reveal } from "@/components/reveal"
 import { site } from "@/lib/site"
@@ -36,11 +36,26 @@ const uses = [
   "Use the cloud, or self-host on your own AWS.",
 ]
 
+/** The four jobs, in the order they ship: keys first, then agent access, then investigation, then the guard. */
 const products = [
-  { art: <VaultArt />, title: "Vault", body: "Store a key once. It is encrypted on your device and never printed to a terminal or log." },
-  { art: <StandInArt />, title: "Stand-ins", body: "Your .env, CI and hosting hold a placeholder. The real key is attached only when a request leaves for the provider." },
-  { art: <RotateArt />, title: "Rotation", body: "Rotate on a schedule, or right after a leak. Running apps keep working." },
-  { art: <AgentArt />, title: "Security agent", body: "Paste code or a repo URL. It finds leaked credentials and walks you through rotating them." },
+  { art: <VaultArt />, title: "Keys", body: "Store a key once. Your .env, CI and hosting hold a placeholder; the real key is attached as the request leaves. Rotate on a schedule or right after a leak." },
+  { art: <SessionArt />, title: "Agent access", body: "An agent gets a key for one command or one hour, through MCP or the CLI, and never sees the value." },
+  { art: <AgentArt />, title: "Investigation", body: "Paste code or a repo URL. It finds leaked credentials and walks you through rotating them." },
+  { art: <GuardArt />, title: "Guard", label: "Next", body: "It learns what your apps and devices normally do, holds anything unusual until you approve it, and keeps the evidence." },
+]
+
+/** How the guard decides, from the blueprint: the model proposes, policy enforces. */
+const rules = [
+  ["The model never grants authority", "It investigates and proposes. A deterministic policy decides what runs."],
+  ["Every permission expires", "Access is narrow, time-limited and revocable. Nothing stands open."],
+  ["Everything leaves evidence", "Each decision is logged with why, what it allowed and when it ends."],
+]
+
+/** Plans. Prices are the founder's call; the paid tiers show availability until they are set. */
+const plans = [
+  { name: "Doorman", price: "$0", term: "forever", tag: "Non-commercial use", cta: { label: "Get started", href: waitlistUrl, variant: "primary" as const }, features: ["Every key feature", "Agent access and MCP", "Leak scanning", "Up to 10 accounts in your circle", "Acts only when you ask"] },
+  { name: "Warden", price: "Early access", term: "", tag: "Proactive protection", cta: { label: "Join the waitlist", href: waitlistUrl, variant: "outline" as const }, features: ["Everything in Doorman", "Holds suspicious downloads, links and logins until you approve", "Hardware key as a second check", "Automatic rotation after a leak", "More usage"] },
+  { name: "Citadel", price: "Custom", term: "", tag: "Hardware vault and 2-of-3 recovery", cta: { label: "Talk to us", href: demoUrl, variant: "outline" as const }, features: ["Everything in Warden", "Hardware vault", "2-of-3 approval with an emergency contact", "48-hour hold after a SIM change", "Covers money and wallets"] },
 ]
 
 const features = [
@@ -57,16 +72,16 @@ const features = [
 const providers = ["Upstash", "Anthropic", "AWS", "OpenAI", "Cloudflare", "Neon", "Resend", "Supabase"]
 
 const tiers = [
-  { who: "You", role: "Virtual security guard", image: "/landing/cabin.jpg", alt: "A small cabin with a lit window in a misty forest" },
-  { who: "Your startup", role: "Autonomous security engineer", image: "/landing/tower.jpg", alt: "A fire lookout tower above fog and golden larches" },
-  { who: "Your company", role: "Autonomous security team", image: "/landing/city.jpg", alt: "A city skyline over still water at dawn" },
+  { who: "You", role: "Virtual security guard", image: "/landing/cabin.jpg", alt: "A small cabin with a lit window in a misty forest", cta: { label: "Get started", href: waitlistUrl } },
+  { who: "Your startup", role: "Autonomous security engineer", image: "/landing/tower.jpg", alt: "A fire lookout tower above fog and golden larches", cta: { label: "Get started", href: waitlistUrl } },
+  { who: "Your company", role: "Autonomous security team", image: "/landing/city.jpg", alt: "A city skyline over still water at dawn", cta: { label: "Book a demo", href: demoUrl } },
 ]
 
 const faq = [
   { q: "What is Sikrets?", a: "A security agent you can trust with your keys. It starts with keys and grows into a guard for you and your company." },
   { q: "How do agents use it?", a: "sikrets session run gives an agent a key for as long as the command runs. The agent never sees the value." },
-  { q: "Can I self-host?", a: "Yes. The whole thing runs on your own AWS account." },
-  { q: "Is it free?", a: "Yes. Open source, with a free cloud version." },
+  { q: "Can I self-host?", a: "Yes. The whole thing runs on your own AWS account, free." },
+  { q: "What about companies?", a: "Per seat: a shared vault, an audit log and temporary access for employees. Book a demo." },
 ]
 
 const footerLinks = [
@@ -161,13 +176,13 @@ export default function LandingPage() {
           <Container>
             <Reveal>
               <Headline eyebrow="Product">
-                Store a key once. <b>Every app and agent uses it from there.</b>
+                Starts with your keys. <b>Grows into a guard for everything you run.</b>
               </Headline>
             </Reveal>
             <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {products.map((c, i) => (
                 <Reveal key={c.title} delay={i * 80}>
-                  <MediaCard media={c.art} title={c.title} body={c.body} />
+                  <MediaCard media={c.art} title={c.title} label={c.label} body={c.body} />
                 </Reveal>
               ))}
             </div>
@@ -195,6 +210,27 @@ export default function LandingPage() {
           </Container>
         </section>
 
+        {/* How it decides */}
+        <section id="security" className="scroll-mt-24 py-16 md:py-24">
+          <Container>
+            <Reveal>
+              <Headline eyebrow="How it decides">
+                The model proposes. <b>Policy enforces.</b>
+              </Headline>
+            </Reveal>
+            <Reveal className="mt-12" delay={80}>
+              <ul className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                {rules.map(([t, b]) => (
+                  <li key={t} className="rounded-2xl bg-cream p-6 md:min-h-44 md:flex md:flex-col md:justify-between">
+                    <p className="display text-[1.6rem] text-forest md:text-[1.75rem]">{t}</p>
+                    <p className="mt-3 text-[15px] leading-snug text-ink-soft">{b}</p>
+                  </li>
+                ))}
+              </ul>
+            </Reveal>
+          </Container>
+        </section>
+
         {/* Tiers */}
         <section id="tiers" className="scroll-mt-24 py-16 md:py-24">
           <Container>
@@ -206,7 +242,7 @@ export default function LandingPage() {
             <div className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-3">
               {tiers.map((t, i) => (
                 <Reveal key={t.who} delay={i * 80}>
-                  <MediaCard media={<CardPhoto src={t.image} alt={t.alt} />} label={t.who} title={t.role} />
+                  <MediaCard media={<CardPhoto src={t.image} alt={t.alt} />} label={t.who} title={t.role} cta={t.cta} />
                 </Reveal>
               ))}
             </div>
@@ -218,26 +254,41 @@ export default function LandingPage() {
           <Container>
             <Reveal>
               <Headline eyebrow="Pricing">
-                <b>Free</b> to start.
+                <b>Free</b> to start. Pay for how much it does on its own.
               </Headline>
             </Reveal>
-            <div className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-2">
-              {[
-                { name: "Cloud", note: "Nothing to set up", href: waitlistUrl, cta: "Get started", variant: "primary" as const },
-                { name: "Open source", note: "Run it on your own AWS", href: githubUrl, cta: "View on GitHub", variant: "outline" as const },
-              ].map((p, i) => (
+            <div className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-3">
+              {plans.map((p, i) => (
                 <Reveal key={p.name} delay={i * 80}>
-                  <div className="flex h-full flex-col rounded-2xl bg-cream p-6 md:p-8">
+                  <div className="flex h-full flex-col rounded-2xl bg-cream p-6 md:p-7">
                     <p className="font-mono text-[12px] uppercase tracking-[0.08em] text-muted">{p.name}</p>
-                    <p className="display mt-4 text-5xl text-forest">Free</p>
-                    <p className="mt-2 text-[15px] text-ink-soft">{p.note}</p>
-                    <Pill href={p.href} variant={p.variant} className="mt-8 w-full sm:w-auto sm:self-start">
-                      {p.cta}
+                    <p className="display mt-4 text-[2.6rem] text-forest">
+                      {p.price}
+                      {p.term && <span className="ml-2 font-sans text-[15px] text-ink-soft">{p.term}</span>}
+                    </p>
+                    <p className="mt-1 text-[15px] text-ink-soft">{p.tag}</p>
+                    <ul className="mt-6 space-y-2.5 text-[15px] text-ink">
+                      {p.features.map((f) => (
+                        <li key={f} className="flex items-start gap-2.5">
+                          <Check />
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+                    <Pill href={p.cta.href} variant={p.cta.variant} className="mt-8 w-full sm:w-auto sm:self-start">
+                      {p.cta.label}
                     </Pill>
                   </div>
                 </Reveal>
               ))}
             </div>
+            <p className="mt-6 text-[15px] text-ink-soft">
+              Companies: per seat, with a shared vault, audit log and temporary access for employees.{" "}
+              <a href={demoUrl} className="text-forest underline underline-offset-4">
+                Book a demo
+              </a>
+              . Self-hosting on your own AWS is free.
+            </p>
           </Container>
         </section>
 
