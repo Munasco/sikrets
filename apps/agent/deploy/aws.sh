@@ -1,8 +1,8 @@
 #!/bin/bash
-# Provisions the hosted demo in us-east-1: an IAM role that can call only the agent's Bedrock
-# models and read its access code, a Graviton instance with Nitro Enclaves enabled (SSM-managed,
-# no SSH, IMDSv2 only) reachable only from CloudFront, and a CloudFront distribution for HTTPS.
-# Safe to re-run: existing pieces are reused. Prints IDs and the URL, never the access code.
+# Provisions the hosted demo in us-east-1: an IAM role that can only read the agent's SSM
+# parameters (access code, model API key), a Graviton instance with Nitro Enclaves enabled
+# (SSM-managed, no SSH, IMDSv2 only) reachable only from CloudFront, and a CloudFront distribution
+# for HTTPS. Safe to re-run: existing pieces are reused. Prints IDs and the URL, never a secret.
 set -euo pipefail
 export AWS_REGION=us-east-1 AWS_PAGER=""
 NAME=sikrets-agent-demo
@@ -22,6 +22,17 @@ if ! aws ssm get-parameter --name /$NAME/access-code >/dev/null 2>&1; then
   echo "access code: stored (keychain service $NAME)"
 fi
 
+# --- Model API key: SecureString, from the env var the model's provider reads (src/constants.ts).
+# Set it to store or replace the key; unset leaves the stored one alone. Passed by file, not argv.
+KEY_ENV=$(cd "$HERE/.." && bun -e 'import { MODEL } from "./src/constants.ts"; console.log(MODEL.keyEnv)')
+if [ -n "${!KEY_ENV:-}" ]; then
+  tmp=$(mktemp) && chmod 600 "$tmp"
+  printf '%s' "${!KEY_ENV}" > "$tmp"
+  aws ssm put-parameter --name /$NAME/model-key --type SecureString --overwrite --value "file://$tmp" >/dev/null
+  rm -f "$tmp"
+  echo "model key:  stored (from $KEY_ENV)"
+fi
+
 # --- IAM role
 if ! aws iam get-role --role-name $NAME >/dev/null 2>&1; then
   aws iam create-role --role-name $NAME --tags $TAGS --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ec2.amazonaws.com"},"Action":"sts:AssumeRole"}]}' >/dev/null
@@ -29,9 +40,6 @@ if ! aws iam get-role --role-name $NAME >/dev/null 2>&1; then
 fi
 aws iam put-role-policy --role-name $NAME --policy-name agent --policy-document "$(cat <<EOF
 {"Version":"2012-10-17","Statement":[
- {"Effect":"Allow","Action":["bedrock:InvokeModel","bedrock:InvokeModelWithResponseStream"],"Resource":[
-   "arn:aws:bedrock:us-east-1::foundation-model/openai.gpt-oss-120b-1:0",
-   "arn:aws:bedrock:us-east-1::foundation-model/openai.gpt-oss-20b-1:0"]},
  {"Effect":"Allow","Action":"ssm:GetParameter","Resource":"arn:aws:ssm:us-east-1:$ACCOUNT:parameter/$NAME/*"}
 ]}
 EOF

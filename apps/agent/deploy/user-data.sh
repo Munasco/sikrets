@@ -1,7 +1,8 @@
 #!/bin/bash
 # Boot script for the agent host (Amazon Linux 2023, arm64). Installs Bun, the Nitro Enclaves CLI,
-# and the agent as a systemd service. The access code is read from SSM Parameter Store at start,
-# so it never sits in user data or on disk.
+# and the agent (the gateway plus opencode, pinned in package.json) as a systemd service. The
+# access code and model key are read from SSM Parameter Store at start, so they never sit in user
+# data or on disk.
 set -euxo pipefail
 REPO=https://github.com/Munasco/sikrets.git
 BRANCH=feat/agent-demo
@@ -15,16 +16,7 @@ sudo -u sikrets git clone --depth 1 --branch "$BRANCH" "$REPO" /opt/sikrets-agen
 sudo -u sikrets bash -c 'cd /opt/sikrets-agent/src/apps/agent && ~/.bun/bin/bun install --frozen-lockfile --production'
 
 mkdir -p /etc/sikrets-agent
-cat > /usr/local/bin/sikrets-agent-env <<'EOF'
-#!/bin/bash
-# Writes the runtime env file (tmpfs) from SSM; the service reads it at start.
-set -euo pipefail
-code=$(aws ssm get-parameter --region us-east-1 --name /sikrets-agent-demo/access-code --with-decryption --query Parameter.Value --output text)
-umask 077
-printf 'ACCESS_CODE=%s\n' "$code" > /run/sikrets-agent.env
-chown sikrets /run/sikrets-agent.env
-EOF
-chmod 755 /usr/local/bin/sikrets-agent-env
+install -m 755 /opt/sikrets-agent/src/apps/agent/deploy/agent-env.sh /usr/local/bin/sikrets-agent-env
 
 cat > /etc/systemd/system/sikrets-agent.service <<'EOF'
 [Unit]
@@ -36,7 +28,7 @@ Wants=network-online.target
 User=sikrets
 WorkingDirectory=/opt/sikrets-agent/src/apps/agent
 ExecStartPre=+/usr/local/bin/sikrets-agent-env
-Environment=HOST=0.0.0.0 PORT=8787 BEDROCK_REGION=us-east-1
+Environment=HOST=0.0.0.0 PORT=8787 OPENCODE_HOME=/tmp/sikrets-opencode
 ExecStart=/bin/bash -c 'set -a; . /run/sikrets-agent.env; exec /opt/sikrets-agent/.bun/bin/bun src/server.ts'
 Restart=always
 RestartSec=2

@@ -1,10 +1,37 @@
+/**
+ * The model the guard agent runs on: the one place it is set. The opencode config, the gateway, and
+ * the enclave's outbound allowlist (host.sh reads `host`) all follow these values. To switch to
+ * DeepSeek, point provider/id/keyEnv/host at it; the key's SSM parameter name doesn't change.
+ */
 export const MODEL = {
-  id: Bun.env.MODEL_ID ?? "openai.gpt-oss-120b-1:0",
-  fallback: Bun.env.MODEL_FALLBACK ?? "openai.gpt-oss-20b-1:0",
-  region: Bun.env.BEDROCK_REGION ?? "us-east-1",
-  maxTokens: 2048,
+  provider: "google",
+  id: "gemini-4-argon",
+  name: "Gemini 4 Argon",
+  /** opencode's runtime package for the provider. */
+  package: "@opencode/ai/providers/google",
+  /** Env var the provider reads its API key from. */
+  keyEnv: "GEMINI_API_KEY",
+  /** The provider's API host; the only model host the enclave can reach. */
+  host: "generativelanguage.googleapis.com",
+  context: 1_048_576,
+  maxTokens: 8192,
   /** Tool-call rounds per message before the agent must answer. */
   maxSteps: 6,
+};
+
+/** opencode, run as a private server behind the gateway. */
+export const OPENCODE = {
+  /** Pinned in package.json too; the gateway refuses to start a different build. */
+  version: "2.2.5",
+  host: "127.0.0.1",
+  port: Number(Bun.env.OPENCODE_PORT ?? 4097),
+  /** The agent every session runs as. It can use only the Sikrets tools. */
+  agent: "guard",
+  /** Where opencode keeps its database, logs and config: a private directory, never the user's own. */
+  home: Bun.env.OPENCODE_HOME ?? `${Bun.env.TMPDIR ?? "/tmp"}/sikrets-opencode`,
+  /** Env var the host-delivered model key arrives in; the gateway hands it to opencode as MODEL.keyEnv. */
+  keyEnv: "MODEL_API_KEY",
+  startupMs: 30_000,
 };
 
 export const LIMITS = {
@@ -12,9 +39,10 @@ export const LIMITS = {
   tarballBytes: 60_000_000,
   fileBytes: 1_000_000,
   findings: 100,
-  /** Chat turns kept from the client per request. */
-  history: 30,
   messageChars: 60_000,
+  /** Sessions the gateway remembers; older ones are forgotten (and their secrets with them). */
+  sessions: 500,
+  sessionHours: 12,
 };
 
 export const SERVER = {
@@ -36,7 +64,7 @@ export const SYSTEM_PROMPT = `You are the Sikrets security agent. Sikrets keeps 
 You help developers find and fix credential leaks and supply-chain risks. You are defensive only: you help people protect their own systems. Refuse to help steal, use, test or abuse credentials that aren't the user's, or to attack systems.
 
 Rules:
-- Never repeat a secret value, even one the user pasted. Refer to keys by type, redacted form (prefix…last4) or file:line. Tool results are already redacted; keep them that way.
+- Never repeat a secret value, even one the user pasted. Keys the user pastes reach you as placeholders like [[secret sk_live_…cdef #1a2b3c4d]]; pass a placeholder to a tool unchanged and the tool sees the real key. Refer to keys by type, redacted form (prefix…last4) or file:line. Tool results are already redacted; keep them that way.
 - Use tools instead of guessing: scan_text for pasted text, scan_github_repo for public repos, check_leak_hashes for leak notices that give SHA-256 hashes, how_to_rotate for revoke/reissue steps, osv_lookup for package vulnerabilities.
 - A leaked key must be rotated, not just deleted from the code: it stays in git history, forks and caches. Say so when you find one.
 - After a leak, recommend: rotate the key now, check the provider's logs for use, store the new key with Sikrets (\`sikrets add <service>\` or \`sikrets proxy add <service>\`), and give agents access with \`sikrets session run <service> --for 1h -- <agent>\` instead of the raw key.

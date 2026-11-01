@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { shield } from "./agent.ts";
+import { Vault } from "./redact.ts";
 import { redact, scan, sha256 } from "./patterns.ts";
 import { checkLeakHashes, howToRotate, osvLookup, scanGithubRepo, scanText, untar } from "./tools.ts";
 
@@ -41,13 +41,28 @@ describe("scan", () => {
   });
 });
 
-describe("shield", () => {
+describe("vault", () => {
   test("the model sees placeholders and tools get the real values back", () => {
-    const { safe, reveal, hidden } = shield([{ role: "user", content: `my key is ${FAKE.stripe} help` }]);
+    const vault = new Vault();
+    const { text, hidden } = vault.shield("s1", `my key is ${FAKE.stripe} help`);
     expect(hidden).toBe(1);
-    expect(safe[0]!.content).not.toContain(FAKE.stripe);
-    expect(safe[0]!.content).toContain("sk_live_…cdef");
-    expect(reveal({ text: safe[0]!.content })).toEqual({ text: `my key is ${FAKE.stripe} help` });
+    expect(text).not.toContain(FAKE.stripe);
+    expect(text).toContain("sk_live_…cdef");
+    expect(vault.reveal("s1", { text })).toEqual({ text: `my key is ${FAKE.stripe} help` });
+    // Another session's placeholders don't resolve.
+    expect(vault.reveal("s2", { text })).toEqual({ text });
+  });
+
+  test("redacts nested request content and spots leaks, raw or JSON-escaped", () => {
+    const vault = new Vault();
+    const messages = [{ role: "user", content: [{ type: "text", text: `GITHUB_TOKEN=${FAKE.github}` }] }];
+    vault.shieldAll("s1", messages);
+    expect(JSON.stringify(messages)).not.toContain(FAKE.github);
+    expect(vault.leaks(JSON.stringify(messages))).toBe(false);
+    expect(vault.leaks(`{"text":"${FAKE.github}"}`)).toBe(true);
+    const pem = "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEAsecretbody\n-----END RSA PRIVATE KEY-----";
+    vault.shield("s1", pem);
+    expect(vault.leaks(JSON.stringify({ text: pem }))).toBe(true);
   });
 });
 

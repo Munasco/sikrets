@@ -1,10 +1,10 @@
-"""Runs inside the enclave. Waits for the host to send short-lived AWS credentials and the access
-code over vsock, starts the agent, keeps the credentials fresh, and publishes an attestation
-document signed by the Nitro Security Module so anyone can check which image is running."""
+"""Runs inside the enclave. Waits for the host to send the access code and the model API key over
+vsock, starts the agent (the gateway, which runs opencode) and keeps it running, and publishes an
+attestation document signed by the Nitro Security Module so anyone can check which image is
+running. The host re-sends both values every 15 minutes; a changed value restarts the agent."""
 import base64, ctypes, datetime, fcntl, json, os, socket, subprocess, threading, time
 import cbor2
 
-CREDS = "/run/creds.json"
 ATTESTATION = "/run/attestation.json"
 NSM_IOCTL = 0xC0200A00  # _IOWR(0x0A, 0, struct nsm_message)
 
@@ -62,11 +62,42 @@ def refresh_attestation() -> None:
         time.sleep(600)
 
 
+def supervise(state: dict) -> None:
+    """Keeps the agent running with the latest values; restarts it when it exits or they change."""
+    agent = None
+    running = None
+    while True:
+        wanted = state.get("secrets")
+        if wanted and (agent is None or agent.poll() is not None or wanted != running):
+            if agent is not None and agent.poll() is None:
+                agent.terminate()
+                try:
+                    agent.wait(10)
+                except subprocess.TimeoutExpired:
+                    agent.kill()
+                    agent.wait()
+            env = {
+                "PATH": "/usr/local/bin:/usr/bin:/bin",
+                "HOME": "/tmp",
+                "HOST": "127.0.0.1",
+                "PORT": "8787",
+                "OPENCODE_HOME": "/run/opencode",
+                "ATTESTATION_FILE": ATTESTATION,
+                "ACCESS_CODE": wanted[0],
+                "MODEL_API_KEY": wanted[1],
+            }
+            agent = subprocess.Popen(["/usr/local/bin/bun", "src/server.ts"], cwd="/app", env=env)
+            running = wanted
+        time.sleep(2)
+
+
 def main() -> None:
     server = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
     server.bind((socket.VMADDR_CID_ANY, 9000))
     server.listen(4)
-    agent = None
+    state: dict = {}
+    threading.Thread(target=refresh_attestation, daemon=True).start()
+    threading.Thread(target=supervise, args=(state,), daemon=True).start()
     while True:
         conn, _ = server.accept()
         with conn:
@@ -75,23 +106,9 @@ def main() -> None:
                 data += chunk
         try:
             msg = json.loads(data)
-        except ValueError:
+            state["secrets"] = (msg["accessCode"], msg["modelKey"])
+        except (ValueError, KeyError, TypeError):
             continue
-        write(CREDS, msg["credentials"])
-        if agent is None or agent.poll() is not None:
-            env = {
-                "PATH": "/usr/local/bin:/usr/bin:/bin",
-                "HOME": "/tmp",
-                "HOST": "127.0.0.1",
-                "PORT": "8787",
-                "BEDROCK_REGION": "us-east-1",
-                "AWS_CREDENTIALS_FILE": CREDS,
-                "ATTESTATION_FILE": ATTESTATION,
-                "ACCESS_CODE": msg["accessCode"],
-            }
-            if agent is None:
-                threading.Thread(target=refresh_attestation, daemon=True).start()
-            agent = subprocess.Popen(["/usr/local/bin/bun", "src/server.ts"], cwd="/app", env=env)
 
 
 if __name__ == "__main__":
