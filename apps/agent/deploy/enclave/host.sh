@@ -27,7 +27,7 @@ PORTS=() PROXIES=()
 for i in "${!HOSTS[@]}"; do PORTS+=($((8001 + i))); PROXIES+=("sikrets-vsock-proxy@$((8001 + i))"); done
 
 down() {
-  systemctl disable --now sikrets-enclave sikrets-enclave-feed sikrets-enclave-inbound "${PROXIES[@]}" 2>/dev/null || true
+  systemctl disable --now sikrets-enclave-watch sikrets-enclave sikrets-enclave-feed sikrets-enclave-inbound "${PROXIES[@]}" 2>/dev/null || true
   nitro-cli terminate-enclave --all >/dev/null 2>&1 || true
   systemctl enable --now sikrets-agent
 }
@@ -37,7 +37,9 @@ if [ "${1:-up}" = "down" ]; then down; exit 0; fi
 dnf install -y -q socat docker >/dev/null
 systemctl enable --now docker >/dev/null
 
-# Allocator: reserve the enclave's CPUs and memory (it can't change while an enclave runs).
+# Allocator: reserve the enclave's CPUs and memory (it can't change while an enclave runs). Stop
+# the enclave unit first, or restarting the allocator restarts it with the old image mid-build.
+systemctl stop sikrets-enclave-watch sikrets-enclave 2>/dev/null || true
 nitro-cli terminate-enclave --all >/dev/null 2>&1 || true
 sed -i "s/^cpu_count:.*/cpu_count: $CPUS/; s/^memory_mib:.*/memory_mib: $MEM/" /etc/nitro_enclaves/allocator.yaml
 systemctl restart nitro-enclaves-allocator
@@ -132,14 +134,24 @@ ExecStop=/usr/bin/nitro-cli terminate-enclave --all
 [Install]
 WantedBy=multi-user.target
 EOF
-for u in sikrets-vsock-proxy@ sikrets-enclave-inbound sikrets-enclave-feed; do
+# Watch: an enclave that exits (it can't be inspected in production mode) is started again.
+cat > /etc/systemd/system/sikrets-enclave-watch.service <<'EOF'
+[Unit]
+Description=Restart the agent enclave if it stops running
+After=sikrets-enclave.service
+[Service]
+ExecStart=/bin/bash -c 'while sleep 30; do nitro-cli describe-enclaves | grep -q RUNNING || { echo "enclave not running; restarting"; systemctl restart sikrets-enclave; systemctl restart sikrets-enclave-feed; }; done'
+Restart=always
+EOF
+
+for u in sikrets-vsock-proxy@ sikrets-enclave-inbound sikrets-enclave-feed sikrets-enclave-watch; do
   f=/etc/systemd/system/$u.service
   grep -q '^\[Install\]' $f || printf '[Install]\nWantedBy=multi-user.target\n' >> $f
 done
 
 systemctl daemon-reload
 systemctl disable --now sikrets-agent
-systemctl enable sikrets-enclave "${PROXIES[@]}" sikrets-enclave-feed sikrets-enclave-inbound >/dev/null 2>&1
+systemctl enable sikrets-enclave "${PROXIES[@]}" sikrets-enclave-feed sikrets-enclave-inbound sikrets-enclave-watch >/dev/null 2>&1
 systemctl restart sikrets-enclave
-systemctl restart "${PROXIES[@]}" sikrets-enclave-feed sikrets-enclave-inbound
+systemctl restart "${PROXIES[@]}" sikrets-enclave-feed sikrets-enclave-inbound sikrets-enclave-watch
 cat /etc/sikrets-agent/measurements.json
