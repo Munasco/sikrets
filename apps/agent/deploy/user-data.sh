@@ -13,7 +13,7 @@ usermod -aG ne sikrets || true
 
 sudo -u sikrets bash -c 'curl -fsSL https://bun.sh/install | bash'
 sudo -u sikrets git clone --depth 1 --branch "$BRANCH" "$REPO" /opt/sikrets-agent/src
-sudo -u sikrets bash -c 'cd /opt/sikrets-agent/src/apps/agent && ~/.bun/bin/bun install --frozen-lockfile --production'
+sudo -u sikrets bash -c 'cd /opt/sikrets-agent/src/apps/agent && ~/.bun/bin/bun install --frozen-lockfile --production && ~/.bun/bin/bun run build:ui'
 
 mkdir -p /etc/sikrets-agent
 install -m 755 /opt/sikrets-agent/src/apps/agent/deploy/agent-env.sh /usr/local/bin/sikrets-agent-env

@@ -12,18 +12,36 @@ It runs on [opencode](https://github.com/anomalyco/opencode) (MIT; `@opencode/cl
 
 - **`plugin/`** is an opencode plugin: the five tools, and the hooks that keep secrets out (below).
 - **`src/opencode.ts`** runs `opencode serve` on loopback with a random password, a private home directory, no project or user config, sharing and updates off, and one agent, `guard`. Every built-in tool (shell, read, edit, write, webfetch, …) is denied; only the five tools are allowed.
-- **`src/server.ts`** is the gateway in front of it: the page, the access code, rate limits, `/attestation`, and two API calls (`POST /api/session`, `POST /api/chat`). opencode's own API, which has file and shell endpoints, is never exposed.
+- **`src/gateway.ts`** is the gateway in front of it: the chat page, the access code, rate limits, `/attestation`, and a filtered proxy for opencode's own API (`src/proxy.ts`), so opencode's TUI and desktop app can connect too.
+- **`ui/`** is the chat page: Vite, React and Tailwind, built to static files the gateway serves. Its layout and interaction model follow [t3code](https://github.com/pingdotgg/t3code) (MIT; ideas only, no code copied), in the Sikrets theme.
 - **Model:** Gemini 4 Argon through opencode's Google provider. Provider, model and key env var are set in `MODEL` in `src/constants.ts` and nowhere else.
 
 ### Secrets you paste
 
 Keys in a message are swapped for placeholders like `[[secret sk_live_…cdef #52968a57]]` by the plugin's `prompt` hook, when opencode admits the message and before it stores it or emits it as an event. The real values stay in the plugin's memory, per session. The model passes placeholders to tools; the tools swap them back on the server and return only redacted findings (prefix…last4 and a SHA-256). Two more checks run on every model request: the `context` hook redacts anything that still looks like a key, and the `http.request` hook refuses to send a request that holds a known secret. `src/redaction.test.ts` runs the real opencode binary against a stand-in model and checks that a pasted key never appears in the model requests, the event stream, the stored session or any file opencode writes, and that the tool still gets the real key.
 
+### The proxy
+
+opencode's API also has file, shell, git and config endpoints, so the gateway passes on only what chat clients need:
+
+- **Forwarded:** server, agent, model, provider and config reads; sessions, messages, prompts, interrupts, permission replies; the event stream.
+- **Answered empty, without calling opencode:** files and find, git, shells, worktrees, MCP, references, plugins, integrations, skills, commands, plugin RPC.
+- **Everything else:** 404.
+
+Every request runs in opencode's private directory, whatever location a client sends. Creating a session can't choose its agent, model, permissions or an existing id. Prompts carry text only. Each caller sees only the sessions it created, in lists and in the event stream: each browser login is one caller, and all basic-auth clients share one. `scan_github_repo` asks before downloading, so clients show a permission prompt; "always allow" is saved for the whole server.
+
+### Clients
+
+- **Browser:** the page at `/`, after the access code.
+- **TUI:** `OPENCODE_PASSWORD=<access code> opencode --server https://dan27asb93qem.cloudfront.net` (opencode 2.x; v2 has no `attach` command).
+- **Desktop app:** Settings → Server → Add server → Use password, with the URL and the access code. The app's page origins get CORS.
+
 ```sh
 cd apps/agent
-bun install
+bun install && bun run build:ui
 GEMINI_API_KEY=… bun start   # http://127.0.0.1:8787
 bun test
+cd ui && GATEWAY=http://127.0.0.1:8787 bun run dev   # the page with hot reload
 ```
 
 | Env | Default |
@@ -32,6 +50,7 @@ bun test
 | `ACCESS_CODE` | unset: open. Set: the page asks for it. |
 | `PORT` / `HOST` | `8787` / `127.0.0.1` |
 | `OPENCODE_PORT` / `OPENCODE_HOME` | `4097` / `$TMPDIR/sikrets-opencode` |
+| `GATEWAY_LOG` | `1` logs each API call's method, path and status (never queries or bodies). |
 
 ## Hosting
 

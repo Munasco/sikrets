@@ -44,10 +44,12 @@ nitro-cli terminate-enclave --all >/dev/null 2>&1 || true
 sed -i "s/^cpu_count:.*/cpu_count: $CPUS/; s/^memory_mib:.*/memory_mib: $MEM/" /etc/nitro_enclaves/allocator.yaml
 systemctl restart nitro-enclaves-allocator
 
-# Image: the app (with production dependencies, opencode's glibc build only), Bun, the entrypoint,
-# and the host list the entrypoint maps to vsock ports.
-rm -rf "$BUILD" && mkdir -p "$BUILD/app"
-cp -r "$APP/src" "$APP/plugin" "$APP/public" "$APP/data" "$APP/package.json" "$APP/node_modules" "$BUILD/app/"
+# Image: the app (with production dependencies, opencode's glibc build only), the built chat page,
+# Bun, the entrypoint, and the host list the entrypoint maps to vsock ports.
+runuser -u sikrets -- bash -c "cd '$APP' && '$BUN' run build:ui" >/dev/null
+rm -rf "$BUILD" && mkdir -p "$BUILD/app/ui"
+cp -r "$APP/src" "$APP/plugin" "$APP/data" "$APP/package.json" "$APP/node_modules" "$BUILD/app/"
+cp -r "$APP/ui/dist" "$BUILD/app/ui/"
 rm -rf "$BUILD"/app/node_modules/@opencode/cli-*-musl
 cp "$BUN" "$BUILD/bun"
 cp "$APP/deploy/enclave/Dockerfile" "$APP/deploy/enclave/run.sh" "$APP/deploy/enclave/bootstrap.py" "$BUILD/"
