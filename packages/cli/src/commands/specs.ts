@@ -28,6 +28,8 @@ export const jsonOption: OptionSpec = { name: "json", type: "boolean", descripti
 
 const dryRunOption: OptionSpec = { name: "dry-run", type: "boolean", description: "Show exactly what would change, and what it costs, without touching anything" };
 const yesOption: OptionSpec = { name: "yes", type: "boolean", short: "y", description: "Skip the confirmation prompt" };
+const agentOption: OptionSpec = { name: "agent", type: "string", argument: "NAME", description: "Hand keys to this agent: only its scope, refused once revoked (or set SIKRETS_AGENT)" };
+const envOption: OptionSpec = { name: "env", type: "boolean", description: "Print export lines for eval \"$(…)\" instead of running a command (refused on a terminal)" };
 
 export const commands: CommandSpec[] = [
   {
@@ -84,8 +86,8 @@ export const commands: CommandSpec[] = [
     name: "run",
     description: "Run a command with this project's values as environment variables (nothing written, nothing printed)",
     arguments: [{ name: "command", required: true }],
-    options: [{ name: "providers", type: "boolean", description: "Also inject provider admin credentials (for terraform)" }],
-    examples: ["sikrets run -- bun dev", "sikrets run --providers -- terraform plan"],
+    options: [{ name: "providers", type: "boolean", description: "Also inject provider admin credentials (for terraform)" }, agentOption],
+    examples: ["sikrets run -- bun dev", "sikrets run --providers -- terraform plan", "sikrets run --agent reviewer -- claude"],
     passthrough: true,
     load: () => import("./run.ts"),
   },
@@ -184,6 +186,67 @@ export const commands: CommandSpec[] = [
     options: [{ name: "limit", type: "string", argument: "N", description: "How many entries (default 20)" }, jsonOption],
     examples: ["sikrets activity", "sikrets activity --limit 100 --json"],
     load: () => import("./activity.ts"),
+  },
+  {
+    name: "inventory",
+    description: "Every stored key: age, last rotated, last used, which apps and agents used it; flags stale and over-scoped keys",
+    arguments: [],
+    options: [{ name: "offline", type: "boolean", description: "Skip checks that call a provider (GitHub token scopes)" }, jsonOption],
+    examples: ["sikrets inventory", "sikrets inventory --offline --json"],
+    load: () => import("./inventory.ts"),
+  },
+  {
+    name: "agent",
+    aliases: ["agents"],
+    description: "Scoped identities for agents (add, list, revoke): which keys each may use, and until when",
+    arguments: [{ name: "add|list|revoke", required: false }, { name: "name", required: false }],
+    options: [
+      { name: "key", type: "string", multiple: true, argument: "RESOURCE|KEY", description: "add: a resource or key name the agent may use (repeatable)" },
+      { name: "expires", type: "string", argument: "DURATION", description: "add: the identity stops working after this, e.g. 7d" },
+      jsonOption,
+    ],
+    examples: ["sikrets agent add reviewer --key github-app --expires 7d", "sikrets agent list", "sikrets agent revoke reviewer"],
+    load: () => import("./agent.ts"),
+  },
+  {
+    name: "offboard",
+    description: "Rotate every key a person or agent was handed (from the local usage log), one at a time",
+    arguments: [{ name: "person-or-agent", required: true }],
+    options: [{ ...dryRunOption, description: "List the keys and what would be rotated, without changing anything" }, { ...yesOption, description: "Rotate all without asking for each" }, jsonOption],
+    examples: ["sikrets offboard reviewer --dry-run", "sikrets offboard alice"],
+    load: () => import("./offboard.ts"),
+  },
+  {
+    name: "aws",
+    description: "`aws session`: 15–60 minute AWS credentials from a stored key or the connected profile",
+    arguments: [{ name: "session", required: true }],
+    options: [
+      { name: "role", type: "string", argument: "ARN", description: "Assume this role (AssumeRole) instead of a session for the key itself" },
+      { name: "for", type: "string", argument: "DURATION", description: "15m to 60m (default 60m)" },
+      { name: "key", type: "string", argument: "NAME", description: "Which stored aws/access-key (default: the only one, else the connected profile)" },
+      { name: "region", type: "string", argument: "REGION", description: "STS region (default: AWS_REGION or us-east-1)" },
+      envOption,
+      agentOption,
+    ],
+    examples: ["sikrets aws session -- aws s3 ls", 'eval "$(sikrets aws session --for 15m --env)"', "sikrets aws session --role arn:aws:iam::123456789012:role/deploy -- terraform plan"],
+    passthrough: true,
+    load: () => import("./aws.ts"),
+  },
+  {
+    name: "github",
+    description: "`github token`: a one-hour GitHub App installation token from a stored App private key",
+    arguments: [{ name: "token", required: true }],
+    options: [
+      { name: "repo", type: "string", multiple: true, argument: "NAME", description: "Limit the token to this repository (repeatable)" },
+      { name: "permission", type: "string", multiple: true, argument: "NAME=LEVEL", description: "Limit the token's permissions, e.g. contents=read (repeatable)" },
+      { name: "installation", type: "string", argument: "ID", description: "Installation id (default: the one stored with the key)" },
+      { name: "key", type: "string", argument: "NAME", description: "Which stored github/app-key (default: the only one)" },
+      envOption,
+      agentOption,
+    ],
+    examples: ["sikrets github token --repo api --permission contents=read -- gh pr list", 'eval "$(sikrets github token --env)"'],
+    passthrough: true,
+    load: () => import("./github.ts"),
   },
   {
     name: "ls",
