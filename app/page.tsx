@@ -34,14 +34,14 @@ const tiers = [
   { who: "Your company", role: "Autonomous security team", image: "/landing/city.jpg", alt: "A city skyline over still water at dawn" },
 ]
 
-const security = ["Encrypted on your device", "Secrets never print", "A leaked .env opens nothing", "Each project sees only its own keys"]
+const security = ["Encrypted on your device", "Keys never print", "A leaked .env opens nothing", "Each project sees only its own keys"]
 
 const faq = [
-  { q: "What is Sikrets?", a: "A security guard for your keys. Your apps and agents use them without ever holding the real values." },
+  { q: "What is Sikrets?", a: "An AI agent that guards your keys. Your apps and agents use them without ever holding the real values." },
   { q: "What's a stand-in?", a: "A placeholder that sits in your .env, CI and hosting instead of the real key. On its own it opens nothing." },
-  { q: "Is it free?", a: "Yes. Sikrets is open source, and there is a free cloud version." },
-  { q: "How do agents use it?", a: "They run commands through sikrets run. The key is available while the command runs and is never shown to the agent." },
-  { q: "Which services work?", a: "Over 3,000. Paste a key for any of them; Upstash, Anthropic and AWS are fully automatic." },
+  { q: "How do agents use it?", a: "They run through sikrets session run. The key works while the command runs and is never shown to the agent." },
+  { q: "Is it free?", a: "Yes. Open source, with a free cloud version." },
+  { q: "Which services work?", a: "Over 3,000. Paste a key for any of them." },
 ]
 
 const footerLinks = [
@@ -61,7 +61,7 @@ export default function LandingPage() {
             <SikretsMark size={22} />
             <span className="font-serif text-[1.65rem] leading-none tracking-tight text-forest">Sikrets</span>
           </a>
-          <nav className="hidden items-center gap-8 font-mono text-[13px] text-ink-soft md:flex">
+          <nav className="hidden items-center gap-7 text-[14px] font-medium text-ink-soft md:flex">
             {nav.map((n) => (
               <a key={n.href} href={n.href} className="transition-colors hover:text-ink">
                 {n.label}
@@ -69,10 +69,10 @@ export default function LandingPage() {
             ))}
           </nav>
           <div className="flex items-center gap-2.5">
-            <a href={demoUrl} className="inline-flex h-10 items-center rounded-md border border-line bg-white px-3 font-serif text-[1.05rem] leading-none text-forest transition-colors hover:bg-cream sm:px-3.5 sm:text-[1.1rem]">
+            <a href={demoUrl} className="hidden h-10 items-center rounded-full border border-line bg-white px-4 text-[14px] font-medium leading-none text-forest transition-colors hover:bg-cream sm:inline-flex">
               Book a demo
             </a>
-            <Pill href={waitlistUrl} className="h-10 rounded-md px-4 text-[1.1rem]">
+            <Pill href={waitlistUrl} className="h-10 px-4 text-[14px]">
               Get started
             </Pill>
           </div>
@@ -86,7 +86,7 @@ export default function LandingPage() {
             <Image src="/landing/hero.jpg" alt="A lighthouse on a misty headland under a pale dawn sky" fill priority sizes="100vw" className="object-cover object-[48%_center]" />
             <div className="relative flex min-h-[780px] flex-col items-center px-5 pb-6 pt-20 text-center sm:min-h-[820px] md:min-h-[max(760px,calc(100svh-96px))] md:pb-10 md:pt-32">
               <h1 className="display text-balance text-[3.3rem] text-forest sm:text-7xl md:text-[5.6rem]">Your virtual security guard.</h1>
-              <p className="mt-6 max-w-xl text-[17px] leading-snug text-[#3d4540] md:text-[19px]">
+              <p className="mt-6 max-w-lg text-[16px] leading-snug text-[#3d4540] md:text-[18px]">
                 The AI agent you can paste keys into.
                 <br />
                 Like Grokbot, but for security. For you and your company.
@@ -115,14 +115,14 @@ export default function LandingPage() {
           <Container>
             <Reveal>
               <Headline eyebrow="How it works">
-                Real keys stay in <b>one vault.</b> Everything else gets <b>a placeholder.</b>
+                Paste a key once. <b>It does the rest.</b>
               </Headline>
             </Reveal>
             <div className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-3">
               {[
-                { art: <VaultArt />, title: "The vault", body: "Your keys live encrypted in one place." },
-                { art: <StandInArt />, title: "Stand-ins", body: "Your .env and CI hold a copy that opens nothing." },
-                { art: <RotateArt />, title: "Rotation", body: "Keys renew on a schedule. Nothing to redeploy." },
+                { art: <VaultArt />, title: "Holds it", body: "Encrypted, in one place." },
+                { art: <StandInArt />, title: "Stands in", body: "Your .env, CI and agents get a copy that opens nothing." },
+                { art: <RotateArt />, title: "Rotates it", body: "On a schedule, or the minute it leaks. Nothing to redeploy." },
               ].map((c, i) => (
                 <Reveal key={c.title} delay={i * 80}>
                   <MediaCard media={c.art} title={c.title} body={c.body} />
@@ -136,8 +136,8 @@ export default function LandingPage() {
         <section id="tiers" className="scroll-mt-24 py-16 md:py-24">
           <Container>
             <Reveal>
-              <Headline eyebrow="For you">
-                <b>One guard, sized to you.</b> It starts with your keys.
+              <Headline eyebrow="Who it's for">
+                <b>One guard,</b> sized to you.
               </Headline>
             </Reveal>
             <div className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -155,13 +155,13 @@ export default function LandingPage() {
           <Container>
             <Reveal>
               <Headline eyebrow="Security">
-                <b>Secure by design.</b> A leak, a log line or a curious agent never exposes a real key.
+                A leak, a log line or a curious agent <b>never sees a real key.</b>
               </Headline>
             </Reveal>
             <Reveal className="mt-12" delay={80}>
               <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
                 {security.map((s) => (
-                  <li key={s} className="flex items-start gap-3 rounded-2xl bg-cream p-6 text-[17px] leading-snug text-forest md:min-h-40 md:flex-col md:justify-between md:gap-6">
+                  <li key={s} className="flex items-start gap-3 rounded-2xl bg-cream p-6 text-[16px] font-medium leading-snug text-forest md:min-h-36 md:flex-col md:justify-between md:gap-6">
                     <Check />
                     {s}
                   </li>
@@ -218,7 +218,7 @@ export default function LandingPage() {
           <div className="relative overflow-hidden rounded-2xl bg-sand md:rounded-[20px]">
             <Image src="/landing/road.jpg" alt="A road winding through an autumn forest with fog in the valleys" fill sizes="100vw" className="object-cover object-[60%_center]" />
             <Reveal className="relative flex min-h-[560px] flex-col items-center px-5 pt-16 text-center md:min-h-[680px] md:pt-24">
-              <h2 className="display mx-auto max-w-3xl text-balance text-[2.6rem] text-forest sm:text-5xl md:text-[4rem]">Secure your first key in minutes</h2>
+              <h2 className="display mx-auto max-w-3xl text-balance text-[2.6rem] text-forest sm:text-5xl md:text-[4rem]">Put a guard on your keys.</h2>
               <div className="mt-8">
                 <HeroButton href={waitlistUrl}>Get started</HeroButton>
               </div>
@@ -236,7 +236,7 @@ export default function LandingPage() {
           {footerLinks.map((c) => (
             <div key={c.h}>
               <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-white/50">{c.h}</p>
-              <ul className="mt-4 space-y-3 font-mono text-[13px] text-white/80">
+              <ul className="mt-4 space-y-3 text-[14px] text-white/80">
                 {c.l.map(([label, href]) => (
                   <li key={label}>
                     <a href={href} className="hover:text-white">

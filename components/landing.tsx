@@ -39,7 +39,7 @@ export function Pill({ href, children, variant = "primary", className }: { href:
     light: "bg-white text-ink hover:bg-cream",
   }[variant]
   return (
-    <a href={href} className={cn("inline-flex h-11 items-center justify-center rounded-full px-5 font-serif text-[1.2rem] leading-none tracking-[-0.01em] transition-colors", styles, className)}>
+    <a href={href} className={cn("inline-flex h-11 items-center justify-center rounded-full px-5 text-[15px] font-medium leading-none transition-colors", styles, className)}>
       {children}
     </a>
   )
@@ -66,12 +66,12 @@ export function Accordion({ items, defaultOpen = 0 }: { items: { q: string; a: R
       {items.map((it, i) => (
         <details key={it.q} open={i === defaultOpen} className="group py-5">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-6 text-ink [&::-webkit-details-marker]:hidden">
-            <span className="font-serif text-[1.45rem] leading-tight tracking-[-0.01em]">{it.q}</span>
+            <span className="text-[17px] font-medium leading-tight">{it.q}</span>
             <svg className="size-4 shrink-0 text-muted transition-transform group-open:rotate-45 motion-reduce:transition-none" viewBox="0 0 16 16" fill="none" aria-hidden>
               <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
           </summary>
-          <div className="mt-3 max-w-xl text-[15px] leading-relaxed text-ink-soft">{it.a}</div>
+          <div className="mt-2 max-w-xl text-[15px] leading-relaxed text-ink-soft">{it.a}</div>
         </details>
       ))}
     </div>
@@ -93,7 +93,7 @@ export function MediaCard({ media, label, title, body, className }: { media: Rea
       <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-sand">{media}</div>
       <div className="px-3.5 pb-4 pt-5 md:px-4 md:pb-5">
         {label && <p className="font-mono text-[12px] uppercase tracking-[0.08em] text-muted">{label}</p>}
-        <h3 className={cn("display text-[1.9rem] text-forest md:text-[2.1rem]", label && "mt-2")}>{title}</h3>
+        <h3 className={cn("display text-[1.8rem] text-forest md:text-[2rem]", label && "mt-1.5")}>{title}</h3>
         {body && <p className="mt-2 text-[15px] leading-relaxed text-ink-soft">{body}</p>}
       </div>
     </div>

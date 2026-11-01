@@ -44,9 +44,9 @@ export const viewport: Viewport = {
 }
 
 // Fonts are bundled so builds never depend on reaching Google Fonts.
-const dmSans = localFont({
-  variable: "--font-dm-sans",
-  src: [{ path: "./fonts/DMSans.woff2", weight: "400 500", style: "normal" }],
+const geistSans = localFont({
+  variable: "--font-geist-sans",
+  src: [{ path: "./fonts/GeistSans.woff2", weight: "100 900", style: "normal" }],
 })
 
 const instrumentSerif = localFont({
@@ -65,7 +65,7 @@ const geistMono = localFont({
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${dmSans.variable} ${geistMono.variable} ${instrumentSerif.variable}`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable}`}>
         <noscript>
           <style>{`.reveal{opacity:1;transform:none}`}</style>
         </noscript>

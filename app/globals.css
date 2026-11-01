@@ -4,7 +4,7 @@
 /* Font tokens are inline so they resolve where they're used: next/font defines its variables on
    <body>, not :root, so a non-inline token would resolve to nothing and fall back. */
 @theme inline {
-  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
   --font-serif: var(--font-instrument-serif), ui-serif, Georgia, serif;
 }
@@ -43,8 +43,9 @@
   }
   body {
     @apply bg-paper text-ink font-sans antialiased;
-    font-size: 17px;
-    line-height: 1.45;
+    font-size: 16px;
+    line-height: 1.5;
+    letter-spacing: -0.005em;
   }
   ::selection {
     background: color-mix(in oklab, var(--color-pine) 18%, white);
