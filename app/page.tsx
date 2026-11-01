@@ -40,7 +40,7 @@ const uses = [
 const products = [
   { art: <VaultArt />, title: "Keys", body: "Store a key once. Your .env, CI and hosting hold a placeholder; the real key is attached as the request leaves. Rotate on a schedule or right after a leak." },
   { art: <SessionArt />, title: "Agent access", body: "An agent gets a key for one command or one hour, through MCP or the CLI, and never sees the value." },
-  { art: <AgentArt />, title: "Investigation", body: "Paste code or a repo URL. It finds leaked credentials and walks you through rotating them." },
+  { art: <AgentArt />, title: "Investigation", body: "Paste code or a repo URL. It finds leaked credentials and rotates them." },
   { art: <GuardArt />, title: "Guard", label: "Next", body: "It learns what your apps and devices normally do, holds anything unusual until you approve it, and keeps the evidence." },
 ]
 
