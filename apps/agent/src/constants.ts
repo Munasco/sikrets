@@ -48,6 +48,21 @@ export const PROXY = {
   basicOwner: "opencode-client",
 };
 
+/** gitleaks' default rules (MIT), vendored and compiled into src/gitleaks.ts by `bun run build:rules`. */
+export const GITLEAKS = {
+  version: "v8.30.1",
+  source: "https://github.com/gitleaks/gitleaks/blob/v8.30.1/config/gitleaks.toml",
+  config: "vendor/gitleaks/gitleaks.toml",
+  out: "src/gitleaks.ts",
+  /** Rules left out on purpose: our own generic-secret rule covers `name = value` assignments. */
+  replaced: ["generic-api-key"],
+  /** Rules whose regexes backtrack for hundreds of milliseconds on a crafted message in JavaScript
+   * (Go's RE2 is linear-time, so gitleaks doesn't have this problem). */
+  slow: ["curl-auth-header", "curl-auth-user"],
+  /** Rule id prefixes that match a catalog id but aren't the service that issued the key. */
+  notServices: ["age", "curl"],
+};
+
 export const LIMITS = {
   textBytes: 200_000,
   tarballBytes: 60_000_000,

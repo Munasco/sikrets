@@ -1,8 +1,11 @@
 import { createHash } from "node:crypto";
+import { GITLEAKS_ALLOW, GITLEAKS_PATTERNS } from "./gitleaks.ts";
 
 // What a leaked credential looks like. Provider-issued keys have fixed prefixes and lengths, so
 // these match with few false positives; the generic rule catches `api_key = "..."` style
-// assignments and keeps only high-entropy values.
+// assignments and keeps only high-entropy values. After ours come gitleaks' 200+ rules
+// (src/gitleaks.ts, generated from its vendored config), each gated by its keywords so a message
+// only runs the few that could match.
 
 export interface Pattern {
   id: string;
@@ -10,11 +13,30 @@ export interface Pattern {
   /** Sikrets catalog id, for rotation advice. */
   service?: string;
   re: RegExp;
-  /** Capture group holding the secret (default: the whole match). */
+  /** Capture group holding the secret (default: the first non-empty group, else the whole match). */
   group?: number;
+  /** Lowercase strings; the pattern runs only if the text contains one of them. */
+  keywords?: string[];
+  /** The secret's Shannon entropy must be above this. */
+  entropy?: number;
+  /** Only for files whose path matches; never for chat text. */
+  path?: RegExp;
+  /** Matches that aren't secrets after all. */
+  allow?: Allow[];
 }
 
-export const PATTERNS: Pattern[] = [
+/** A gitleaks allowlist: a match is dropped if any check hits (all of them, with `all`). */
+export interface Allow {
+  /** What `regexes` test: the secret, the whole match, or the line it's on. */
+  target: "secret" | "match" | "line";
+  regexes: RegExp[];
+  /** Substrings of the secret, lowercase. */
+  stopwords?: string[];
+  paths?: RegExp[];
+  all?: boolean;
+}
+
+const OWN: Pattern[] = [
   { id: "aws-access-key", name: "AWS access key ID", service: "aws", re: /\b((?:AKIA|ASIA)[0-9A-Z]{16})\b/g, group: 1 },
   { id: "aws-secret-key", name: "AWS secret access key", service: "aws", re: /aws_?secret_?access_?key["'\s]*[:=]\s*["']?([A-Za-z0-9/+=]{40})\b/gi, group: 1 },
   { id: "github-token", name: "GitHub token", service: "github", re: /\b(gh[pousr]_[A-Za-z0-9]{36,255})\b/g, group: 1 },
@@ -48,6 +70,29 @@ export const PATTERNS: Pattern[] = [
     group: 1,
   },
 ];
+
+/** Ours, then gitleaks', then the generic rule last, so a key gets the most specific name that fits
+ * (and the service to rotate it at). */
+export const PATTERNS: Pattern[] = [...OWN.filter((p) => p.id !== "generic-secret"), ...GITLEAKS_PATTERNS, ...OWN.filter((p) => p.id === "generic-secret")];
+const FROM_GITLEAKS = new Set(GITLEAKS_PATTERNS);
+
+/** Every keyword, by its first two characters, so one pass over the text finds all that are in it.
+ * Checking each of the ~300 keywords with includes() reads a 60 KB message 300 times. */
+const KEYWORDS = new Map<number, string[]>();
+for (const k of new Set(PATTERNS.flatMap((p) => p.keywords ?? []))) {
+  const key = k.charCodeAt(0) * 65536 + k.charCodeAt(1);
+  KEYWORDS.set(key, [...(KEYWORDS.get(key) ?? []), k]);
+}
+
+function keywordsIn(text: string): Set<string> {
+  const lower = text.toLowerCase();
+  const found = new Set<string>();
+  for (let i = 0; i < lower.length - 1; i++) {
+    const ks = KEYWORDS.get(lower.charCodeAt(i) * 65536 + lower.charCodeAt(i + 1));
+    if (ks) for (const k of ks) if (lower.startsWith(k, i)) found.add(k);
+  }
+  return found;
+}
 
 export interface Finding {
   type: string;
@@ -90,21 +135,49 @@ export function scan(text: string, file?: string): Finding[] {
   return extract(text, file).map((e) => e.finding);
 }
 
+/** Every match of every pattern that could apply: those with keywords run only when one is in the text. */
+function* matches(text: string, file?: string) {
+  const found = keywordsIn(text);
+  for (const p of PATTERNS) {
+    if (p.path && !(file && p.path.test(file))) continue;
+    if (p.keywords && !p.keywords.some((k) => found.has(k))) continue;
+    for (const m of text.matchAll(p.re)) {
+      const value = p.group !== undefined ? (m[p.group] ?? m[0]) : (m.slice(1).find(Boolean) ?? m[0]);
+      yield { p, m, value };
+    }
+  }
+}
+
+function allowed(a: Allow, secret: string, m: RegExpMatchArray, text: string, file?: string): boolean {
+  const at = m.index ?? 0;
+  const target = a.target === "secret" ? secret : a.target === "match" ? m[0] : text.slice(text.lastIndexOf("\n", at - 1) + 1, (text.indexOf("\n", at + m[0].length) + 1 || text.length + 1) - 1);
+  const hits: boolean[] = [];
+  if (a.regexes.length) hits.push(a.regexes.some((r) => r.test(target)));
+  if (a.stopwords?.length) hits.push(a.stopwords.some((w) => secret.toLowerCase().includes(w)));
+  if (a.paths?.length) hits.push(Boolean(file) && a.paths.some((r) => r.test(file!)));
+  return a.all ? hits.length > 0 && hits.every(Boolean) : hits.some(Boolean);
+}
+
 /** Like scan, but with the raw values too; for the server only, so it can keep them from the model. */
 export function extract(text: string, file?: string): { value: string; finding: Finding }[] {
   const out: { value: string; finding: Finding }[] = [];
   const seen = new Set<string>();
-  for (const p of PATTERNS) {
-    for (const m of text.matchAll(p.re)) {
-      const value = m[p.group ?? 0] ?? m[0];
-      if (p.id === "generic-secret" && (PLACEHOLDER.test(value) || entropy(value) < 3.5)) continue;
-      if (p.id === "db-url" && PLACEHOLDER.test(m[2] ?? "")) continue;
-      const hash = sha256(value);
-      if (seen.has(hash)) continue;
-      seen.add(hash);
-      const finding = { type: p.id, name: p.name, service: p.service, redacted: p.id === "db-url" ? value.replace(m[2]!, "****") : redact(value), sha256: hash, line: lineAt(text, m.index ?? 0), file };
-      out.push({ value, finding });
-    }
+  // Where accepted secrets sit, so a later rule doesn't report part of a key an earlier one found.
+  const spans: [number, number][] = [];
+  for (const { p, m, value } of matches(text, file)) {
+    if (p.id === "generic-secret" && (PLACEHOLDER.test(value) || entropy(value) < 3.5)) continue;
+    if (p.id === "db-url" && PLACEHOLDER.test(m[2] ?? "")) continue;
+    if (p.entropy && entropy(value) <= p.entropy) continue;
+    if (p.allow?.some((a) => allowed(a, value, m, text, file))) continue;
+    const start = (m.index ?? 0) + Math.max(0, m[0].indexOf(value));
+    if (FROM_GITLEAKS.has(p) && allowed(GITLEAKS_ALLOW, value, m, text, file)) continue;
+    if (spans.some(([s, e]) => s <= start && start + value.length <= e)) continue;
+    const hash = sha256(value);
+    if (seen.has(hash)) continue;
+    seen.add(hash);
+    spans.push([start, start + value.length]);
+    const finding = { type: p.id, name: p.name, service: p.service, redacted: p.id === "db-url" ? value.replace(m[2]!, "****") : redact(value), sha256: hash, line: lineAt(text, m.index ?? 0), file };
+    out.push({ value, finding });
   }
   return out.sort((a, b) => a.finding.line - b.finding.line);
 }
@@ -117,6 +190,6 @@ export function candidates(text: string): string[] {
     // Also the pieces, so `KEY=value` and `"value",` still match.
     for (const part of m[0].split(/[=:]/)) if (part.length >= 16) set.add(part);
   }
-  for (const p of PATTERNS) for (const m of text.matchAll(p.re)) set.add(m[p.group ?? 0] ?? m[0]);
+  for (const { value } of matches(text)) set.add(value);
   return [...set];
 }
