@@ -29,29 +29,29 @@ const nav = [
 /** What people reach for Sikrets to do. One line each; no claim is repeated elsewhere on the page. */
 const uses = [
   "Keep keys out of .env files and commits.",
-  "Let AI agents use keys they never hold.",
+  "Give AI agents API access without giving them the key.",
   "Rotate a leaked key in minutes, with nothing to redeploy.",
-  "Scan code and repos for leaked credentials.",
-  "Give an agent access for an hour, then take it back.",
-  "Run it on your own AWS, or use the cloud.",
+  "Find leaked credentials in code and repos.",
+  "Grant access for an hour. It expires on its own.",
+  "Use the cloud, or self-host on your own AWS.",
 ]
 
 const products = [
-  { art: <VaultArt />, title: "Vault", body: "Paste a key once. It is encrypted on your device and never printed again." },
-  { art: <StandInArt />, title: "Stand-ins", body: "Your .env, CI and hosting get a placeholder. The real key is attached at the edge." },
-  { art: <RotateArt />, title: "Rotation", body: "Keys renew on a schedule, or the moment one leaks." },
-  { art: <AgentArt />, title: "Security agent", body: "Chat with an agent that finds leaks and fixes them, inside a sealed enclave." },
+  { art: <VaultArt />, title: "Vault", body: "Store a key once. It is encrypted on your device and never printed to a terminal or log." },
+  { art: <StandInArt />, title: "Stand-ins", body: "Your .env, CI and hosting hold a placeholder. The real key is attached only when a request leaves for the provider." },
+  { art: <RotateArt />, title: "Rotation", body: "Rotate on a schedule, or right after a leak. Running apps keep working." },
+  { art: <AgentArt />, title: "Security agent", body: "Paste code or a repo URL. It finds leaked credentials and walks you through rotating them." },
 ]
 
 const features = [
-  ["Time-limited sessions", "Access ends on its own."],
-  ["3,000+ services", "A recipe for every key you have."],
-  ["MCP server", "Any agent, no key in its context."],
-  ["Activity log", "Every use of every key, by whom."],
-  ["Rollback", "Undo a change to a project's keys."],
-  ["Per-project scope", "Each project sees only its own."],
-  ["Secure enclave", "The agent runs where no one can read its memory."],
-  ["Open source", "Read it, run it, fork it."],
+  ["Time-limited sessions", "An agent gets a key for one command or one hour, then it is revoked."],
+  ["3,000+ services", "Add a key for any of them with one command."],
+  ["MCP server", "Claude Code, Cursor and any MCP client, with no key in the context window."],
+  ["Activity log", "Who used which key, when and from where."],
+  ["Rollback", "Restore a project's keys to an earlier state."],
+  ["Per-project scope", "A project can only read its own keys."],
+  ["Secure enclave", "The security agent runs in AWS Nitro Enclaves. The host cannot read its memory."],
+  ["Open source", "Source on GitHub. Audit it before you trust it."],
 ]
 
 const providers = ["Upstash", "Anthropic", "AWS", "OpenAI", "Cloudflare", "Neon", "Resend", "Supabase"]
@@ -139,8 +139,8 @@ export default function LandingPage() {
         <section className="py-16 md:py-24">
           <Container className="grid gap-10 md:grid-cols-[1fr_1.4fr] md:gap-16">
             <Reveal>
-              <Headline eyebrow="Use it to">
-                <b>Stop worrying</b> about keys.
+              <Headline eyebrow="When to use it">
+                Keys your apps and agents use <b>without ever holding them.</b>
               </Headline>
             </Reveal>
             <Reveal delay={80}>
@@ -161,7 +161,7 @@ export default function LandingPage() {
           <Container>
             <Reveal>
               <Headline eyebrow="Product">
-                Paste a key once. <b>It does the rest.</b>
+                Store a key once. <b>Every app and agent uses it from there.</b>
               </Headline>
             </Reveal>
             <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -179,7 +179,7 @@ export default function LandingPage() {
           <Container>
             <Reveal>
               <Headline eyebrow="Features">
-                <b>Everything a guard needs.</b> Nothing it doesn't.
+                <b>The full toolkit,</b> free and open source.
               </Headline>
             </Reveal>
             <Reveal className="mt-12" delay={80}>
@@ -260,7 +260,7 @@ export default function LandingPage() {
           <div className="relative overflow-hidden rounded-2xl bg-sand md:rounded-[20px]">
             <Image src="/landing/road.jpg" alt="A road winding through an autumn forest with fog in the valleys" fill sizes="100vw" className="object-cover object-[60%_center]" />
             <Reveal className="relative flex min-h-[560px] flex-col items-center px-5 pt-16 text-center md:min-h-[680px] md:pt-24">
-              <h2 className="display mx-auto max-w-3xl text-balance text-[2.6rem] text-forest sm:text-5xl md:text-[4rem]">Put a guard on your keys.</h2>
+              <h2 className="display mx-auto max-w-3xl text-balance text-[2.6rem] text-forest sm:text-5xl md:text-[4rem]">Store your first key in a minute.</h2>
               <div className="mt-8">
                 <HeroButton href={waitlistUrl}>Get started</HeroButton>
               </div>
