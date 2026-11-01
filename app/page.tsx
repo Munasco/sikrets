@@ -1,5 +1,5 @@
 import Image from "next/image"
-import { Accordion, AgentArt, CardPhoto, Check, Container, GuardArt, GuardCard, Headline, HeroButton, MediaCard, Pill, SessionArt, VaultArt } from "@/components/landing"
+import { Accordion, AgentArt, ApproveArt, CardPhoto, Check, Container, GuardArt, GuardCard, Headline, HeroButton, MediaCard, Pill, WatchArt } from "@/components/landing"
 import { SikretsMark } from "@/components/logo"
 import { Reveal } from "@/components/reveal"
 import { site } from "@/lib/site"
@@ -20,56 +20,57 @@ const jsonLd = {
 
 const nav = [
   { label: "Product", href: "#product" },
-  { label: "Features", href: "#features" },
+  { label: "Trust", href: "#trust" },
   { label: "For you", href: "#tiers" },
   { label: "Pricing", href: "#pricing" },
   { label: "FAQ", href: "#faq" },
 ]
 
-/** What people reach for Sikrets to do. One line each; no claim is repeated elsewhere on the page. */
+/** Moments the guard steps in. One line each; no claim is repeated elsewhere on the page. */
 const uses = [
-  "Keep keys out of .env files and commits.",
-  "Give AI agents API access without giving them the key.",
-  "Rotate a leaked key in minutes, with nothing to redeploy.",
-  "Find leaked credentials in code and repos.",
-  "Grant access for an hour. It expires on its own.",
-  "Use the cloud, or self-host on your own AWS.",
+  "An attachment tries to open your keychain.",
+  "Someone signs in to your email from a new country.",
+  "A payment doesn't look like you.",
+  "Your SIM moves to a phone you don't own.",
+  "A key shows up somewhere it shouldn't.",
+  "An AI agent asks for more than its task needs.",
 ]
 
-/** The four jobs, in the order they ship: keys first, then agent access, then investigation, then the guard. */
+/** What the agent does, in the order it does it: watch, hold, ask, answer. */
 const products = [
-  { art: <VaultArt />, title: "Keys", body: "Store a key once. Your .env, CI and hosting hold a placeholder; the real key is attached as the request leaves. Rotate on a schedule or right after a leak." },
-  { art: <SessionArt />, title: "Agent access", body: "An agent gets a key for one command or one hour, through MCP or the CLI, and never sees the value." },
-  { art: <AgentArt />, title: "Investigation", body: "Paste code or a repo URL. It finds leaked credentials and rotates them." },
-  { art: <GuardArt />, title: "Guard", label: "Next", body: "It learns what your apps and devices normally do, holds anything unusual until you approve it, and keeps the evidence." },
+  { art: <WatchArt />, title: "Watches", body: "Learns what normal looks like across your devices, accounts and agents. No rules to write." },
+  { art: <GuardArt />, title: "Holds", body: "Anything unusual waits for you: a download, a sign-in, a payment, an agent's request." },
+  { art: <ApproveArt />, title: "Acts", body: "Signs out sessions, rotates keys and locks accounts. You approve on your phone, or let it act on its own." },
+  { art: <AgentArt />, title: "Answers", body: "Ask it anything. Is this email real, is this app safe, what changed on my account." },
 ]
 
 /** How the guard decides, from the blueprint: the model proposes, policy enforces. */
 const rules = [
-  ["The model never grants authority", "It investigates and proposes. A deterministic policy decides what runs."],
+  ["The model never grants authority", "It investigates and proposes. A fixed policy decides what runs."],
   ["Every permission expires", "Access is narrow, time-limited and revocable. Nothing stands open."],
-  ["Everything leaves evidence", "Each decision is logged with why, what it allowed and when it ends."],
+  ["You see why", "Each action comes with a reason and an undo. Only you can see it."],
 ]
 
 /** Plans. Prices are the founder's call; the paid tiers show availability until they are set. */
 const plans = [
-  { name: "Doorman", price: "$0", term: "forever", tag: "Non-commercial use", cta: { label: "Get started", href: waitlistUrl, variant: "primary" as const }, features: ["Every key feature", "Agent access and MCP", "Leak scanning", "Up to 10 accounts in your circle", "Acts only when you ask"] },
-  { name: "Warden", price: "Early access", term: "", tag: "Proactive protection", cta: { label: "Join the waitlist", href: waitlistUrl, variant: "outline" as const }, features: ["Everything in Doorman", "Holds suspicious downloads, links and logins until you approve", "Hardware key as a second check", "Automatic rotation after a leak", "More usage"] },
-  { name: "Citadel", price: "Custom", term: "", tag: "Hardware vault and 2-of-3 recovery", cta: { label: "Talk to us", href: demoUrl, variant: "outline" as const }, features: ["Everything in Warden", "Hardware vault", "2-of-3 approval with an emergency contact", "48-hour hold after a SIM change", "Covers money and wallets"] },
+  { name: "Doorman", price: "$0", term: "forever", tag: "Non-commercial use", cta: { label: "Get started", href: waitlistUrl, variant: "primary" as const }, features: ["The agent on your devices and accounts", "Asks before it acts", "Automatic key rotation", "Up to 10 people in your circle"] },
+  { name: "Warden", price: "Early access", term: "", tag: "Proactive protection", cta: { label: "Join the waitlist", href: waitlistUrl, variant: "outline" as const }, features: ["Everything in Doorman", "Holds anything unusual on its own", "Approve from your phone", "Guards the AI agents you run", "Hardware key as a second check"] },
+  { name: "Citadel", price: "Custom", term: "", tag: "Money, wallets and recovery", cta: { label: "Talk to us", href: demoUrl, variant: "outline" as const }, features: ["Everything in Warden", "Covers bank accounts and wallets", "2-of-3 approval with an emergency contact", "48-hour hold after a SIM change", "Hardware vault"] },
 ]
 
-const features = [
-  ["Time-limited sessions", "An agent gets a key for one command or one hour, then it is revoked."],
-  ["3,000+ services", "Add a key for any of them with one command."],
-  ["MCP server", "Claude Code, Cursor and any MCP client, with no key in the context window."],
-  ["Activity log", "Who used which key, when and from where."],
-  ["Rollback", "Restore a project's keys to an earlier state."],
-  ["Per-project scope", "A project can only read its own keys."],
-  ["Secure enclave", "The security agent runs in AWS Nitro Enclaves. The host cannot read its memory."],
-  ["Open source", "Source on GitHub. Audit it before you trust it."],
+/** Why it can be trusted with everything it watches. */
+const trust = [
+  ["Confidential compute", "The agent runs in a sealed enclave. Neither we nor the cloud can see what it sees."],
+  ["Thinks like an attacker", "Built on models that don't refuse security work, so it finds what attackers would."],
+  ["Uses keys, never reads them", "It can use, rotate or revoke a credential. Nothing can read one, including us."],
+  ["Your call, per action", "Off, ask, hold or act. Anything involving money always asks."],
+  ["Works with your agents", "Claude, ChatGPT and Cursor get access for one task, never the password."],
+  ["Keeps your password manager", "1Password, Bitwarden and Apple Passwords stay where they are."],
+  ["Private by default", "What it watches and does stays yours. No public log of your activity."],
+  ["Open source", "Read the code that guards you."],
 ]
 
-const providers = ["Upstash", "Anthropic", "AWS", "OpenAI", "Cloudflare", "Neon", "Resend", "Supabase"]
+const surfaces = ["Mac", "iPhone", "Gmail", "GitHub", "1Password", "Slack", "AWS", "Claude"]
 
 const tiers = [
   { who: "You", role: "Virtual security guard", image: "/landing/cabin.jpg", alt: "A small cabin with a lit window in a misty forest", cta: { label: "Get started", href: waitlistUrl } },
@@ -78,14 +79,15 @@ const tiers = [
 ]
 
 const faq = [
-  { q: "What is Sikrets?", a: "A security agent you can trust with your keys. It starts with keys and grows into a guard for you and your company." },
-  { q: "How do agents use it?", a: "sikrets session run gives an agent a key for as long as the command runs. The agent never sees the value." },
-  { q: "Can I self-host?", a: "Yes. The whole thing runs on your own AWS account, free." },
-  { q: "What about companies?", a: "Per seat: a shared vault, an audit log and temporary access for employees. Book a demo." },
+  { q: "What is Sikrets?", a: "An AI security agent for you and your company. It watches, holds what looks wrong and asks before it acts." },
+  { q: "Can it see my data?", a: "Only inside a sealed enclave. Neither we nor the cloud provider can read what it sees." },
+  { q: "What does it do without asking?", a: "Only what you allow. Each kind of action is off, ask, hold or act. Anything involving money always asks." },
+  { q: "Does it work with my AI agents?", a: "Yes. Claude, ChatGPT, Cursor and others connect over MCP and get access for one task, never the secret itself." },
+  { q: "What about companies?", a: "Per seat. One guard across every laptop, account and agent your team runs. Book a demo." },
 ]
 
 const footerLinks = [
-  { h: "Product", l: [["Product", "#product"], ["Features", "#features"], ["Pricing", "#pricing"], ["FAQ", "#faq"]] },
+  { h: "Product", l: [["Product", "#product"], ["Trust", "#trust"], ["Pricing", "#pricing"], ["FAQ", "#faq"]] },
   { h: "Open source", l: [["GitHub", githubUrl]] },
   { h: "Company", l: [["Tennant", tennantUrl], ["Terms", `${tennantUrl}/terms`], ["Privacy", `${tennantUrl}/privacy`]] },
 ]
@@ -127,9 +129,9 @@ export default function LandingPage() {
             <div className="relative flex min-h-[780px] flex-col items-center px-5 pb-6 pt-20 text-center sm:min-h-[820px] md:min-h-[max(760px,calc(100svh-96px))] md:pb-10 md:pt-32">
               <h1 className="display text-balance text-[3rem] text-forest sm:text-6xl md:text-[5.2rem]">Your virtual security guard.</h1>
               <p className="mt-6 max-w-lg text-[16px] leading-snug text-[#3d4540] md:text-[18px]">
-                The AI agent you can paste keys into.
+                An AI agent that watches your devices, accounts and agents.
                 <br />
-                Like Grokbot, but for security. For you and your company.
+                It stops what looks wrong and asks before it acts.
               </p>
               <div className="mt-8">
                 <HeroButton href={waitlistUrl}>Get started</HeroButton>
@@ -139,10 +141,10 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Works with */}
+        {/* What it watches */}
         <Container className="py-12 md:py-16">
           <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-3 sm:gap-x-10">
-            {providers.map((p) => (
+            {surfaces.map((p) => (
               <span key={p} className="text-lg font-medium tracking-tight text-faint sm:text-xl">
                 {p}
               </span>
@@ -150,12 +152,12 @@ export default function LandingPage() {
           </div>
         </Container>
 
-        {/* What it's for */}
+        {/* When it steps in */}
         <section className="py-16 md:py-24">
           <Container className="grid gap-10 md:grid-cols-[1fr_1.4fr] md:gap-16">
             <Reveal>
-              <Headline eyebrow="When to use it">
-                Keys your apps and agents use <b>without ever holding them.</b>
+              <Headline eyebrow="When it steps in">
+                It watches, so you don't have to. <b>It asks before anything that matters.</b>
               </Headline>
             </Reveal>
             <Reveal delay={80}>
@@ -176,30 +178,30 @@ export default function LandingPage() {
           <Container>
             <Reveal>
               <Headline eyebrow="Product">
-                Starts with your keys. <b>Grows into a guard for everything you run.</b>
+                Learns your normal. <b>Stops what isn't.</b>
               </Headline>
             </Reveal>
             <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {products.map((c, i) => (
                 <Reveal key={c.title} delay={i * 80}>
-                  <MediaCard media={c.art} title={c.title} label={c.label} body={c.body} />
+                  <MediaCard media={c.art} title={c.title} body={c.body} />
                 </Reveal>
               ))}
             </div>
           </Container>
         </section>
 
-        {/* Features */}
-        <section id="features" className="scroll-mt-24 py-16 md:py-24">
+        {/* Trust */}
+        <section id="trust" className="scroll-mt-24 py-16 md:py-24">
           <Container>
             <Reveal>
-              <Headline eyebrow="Features">
-                <b>The full toolkit,</b> free and open source.
+              <Headline eyebrow="Trust">
+                A guard sees everything. <b>So it can't be the weak spot.</b>
               </Headline>
             </Reveal>
             <Reveal className="mt-12" delay={80}>
               <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {features.map(([t, b]) => (
+                {trust.map(([t, b]) => (
                   <li key={t} className="rounded-2xl bg-cream p-6 md:min-h-36">
                     <p className="text-[16px] font-medium text-forest">{t}</p>
                     <p className="mt-1.5 text-[14px] leading-snug text-ink-soft">{b}</p>
@@ -283,11 +285,11 @@ export default function LandingPage() {
               ))}
             </div>
             <p className="mt-6 text-[15px] text-ink-soft">
-              Companies: per seat, with a shared vault, audit log and temporary access for employees.{" "}
+              Companies: per seat, guarding every laptop, account and agent your team runs.{" "}
               <a href={demoUrl} className="text-forest underline underline-offset-4">
                 Book a demo
               </a>
-              . Self-hosting on your own AWS is free.
+              .
             </p>
           </Container>
         </section>
@@ -311,7 +313,7 @@ export default function LandingPage() {
           <div className="relative overflow-hidden rounded-2xl bg-sand md:rounded-[20px]">
             <Image src="/landing/road.jpg" alt="A road winding through an autumn forest with fog in the valleys" fill sizes="100vw" className="object-cover object-[60%_center]" />
             <Reveal className="relative flex min-h-[560px] flex-col items-center px-5 pt-16 text-center md:min-h-[680px] md:pt-24">
-              <h2 className="display mx-auto max-w-3xl text-balance text-[2.6rem] text-forest sm:text-5xl md:text-[4rem]">Store your first key in a minute.</h2>
+              <h2 className="display mx-auto max-w-3xl text-balance text-[2.6rem] text-forest sm:text-5xl md:text-[4rem]">Put a guard on duty tonight.</h2>
               <div className="mt-8">
                 <HeroButton href={waitlistUrl}>Get started</HeroButton>
               </div>

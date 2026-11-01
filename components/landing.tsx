@@ -112,8 +112,8 @@ export function CardPhoto({ src, alt }: { src: string; alt: string }) {
 /** The guard's status, frosted white over the hero photo: on duty, what it watches, what it just did. */
 export function GuardCard({ className }: { className?: string }) {
   const events = [
-    { what: "Agent used a key it never saw", when: "now" },
-    { what: "Upstash key rotated", when: "2m" },
+    { what: "Held a sign-in from a new country", when: "now" },
+    { what: "Stopped an app reading your keychain", when: "4m" },
   ]
   return (
     <div className={cn("w-full max-w-sm rounded-2xl border border-white/70 bg-white/70 p-5 text-forest shadow-[0_20px_60px_rgba(40,50,45,0.15)] backdrop-blur-xl md:w-[21rem]", className)}>
@@ -127,7 +127,7 @@ export function GuardCard({ className }: { className?: string }) {
         </span>
         <SikretsMark size={16} />
       </div>
-      <p className="display mt-3 text-[1.45rem] sm:mt-4 sm:text-[1.6rem]">Watching 12 keys · 3 agents</p>
+      <p className="display mt-3 text-[1.45rem] sm:mt-4 sm:text-[1.6rem]">Watching 3 devices · 14 accounts</p>
       <ul className="mt-4 hidden divide-y divide-forest/10 border-t border-forest/10 text-[14px] sm:block">
         {events.map((e) => (
           <li key={e.what} className="flex items-center justify-between gap-4 py-2.5">
@@ -145,7 +145,7 @@ export function GuardCard({ className }: { className?: string }) {
   )
 }
 
-/* Small product sketches for the "How it works" cards: white panels on the card's grey well. */
+/* Small product sketches for the product cards: white panels on the card's grey well. */
 
 function Panel({ children }: { children: ReactNode }) {
   return (
@@ -162,14 +162,17 @@ const Lock = () => (
   </svg>
 )
 
-export function VaultArt() {
+export function WatchArt() {
   return (
     <Panel>
-      <ul className="space-y-2.5 font-mono text-[12px] text-ink-soft">
-        {["UPSTASH_TOKEN", "ANTHROPIC_KEY", "AWS_SECRET"].map((k) => (
-          <li key={k} className="flex items-center justify-between gap-3 rounded-lg bg-cream px-3 py-2">
-            <span className="truncate">{k}</span>
-            <Lock />
+      <ul className="space-y-2.5 text-[12px] text-ink-soft">
+        {[["MacBook", "normal"], ["Gmail", "normal"], ["GitHub", "new sign-in"]].map(([what, state]) => (
+          <li key={what} className="flex items-center justify-between gap-3 rounded-lg bg-cream px-3 py-2">
+            <span className="truncate">{what}</span>
+            <span className={cn("flex shrink-0 items-center gap-1.5 whitespace-nowrap font-mono text-[11px]", state === "normal" ? "text-muted" : "text-[#b4572e]")}>
+              <span className={cn("inline-block size-1.5 rounded-full", state === "normal" ? "bg-[#3fae6f]" : "bg-[#d9894f]")} aria-hidden />
+              {state}
+            </span>
           </li>
         ))}
       </ul>
@@ -177,15 +180,14 @@ export function VaultArt() {
   )
 }
 
-export function SessionArt() {
+export function ApproveArt() {
   return (
     <Panel>
-      <p className="truncate font-mono text-[12px] text-ink-soft">
-        <span className="text-pine">$</span> sikrets session run stripe --for 1h
-      </p>
-      <div className="mt-3 flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.08em] text-muted">
-        <span>Expires</span>
-        <span>59:40</span>
+      <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted">Sikrets wants to</p>
+      <p className="mt-2 text-[12px] text-ink">Sign out an unknown GitHub session.</p>
+      <div className="mt-3 flex gap-2 whitespace-nowrap text-[11px] font-medium">
+        <span className="rounded-full bg-pine px-2.5 py-1 text-white">Approve</span>
+        <span className="rounded-full bg-cream px-2.5 py-1 text-ink-soft">Not now</span>
       </div>
     </Panel>
   )
@@ -196,7 +198,7 @@ export function GuardArt() {
     <Panel>
       <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted">Held</p>
       <p className="mt-2 text-[12px] text-ink">invoice_oct.pdf.app wants your keychain.</p>
-      <div className="mt-3 flex gap-2 text-[11px] font-medium">
+      <div className="mt-3 flex gap-2 whitespace-nowrap text-[11px] font-medium">
         <span className="rounded-full bg-pine px-2.5 py-1 text-white">Allow once</span>
         <span className="rounded-full bg-cream px-2.5 py-1 text-ink-soft">Keep blocked</span>
       </div>
@@ -207,8 +209,8 @@ export function GuardArt() {
 export function AgentArt() {
   return (
     <Panel>
-      <p className="rounded-lg bg-cream px-3 py-2 text-[12px] text-ink-soft">Check this repo for leaks</p>
-      <p className="mt-2 rounded-lg bg-pine px-3 py-2 text-[12px] text-white">Found 2 keys. Rotating the Stripe one now.</p>
+      <p className="rounded-lg bg-cream px-3 py-2 text-[12px] text-ink-soft">Is this invoice email real?</p>
+      <p className="mt-2 rounded-lg bg-pine px-3 py-2 text-[12px] text-white">No. The link goes to a lookalike domain. I moved it to spam.</p>
     </Panel>
   )
 }

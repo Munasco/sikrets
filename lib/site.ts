@@ -4,7 +4,7 @@ export const site = {
   tagline: "Your virtual security guard",
   title: "Sikrets — Your virtual security guard",
   description:
-    "The AI agent you can paste keys into, for you and your company. It starts with your keys: apps and agents use them without ever holding the real values. Open source, by Tennant.",
+    "An AI security agent for you and your company. It watches your devices, accounts and agents, holds what looks wrong and asks before it acts. Runs in confidential compute. Open source, by Tennant.",
   githubUrl: "https://github.com/Munasco/sikrets",
   tennantUrl: "https://usetennant.com",
   twitter: "@tennantcloud",
