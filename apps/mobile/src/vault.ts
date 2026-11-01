@@ -1,0 +1,85 @@
+import Constants, { ExecutionEnvironment } from "expo-constants";
+import * as LocalAuthentication from "expo-local-authentication";
+import * as SecureStore from "expo-secure-store";
+import { MESSAGE_IDS, PROTOCOL_VERSION, createPhoneIdentity, decodeOffer, mailbox, relayClient, sealHello, type Offer } from "@sikrets/pairing";
+import { COPY, STORAGE } from "./constants";
+
+// This phone's keys. The pairing record (laptop public key, pairing secret, this phone's X25519
+// key) sits in the keychain, readable while unlocked so the app can decrypt requests. The Ed25519
+// signing key is the one that approves; it is stored behind biometrics where the platform allows
+// (a standalone build: the keychain item itself requires Face ID). Expo Go can't attach Face ID to
+// a keychain item, so there the key is kept device-only and every use is gated by a Face ID check
+// through expo-local-authentication first.
+
+export interface StoredPairing {
+  offer: Offer;
+  encSecretKey: string;
+  encPublicKey: string;
+  signPublicKey: string;
+  pairedAt: string;
+  /** True when the signing key's keychain item itself requires Face ID. */
+  biometricBound: boolean;
+}
+
+const deviceOnly = { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY };
+const isExpoGo = () => Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+
+export async function loadPairing(): Promise<StoredPairing | undefined> {
+  const raw = await SecureStore.getItemAsync(STORAGE.pairing, deviceOnly);
+  return raw ? (JSON.parse(raw) as StoredPairing) : undefined;
+}
+
+export async function biometricsReady() {
+  return (await LocalAuthentication.hasHardwareAsync()) && (await LocalAuthentication.isEnrolledAsync());
+}
+
+/** Scanned QR text → keys created, stored, and the hello sent to the laptop. */
+export async function pairWith(qrText: string): Promise<StoredPairing> {
+  const offer = decodeOffer(qrText);
+  if (!(await biometricsReady())) throw new Error("Set up Face ID (or a passcode) first: approvals are signed behind it.");
+  const id = createPhoneIdentity();
+  let biometricBound = false;
+  await SecureStore.deleteItemAsync(STORAGE.signKey).catch(() => undefined);
+  if (!isExpoGo() && SecureStore.canUseBiometricAuthentication()) {
+    try {
+      await SecureStore.setItemAsync(STORAGE.signKey, id.signSecretKey, {
+        requireAuthentication: true,
+        authenticationPrompt: COPY.faceIdApprove,
+        keychainAccessible: SecureStore.WHEN_PASSCODE_SET_THIS_DEVICE_ONLY,
+      });
+      biometricBound = true;
+    } catch {
+      biometricBound = false;
+    }
+  }
+  if (!biometricBound) await SecureStore.setItemAsync(STORAGE.signKey, id.signSecretKey, { keychainAccessible: SecureStore.WHEN_PASSCODE_SET_THIS_DEVICE_ONLY });
+
+  const pairing: StoredPairing = { offer, encSecretKey: id.encSecretKey, encPublicKey: id.encPublicKey, signPublicKey: id.signPublicKey, pairedAt: new Date().toISOString(), biometricBound };
+  const box = mailbox(offer.secret);
+  await relayClient(offer.relay).put(box.toCli, MESSAGE_IDS.hello, sealHello(offer.secret, { v: PROTOCOL_VERSION, encKey: id.encPublicKey, signKey: id.signPublicKey, name: COPY.phoneName, at: pairing.pairedAt }));
+  await SecureStore.setItemAsync(STORAGE.pairing, JSON.stringify(pairing), deviceOnly);
+  return pairing;
+}
+
+/**
+ * Face ID, then the signing key. Undefined when the person cancels. One prompt either way: the
+ * keychain's own (biometric-bound) or expo-local-authentication's (Expo Go).
+ */
+export async function unlockSigningKey(pairing: StoredPairing, prompt: string): Promise<string | undefined> {
+  if (pairing.biometricBound) {
+    try {
+      return (await SecureStore.getItemAsync(STORAGE.signKey, { requireAuthentication: true, authenticationPrompt: prompt })) ?? undefined;
+    } catch {
+      return undefined; // cancelled or failed: treat as no answer
+    }
+  }
+  const auth = await LocalAuthentication.authenticateAsync({ promptMessage: prompt, cancelLabel: "Cancel", disableDeviceFallback: false });
+  if (!auth.success) return undefined;
+  return (await SecureStore.getItemAsync(STORAGE.signKey)) ?? undefined;
+}
+
+export async function forget() {
+  await SecureStore.deleteItemAsync(STORAGE.signKey).catch(() => undefined);
+  await SecureStore.deleteItemAsync(STORAGE.pairing, deviceOnly).catch(() => undefined);
+  await SecureStore.deleteItemAsync(STORAGE.notified).catch(() => undefined);
+}

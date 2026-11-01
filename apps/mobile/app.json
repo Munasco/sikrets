@@ -1,0 +1,73 @@
+{
+  "expo": {
+    "name": "Sikrets",
+    "slug": "sikrets",
+    "scheme": "sikrets",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#fbfaf7",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.usetennant.sikrets",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.usetennant.sikrets",
+      "adaptiveIcon": {
+        "backgroundColor": "#fbfaf7",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": "Sikrets uses Face ID to sign your approvals."
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Sikrets uses Face ID to sign your approvals."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Sikrets uses the camera to scan the pairing code on your laptop.",
+          "recordAudioAndroid": false,
+          "barcodeScannerEnabled": true
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#1f3b2d"
+        }
+      ],
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#fbfaf7",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 120
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}

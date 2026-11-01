@@ -1,0 +1,23 @@
+{
+  "name": "@sikrets/pairing",
+  "version": "0.0.1",
+  "description": "Sikrets phone pairing: key exchange, sealed relay messages and signed Doorman decisions. Shared by the CLI and the app.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@noble/ciphers": "2.4.0",
+    "@noble/curves": "2.4.0",
+    "@noble/hashes": "2.4.0",
+    "@scure/base": "2.4.0"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.1",
+    "typescript": "5.9.3"
+  }
+}

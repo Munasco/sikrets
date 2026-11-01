@@ -124,19 +124,32 @@ export const commands: CommandSpec[] = [
   },
   {
     name: "approvals",
-    description: "Rotation requests waiting for a person: list, request, approve (Touch ID or a dialog) or deny",
+    description: "Rotation requests waiting for a person: list, request, approve (Touch ID or a dialog), deny, or watch for answers from your paired phone",
     arguments: [
-      { name: "list|request|approve|deny", required: false },
+      { name: "list|request|approve|deny|watch", required: false },
       { name: "resource|id", required: false },
     ],
     options: [
       { name: "reason", type: "string", argument: "exposed|expired|requested", description: "request: why the key should rotate (default: requested)" },
       { name: "queue", type: "boolean", description: "request: file it without asking now" },
       { name: "all", type: "boolean", description: "list: include decided and expired requests" },
+      { name: "once", type: "boolean", description: "watch: send requests to the phone, read its answers once, and exit" },
       jsonOption,
     ],
-    examples: ["sikrets approvals", "sikrets approvals request cache --reason exposed", "sikrets approvals request cache --queue --json", "sikrets approvals approve apr_1a2b3c4d", "sikrets approvals deny apr_1a2b3c4d"],
+    examples: ["sikrets approvals", "sikrets approvals watch", "sikrets approvals request cache --reason exposed", "sikrets approvals request cache --queue --json", "sikrets approvals approve apr_1a2b3c4d", "sikrets approvals deny apr_1a2b3c4d"],
     load: () => import("./approvals.ts"),
+  },
+  {
+    name: "pair",
+    description: "Pair the Sikrets phone app: shows a QR code to scan, then approvals can be answered from the phone with Face ID",
+    arguments: [],
+    options: [
+      { name: "status", type: "boolean", description: "Show which phone is paired" },
+      { name: "forget", type: "boolean", description: "Unpair: delete this laptop's pairing keys" },
+      jsonOption,
+    ],
+    examples: ["sikrets pair", "sikrets pair --status", "sikrets pair --forget"],
+    load: () => import("./pair.ts"),
   },
   {
     name: "recovery",

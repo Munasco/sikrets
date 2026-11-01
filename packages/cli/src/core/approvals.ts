@@ -19,7 +19,7 @@ export type Reason = keyof typeof APPROVAL_REASONS;
 export type Status = "pending" | "approved" | "denied" | "expired" | "rotated" | "failed";
 export type Event = "approve" | "deny" | "expire" | "rotated" | "fail";
 /** How the person said yes or no. "cli" is a deny or a terminal confirm, never a silent approve. */
-export type DecidedBy = "touchid" | "dialog" | "terminal" | "cli";
+export type DecidedBy = "touchid" | "dialog" | "terminal" | "cli" | "phone";
 
 export interface ApprovalRequest {
   id: string;
