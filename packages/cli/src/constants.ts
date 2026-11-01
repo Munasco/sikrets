@@ -86,3 +86,38 @@ export const MCP = {
   maxOutputChars: 60_000,
   minRedactLength: 6,
 } as const;
+
+// ── Website logins for agents ─────────────────────────────────────────────
+// `sikrets logins` stores website sign-ins; the MCP `login` tool fills them into the agent's
+// browser without the agent ever seeing the password or the 2FA code.
+export const LOGINS = {
+  /** OS keychain service holding each login's username, password and TOTP secret. */
+  keychainService: `${KEYCHAIN_SERVICE}.logins`,
+  /** Non-secret index under the user dir: login names and origins only. */
+  file: "logins.json",
+  /** Which agent may use which login without asking again. */
+  grantsFile: "login-grants.json",
+  /** Chrome the agent and Sikrets share, over the DevTools protocol. */
+  cdpEnv: "SIKRETS_BROWSER_CDP",
+  defaultCdp: "http://127.0.0.1:9222",
+  /** Profile folder (under the user dir's browser/) when Sikrets has to start that Chrome itself. */
+  browserProfile: "agent",
+  /** Origins that may be stored without https (local test and dev servers). */
+  loopbackHosts: ["localhost", "127.0.0.1", "[::1]"],
+  unknownAgent: "unknown-agent",
+  /** How long to wait for each sign-in step's page to settle, and for the person to answer. */
+  stepTimeoutMs: 15_000,
+  approvalTimeoutSeconds: 120,
+  /** Compiled Touch ID helper, cached under the user dir. */
+  touchIdBin: "bin/sikrets-touchid",
+  dialogTitle: "Sikrets",
+} as const;
+
+// TOTP (RFC 6238) defaults when an otpauth:// URI doesn't say otherwise.
+export const TOTP = {
+  digits: 6,
+  period: 30,
+  algorithm: "SHA1",
+  algorithms: ["SHA1", "SHA256", "SHA512"],
+  scheme: "otpauth:",
+} as const;
