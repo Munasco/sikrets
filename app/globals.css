@@ -6,7 +6,7 @@
 @theme inline {
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
-  --font-serif: var(--font-instrument-serif), ui-serif, Georgia, serif;
+  --font-serif: var(--font-geist-serif), ui-serif, Georgia, serif;
 }
 
 /* Light, airy palette: white page, light grey cards, dark green headlines and actions,
@@ -55,10 +55,10 @@
 /* Display type: tight leading and tracking like a magazine headline. */
 .display {
   /* The next/font variable directly: `@theme inline` tokens are not emitted as CSS variables. */
-  font-family: var(--font-instrument-serif), ui-serif, Georgia, serif;
+  font-family: var(--font-geist-serif), ui-serif, Georgia, serif;
   font-weight: 400;
-  line-height: 1;
-  letter-spacing: -0.02em;
+  line-height: 1.02;
+  letter-spacing: -0.025em;
 }
 .display em {
   font-style: italic;

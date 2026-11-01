@@ -49,12 +49,9 @@ const geistSans = localFont({
   src: [{ path: "./fonts/GeistSans.woff2", weight: "100 900", style: "normal" }],
 })
 
-const instrumentSerif = localFont({
-  variable: "--font-instrument-serif",
-  src: [
-    { path: "./fonts/InstrumentSerif.woff2", weight: "400", style: "normal" },
-    { path: "./fonts/InstrumentSerif-Italic.woff2", weight: "400", style: "italic" },
-  ],
+const geistSerif = localFont({
+  variable: "--font-geist-serif",
+  src: [{ path: "./fonts/GeistSerif.woff2", weight: "100 900", style: "normal" }],
 })
 
 const geistMono = localFont({
@@ -65,7 +62,7 @@ const geistMono = localFont({
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable}`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} ${geistSerif.variable}`}>
         <noscript>
           <style>{`.reveal{opacity:1;transform:none}`}</style>
         </noscript>

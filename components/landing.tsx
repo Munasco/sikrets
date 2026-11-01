@@ -93,7 +93,7 @@ export function MediaCard({ media, label, title, body, className }: { media: Rea
       <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-sand">{media}</div>
       <div className="px-3.5 pb-4 pt-5 md:px-4 md:pb-5">
         {label && <p className="font-mono text-[12px] uppercase tracking-[0.08em] text-muted">{label}</p>}
-        <h3 className={cn("display text-[1.8rem] text-forest md:text-[2rem]", label && "mt-1.5")}>{title}</h3>
+        <h3 className={cn("display text-[1.6rem] text-forest md:text-[1.75rem]", label && "mt-1.5")}>{title}</h3>
         {body && <p className="mt-2 text-[15px] leading-relaxed text-ink-soft">{body}</p>}
       </div>
     </div>
@@ -122,7 +122,7 @@ export function GuardCard({ className }: { className?: string }) {
         </span>
         <SikretsMark size={16} />
       </div>
-      <p className="display mt-3 text-[1.6rem] sm:mt-4 sm:text-[1.8rem]">Watching 12 keys · 3 agents</p>
+      <p className="display mt-3 text-[1.45rem] sm:mt-4 sm:text-[1.6rem]">Watching 12 keys · 3 agents</p>
       <ul className="mt-4 hidden divide-y divide-forest/10 border-t border-forest/10 text-[14px] sm:block">
         {events.map((e) => (
           <li key={e.what} className="flex items-center justify-between gap-4 py-2.5">
@@ -179,6 +179,15 @@ export function StandInArt() {
       <p className="mt-3 truncate rounded-lg bg-cream px-3 py-2 font-mono text-[12px] text-ink-soft">
         UPSTASH_TOKEN=<span className="text-pine">sk_standin_••••</span>
       </p>
+    </Panel>
+  )
+}
+
+export function AgentArt() {
+  return (
+    <Panel>
+      <p className="rounded-lg bg-cream px-3 py-2 text-[12px] text-ink-soft">Check this repo for leaks</p>
+      <p className="mt-2 rounded-lg bg-pine px-3 py-2 text-[12px] text-white">Found 2 keys. Rotating the Stripe one now.</p>
     </Panel>
   )
 }

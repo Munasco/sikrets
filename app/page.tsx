@@ -1,5 +1,5 @@
 import Image from "next/image"
-import { Accordion, CardPhoto, Check, Container, GuardCard, Headline, HeroButton, MediaCard, Pill, RotateArt, StandInArt, VaultArt } from "@/components/landing"
+import { Accordion, AgentArt, CardPhoto, Check, Container, GuardCard, Headline, HeroButton, MediaCard, Pill, RotateArt, StandInArt, VaultArt } from "@/components/landing"
 import { SikretsMark } from "@/components/logo"
 import { Reveal } from "@/components/reveal"
 import { site } from "@/lib/site"
@@ -19,11 +19,39 @@ const jsonLd = {
 }
 
 const nav = [
-  { label: "How it works", href: "#product" },
+  { label: "Product", href: "#product" },
+  { label: "Features", href: "#features" },
   { label: "For you", href: "#tiers" },
-  { label: "Security", href: "#security" },
   { label: "Pricing", href: "#pricing" },
   { label: "FAQ", href: "#faq" },
+]
+
+/** What people reach for Sikrets to do. One line each; no claim is repeated elsewhere on the page. */
+const uses = [
+  "Keep keys out of .env files and commits.",
+  "Let AI agents use keys they never hold.",
+  "Rotate a leaked key in minutes, with nothing to redeploy.",
+  "Scan code and repos for leaked credentials.",
+  "Give an agent access for an hour, then take it back.",
+  "Run it on your own AWS, or use the cloud.",
+]
+
+const products = [
+  { art: <VaultArt />, title: "Vault", body: "Paste a key once. It is encrypted on your device and never printed again." },
+  { art: <StandInArt />, title: "Stand-ins", body: "Your .env, CI and hosting get a placeholder. The real key is attached at the edge." },
+  { art: <RotateArt />, title: "Rotation", body: "Keys renew on a schedule, or the moment one leaks." },
+  { art: <AgentArt />, title: "Security agent", body: "Chat with an agent that finds leaks and fixes them, inside a sealed enclave." },
+]
+
+const features = [
+  ["Time-limited sessions", "Access ends on its own."],
+  ["3,000+ services", "A recipe for every key you have."],
+  ["MCP server", "Any agent, no key in its context."],
+  ["Activity log", "Every use of every key, by whom."],
+  ["Rollback", "Undo a change to a project's keys."],
+  ["Per-project scope", "Each project sees only its own."],
+  ["Secure enclave", "The agent runs where no one can read its memory."],
+  ["Open source", "Read it, run it, fork it."],
 ]
 
 const providers = ["Upstash", "Anthropic", "AWS", "OpenAI", "Cloudflare", "Neon", "Resend", "Supabase"]
@@ -34,18 +62,15 @@ const tiers = [
   { who: "Your company", role: "Autonomous security team", image: "/landing/city.jpg", alt: "A city skyline over still water at dawn" },
 ]
 
-const security = ["Encrypted on your device", "Keys never print", "A leaked .env opens nothing", "Each project sees only its own keys"]
-
 const faq = [
-  { q: "What is Sikrets?", a: "An AI agent that guards your keys. Your apps and agents use them without ever holding the real values." },
-  { q: "What's a stand-in?", a: "A placeholder that sits in your .env, CI and hosting instead of the real key. On its own it opens nothing." },
-  { q: "How do agents use it?", a: "They run through sikrets session run. The key works while the command runs and is never shown to the agent." },
+  { q: "What is Sikrets?", a: "A security agent you can trust with your keys. It starts with keys and grows into a guard for you and your company." },
+  { q: "How do agents use it?", a: "sikrets session run gives an agent a key for as long as the command runs. The agent never sees the value." },
+  { q: "Can I self-host?", a: "Yes. The whole thing runs on your own AWS account." },
   { q: "Is it free?", a: "Yes. Open source, with a free cloud version." },
-  { q: "Which services work?", a: "Over 3,000. Paste a key for any of them." },
 ]
 
 const footerLinks = [
-  { h: "Product", l: [["How it works", "#product"], ["Security", "#security"], ["Pricing", "#pricing"], ["FAQ", "#faq"]] },
+  { h: "Product", l: [["Product", "#product"], ["Features", "#features"], ["Pricing", "#pricing"], ["FAQ", "#faq"]] },
   { h: "Open source", l: [["GitHub", githubUrl]] },
   { h: "Company", l: [["Tennant", tennantUrl], ["Terms", `${tennantUrl}/terms`], ["Privacy", `${tennantUrl}/privacy`]] },
 ]
@@ -85,7 +110,7 @@ export default function LandingPage() {
           <div className="relative overflow-hidden rounded-2xl bg-sand md:rounded-[20px]">
             <Image src="/landing/hero.jpg" alt="A lighthouse on a misty headland under a pale dawn sky" fill priority sizes="100vw" className="object-cover object-[48%_center]" />
             <div className="relative flex min-h-[780px] flex-col items-center px-5 pb-6 pt-20 text-center sm:min-h-[820px] md:min-h-[max(760px,calc(100svh-96px))] md:pb-10 md:pt-32">
-              <h1 className="display text-balance text-[3.3rem] text-forest sm:text-7xl md:text-[5.6rem]">Your virtual security guard.</h1>
+              <h1 className="display text-balance text-[3rem] text-forest sm:text-6xl md:text-[5.2rem]">Your virtual security guard.</h1>
               <p className="mt-6 max-w-lg text-[16px] leading-snug text-[#3d4540] md:text-[18px]">
                 The AI agent you can paste keys into.
                 <br />
@@ -110,25 +135,63 @@ export default function LandingPage() {
           </div>
         </Container>
 
-        {/* How it works */}
+        {/* What it's for */}
+        <section className="py-16 md:py-24">
+          <Container className="grid gap-10 md:grid-cols-[1fr_1.4fr] md:gap-16">
+            <Reveal>
+              <Headline eyebrow="Use it to">
+                <b>Stop worrying</b> about keys.
+              </Headline>
+            </Reveal>
+            <Reveal delay={80}>
+              <ul className="divide-y divide-line border-y border-line">
+                {uses.map((u) => (
+                  <li key={u} className="flex items-start gap-3 py-4 text-[17px] text-ink">
+                    <Check />
+                    {u}
+                  </li>
+                ))}
+              </ul>
+            </Reveal>
+          </Container>
+        </section>
+
+        {/* Product */}
         <section id="product" className="scroll-mt-24 py-16 md:py-24">
           <Container>
             <Reveal>
-              <Headline eyebrow="How it works">
+              <Headline eyebrow="Product">
                 Paste a key once. <b>It does the rest.</b>
               </Headline>
             </Reveal>
-            <div className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-3">
-              {[
-                { art: <VaultArt />, title: "Holds it", body: "Encrypted, in one place." },
-                { art: <StandInArt />, title: "Stands in", body: "Your .env, CI and agents get a copy that opens nothing." },
-                { art: <RotateArt />, title: "Rotates it", body: "On a schedule, or the minute it leaks. Nothing to redeploy." },
-              ].map((c, i) => (
+            <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {products.map((c, i) => (
                 <Reveal key={c.title} delay={i * 80}>
                   <MediaCard media={c.art} title={c.title} body={c.body} />
                 </Reveal>
               ))}
             </div>
+          </Container>
+        </section>
+
+        {/* Features */}
+        <section id="features" className="scroll-mt-24 py-16 md:py-24">
+          <Container>
+            <Reveal>
+              <Headline eyebrow="Features">
+                <b>Everything a guard needs.</b> Nothing it doesn't.
+              </Headline>
+            </Reveal>
+            <Reveal className="mt-12" delay={80}>
+              <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {features.map(([t, b]) => (
+                  <li key={t} className="rounded-2xl bg-cream p-6 md:min-h-36">
+                    <p className="text-[16px] font-medium text-forest">{t}</p>
+                    <p className="mt-1.5 text-[14px] leading-snug text-ink-soft">{b}</p>
+                  </li>
+                ))}
+              </ul>
+            </Reveal>
           </Container>
         </section>
 
@@ -147,27 +210,6 @@ export default function LandingPage() {
                 </Reveal>
               ))}
             </div>
-          </Container>
-        </section>
-
-        {/* Security */}
-        <section id="security" className="scroll-mt-24 py-16 md:py-24">
-          <Container>
-            <Reveal>
-              <Headline eyebrow="Security">
-                A leak, a log line or a curious agent <b>never sees a real key.</b>
-              </Headline>
-            </Reveal>
-            <Reveal className="mt-12" delay={80}>
-              <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
-                {security.map((s) => (
-                  <li key={s} className="flex items-start gap-3 rounded-2xl bg-cream p-6 text-[16px] font-medium leading-snug text-forest md:min-h-36 md:flex-col md:justify-between md:gap-6">
-                    <Check />
-                    {s}
-                  </li>
-                ))}
-              </ul>
-            </Reveal>
           </Container>
         </section>
 
