@@ -76,6 +76,15 @@ describe("vault", () => {
     expect(vault.shield("s1", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx").hidden).toBe(0);
   });
 
+  test("leaves provider metadata alone: Gemini rejects a redacted thought signature", () => {
+    const vault = new Vault();
+    const signature = "ErcBCrQBAWkUfRNLJBHnWqsJgS7hyN3U78QMKiTrgoGegs1XNwe1vYwebIOEjcBHYSd8SeUrrP34U4GnRflJX2FTSzxR5X8rtWKzrq6dm0ioIqDhwJB7laA=";
+    const messages = [{ role: "assistant", content: [{ type: "tool-call", name: "scan_text", native: { thoughtSignature: signature } }, { type: "text", text: `token ${FAKE.github}` }] }];
+    vault.shieldAll("s1", messages);
+    expect(messages[0]!.content[0]!.native!.thoughtSignature).toBe(signature);
+    expect(JSON.stringify(messages)).not.toContain(FAKE.github);
+  });
+
   test("redacts nested request content and spots leaks, raw or JSON-escaped", () => {
     const vault = new Vault();
     const messages = [{ role: "user", content: [{ type: "text", text: `GITHUB_TOKEN=${FAKE.github}` }] }];
