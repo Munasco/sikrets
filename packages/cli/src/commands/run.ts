@@ -2,6 +2,7 @@ import { providerEnv, toProcessEnv, type Env } from "../core/credentials.ts";
 import { projectContext } from "../core/config.ts";
 import { state } from "../core/state.ts";
 import { record } from "../core/activity.ts";
+import { externalKeys } from "../core/keys.ts";
 import { openVault } from "../core/vault.ts";
 
 // Runs a command with this project's values injected as environment variables. Nothing is written
@@ -20,6 +21,11 @@ export async function run(args: string[], opts: Record<string, unknown>) {
       if (!value) throw new Error(`${key} is missing from the ${vault.name} vault; run sikrets apply`);
       env[key] = value;
     }
+  }
+  // Keys imported or linked from outside Sikrets.
+  for (const { key } of await externalKeys(root)) {
+    const value = env[key] ? undefined : await vault.get(key);
+    if (value) env[key] = value;
   }
   // Provider admin credentials only on request, e.g. `sikrets run --providers -- terraform plan`.
   if (opts.providers) Object.assign(env, await providerEnv(resources.map((r) => r.provider)));
