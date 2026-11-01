@@ -11,8 +11,9 @@
   "scripts": {
     "dev": "bun --watch src/server.ts",
     "start": "bun src/server.ts",
-    "typecheck": "tsc --noEmit",
-    "test": "bun test --timeout 20000"
+    "typecheck": "tsc --noEmit && cd ui && tsc --noEmit",
+    "test": "bun test --timeout 20000",
+    "build:ui": "cd ui && bun install --frozen-lockfile && bun run build"
   },
   "type": "module",
   "dependencies": {

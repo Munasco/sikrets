@@ -34,6 +34,20 @@ export const OPENCODE = {
   startupMs: 30_000,
 };
 
+/** The gateway's filtered view of opencode's API (src/proxy.ts). */
+export const PROXY = {
+  /** Sessions whose owners the gateway remembers; older ones become unreachable. */
+  sessions: 2000,
+  promptChars: 60_000,
+  bodyBytes: 256_000,
+  /** Tools that ask before they run: a permission prompt the client answers. */
+  ask: ["scan_github_repo"],
+  /** Page origins of opencode's own desktop apps (Electron, Tauri), allowed cross-origin. */
+  corsOrigins: ["oc://renderer", "tauri://localhost", "http://tauri.localhost", "https://tauri.localhost"],
+  /** Basic-auth username stock opencode clients send with `OPENCODE_PASSWORD`; any is accepted. */
+  basicOwner: "opencode-client",
+};
+
 export const LIMITS = {
   textBytes: 200_000,
   tarballBytes: 60_000_000,
@@ -52,9 +66,15 @@ export const SERVER = {
   accessCode: Bun.env.ACCESS_CODE,
   cookie: "sikrets_agent",
   sessionDays: 30,
-  /** Per client: requests per minute, and model calls per day across everyone. */
+  /** Per client: messages per minute, and model calls per day across everyone. */
   perMinute: 12,
   perDay: 2000,
+  /** Per client: any API requests per minute (clients poll and stream a lot). */
+  requestsPerMinute: 600,
+  /** Log each API call's method, path and status (never queries or bodies), to see what clients use. */
+  logRequests: Bun.env.GATEWAY_LOG === "1",
+  /** The chat page, built by `bun run build:ui`. */
+  uiDir: "ui/dist",
   /** Written by the enclave launcher, served at /attestation. */
   attestationFile: Bun.env.ATTESTATION_FILE ?? "/etc/sikrets-agent/attestation.json",
 };

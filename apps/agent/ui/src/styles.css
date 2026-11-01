@@ -1,0 +1,185 @@
+@import "tailwindcss";
+
+/* Sikrets "Rose Rocket" theme, as on the landing page: paper and white surfaces, cream cards,
+   forest and pine for actions, faint grey for secondary words. Geist Sans for the interface,
+   Geist Serif for display moments, Geist Mono for code and labels. */
+
+@font-face {
+  font-family: "Geist Sans";
+  src: url("/fonts/GeistSans.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist Serif";
+  src: url("/fonts/GeistSerif.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/fonts/GeistMono.woff2") format("woff2");
+  font-weight: 400 500;
+  font-display: swap;
+}
+
+@theme {
+  --font-sans: "Geist Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Geist Serif", ui-serif, Georgia, serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+
+  --color-paper: #fbfaf7;
+  --color-white: #ffffff;
+  --color-cream: #f4f3f1;
+  --color-sand: #eceae6;
+  --color-line: #e7e4df;
+  --color-line-soft: #efecea;
+  --color-ink: #181818;
+  --color-ink-soft: #555555;
+  --color-muted: #948b81;
+  --color-faint: #b3aea7;
+  --color-forest: #1f3b2d;
+  --color-pine: #1f4a3a;
+  --color-pine-deep: #0f2e27;
+  --color-rust: #a8522f;
+  --color-tan: #a08a66;
+}
+
+@layer base {
+  * {
+    @apply border-line outline-pine/40;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  html {
+    color-scheme: light;
+  }
+  body {
+    @apply bg-paper font-sans text-ink antialiased;
+    font-size: 14px;
+    line-height: 1.55;
+    letter-spacing: -0.003em;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--color-pine) 18%, white);
+  }
+  button {
+    cursor: pointer;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-pine/50;
+  }
+}
+
+.display {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+}
+
+/* Assistant prose. */
+.prose-chat p {
+  margin: 0 0 0.7em;
+}
+.prose-chat p:last-child {
+  margin-bottom: 0;
+}
+.prose-chat ul,
+.prose-chat ol {
+  margin: 0 0 0.7em;
+  padding-left: 1.3em;
+}
+.prose-chat ul {
+  list-style: disc;
+}
+.prose-chat ol {
+  list-style: decimal;
+}
+.prose-chat li {
+  margin: 0.2em 0;
+}
+.prose-chat li::marker {
+  color: var(--color-faint);
+}
+.prose-chat h3 {
+  font-weight: 600;
+  font-size: 14px;
+  margin: 1em 0 0.4em;
+}
+.prose-chat strong {
+  font-weight: 600;
+}
+.prose-chat a {
+  color: var(--color-pine);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--color-pine) 35%, transparent);
+  text-underline-offset: 2px;
+}
+.prose-chat code {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  background: var(--color-cream);
+  border-radius: 5px;
+  padding: 0.1em 0.35em;
+}
+.prose-chat pre {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  background: var(--color-cream);
+  border: 1px solid var(--color-line-soft);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 0 0 0.7em;
+  overflow-x: auto;
+}
+.prose-chat pre code {
+  background: none;
+  padding: 0;
+}
+.prose-chat hr {
+  border: 0;
+  border-top: 1px solid var(--color-line);
+  margin: 1em 0;
+}
+.prose-chat table {
+  border-collapse: collapse;
+  font-size: 13px;
+  margin: 0 0 0.7em;
+  display: block;
+  overflow-x: auto;
+}
+.prose-chat th,
+.prose-chat td {
+  border: 1px solid var(--color-line);
+  padding: 4px 8px;
+  text-align: left;
+}
+
+/* Streaming: a soft sheen across the "working" label. */
+.shimmer {
+  background: linear-gradient(90deg, var(--color-faint) 0%, var(--color-ink-soft) 50%, var(--color-faint) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 1.6s linear infinite;
+}
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shimmer {
+    animation: none;
+    color: var(--color-muted);
+    background: none;
+  }
+}

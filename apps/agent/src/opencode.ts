@@ -1,7 +1,7 @@
-import { mkdirSync } from "node:fs";
+import { mkdirSync, realpathSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
-import { MODEL, OPENCODE, SYSTEM_PROMPT } from "./constants.ts";
+import { MODEL, OPENCODE, PROXY, SYSTEM_PROMPT } from "./constants.ts";
 import { TOOLS } from "./tools.ts";
 
 // Runs opencode as a private server for the gateway: bound to loopback, behind a random password,
@@ -14,6 +14,7 @@ const APP = path.join(import.meta.dir, "..");
 const PERMISSIONS = [
   { action: "*", resource: "*", effect: "deny" },
   ...Object.keys(TOOLS).map((action) => ({ action, resource: "*", effect: "allow" })),
+  ...PROXY.ask.map((action) => ({ action, resource: "*", effect: "ask" })),
 ];
 
 /** The model settings opencode runs with; tests swap in a local stand-in. */
@@ -72,6 +73,8 @@ export function binary(): string {
 
 export interface Server {
   url: string;
+  /** opencode's private working directory, where every session runs. */
+  directory: string;
   /** Calls opencode's API with the server password. */
   fetch(pathname: string, init?: RequestInit): Promise<Response>;
   stop(): void;
@@ -120,6 +123,7 @@ export async function start(opts: Options = {}): Promise<Server> {
   const auth = `Basic ${Buffer.from(`opencode:${password}`).toString("base64")}`;
   const server: Server = {
     url,
+    directory: realpathSync(dirs.work),
     fetch: (pathname, init = {}) => fetch(url + pathname, { ...init, headers: { ...init.headers, authorization: auth, "x-opencode-directory": dirs.work } }),
     stop: () => proc.kill(),
   };

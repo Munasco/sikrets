@@ -40,17 +40,23 @@ export function shield(text: string): { text: string; secrets: Map<string, strin
 
 const OPAQUE = [Date, RegExp, Map, Set, Promise, ArrayBuffer];
 
-/** Applies fn to every string in a value, in place for arrays and objects (class instances too:
- * opencode's request messages are schema classes). */
-function mapStrings(v: unknown, fn: (s: string) => string, seen = new WeakSet<object>()): unknown {
-  if (typeof v === "string") return fn(v);
+/** Message fields that hold what people and tools wrote. Everything else in a model request
+ * (ids, provider metadata such as Gemini's base64 thought signatures) must pass through untouched:
+ * those are high-entropy by design, and redacting them breaks the request. */
+const TEXT_KEYS = new Set(["text", "content"]);
+
+/** Applies fn to strings in a value, in place for arrays and objects (class instances too:
+ * opencode's request messages are schema classes). With `textOnly`, only strings under
+ * TEXT_KEYS are changed. */
+function mapStrings(v: unknown, fn: (s: string) => string, textOnly = false, key?: string, seen = new WeakSet<object>()): unknown {
+  if (typeof v === "string") return !textOnly || (key !== undefined && TEXT_KEYS.has(key)) ? fn(v) : v;
   if (!v || typeof v !== "object" || seen.has(v)) return v;
   seen.add(v);
   if (Array.isArray(v)) {
-    for (let i = 0; i < v.length; i++) v[i] = mapStrings(v[i], fn, seen);
+    for (let i = 0; i < v.length; i++) v[i] = mapStrings(v[i], fn, textOnly, key, seen);
   } else if (!Object.isFrozen(v) && !ArrayBuffer.isView(v) && !OPAQUE.some((t) => v instanceof t)) {
     const o = v as Record<string, unknown>;
-    for (const k of Object.keys(o)) o[k] = mapStrings(o[k], fn, seen);
+    for (const k of Object.keys(o)) o[k] = mapStrings(o[k], fn, textOnly, k, seen);
   }
   return v;
 }
@@ -74,7 +80,7 @@ export class Vault {
 
   /** Redacts every string inside a value (in place), e.g. a model request's messages. */
   shieldAll<T>(session: string, value: T): T {
-    return mapStrings(value, (s) => this.shield(session, s).text) as T;
+    return mapStrings(value, (s) => this.shield(session, s).text, true) as T;
   }
 
   /** A copy of a tool's input with this session's placeholders swapped back for the real values. */

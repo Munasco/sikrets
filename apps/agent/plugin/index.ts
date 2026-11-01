@@ -1,6 +1,7 @@
 import type { Plugin } from "@opencode/plugin";
 import { runTool, TOOLS } from "../src/tools.ts";
 import { Vault } from "../src/redact.ts";
+import { PROXY } from "../src/constants.ts";
 
 // The Sikrets opencode plugin: the guard agent's five tools, and the hooks that keep pasted
 // secrets from the model, the session store and the logs.
@@ -13,6 +14,9 @@ import { Vault } from "../src/redact.ts";
 //    have is dropped, whatever the config says.
 // 4. http.request: the last check before bytes leave. A request that still holds a known secret is
 //    refused, so a missed path fails closed instead of leaking.
+//
+// Tools in PROXY.ask (downloading someone's repo) ask first: opencode holds the call and the client
+// shows a permission prompt.
 
 const vault = new Vault();
 const OURS = new Set(Object.keys(TOOLS));
@@ -37,6 +41,18 @@ const plugin: Plugin.Plugin = {
           input: tool.schema as never,
           options: { codemode: false },
           execute: async (input, context) => {
+            if (PROXY.ask.includes(name)) {
+              const target = String((input as { repo?: unknown }).repo ?? "*");
+              await ctx.permission.assert({
+                sessionID: context.sessionID,
+                agent: context.agent,
+                source: { type: "tool", messageID: context.messageID, id: context.id },
+                action: name,
+                resources: [target],
+                save: [target],
+                metadata: { reason: `Downloads ${target} from GitHub to scan it.` },
+              });
+            }
             const result = await runTool(name, vault.reveal(context.sessionID, input));
             return { content: JSON.stringify(result), metadata: { error: Boolean((result as { error?: unknown })?.error) } };
           },
