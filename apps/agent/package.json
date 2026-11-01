@@ -1,0 +1,24 @@
+{
+  "name": "sikrets-agent",
+  "version": "0.0.1",
+  "devDependencies": {
+    "@opencode/plugin": "2.2.5",
+    "@types/bun": "1.3.1",
+    "typescript": "5.9.3"
+  },
+  "description": "Chat with the Sikrets security agent.",
+  "private": true,
+  "scripts": {
+    "dev": "bun --watch src/server.ts",
+    "start": "bun src/server.ts",
+    "typecheck": "tsc --noEmit && cd ui && tsc --noEmit",
+    "test": "bun test --timeout 20000",
+    "build:ui": "cd ui && bun install --frozen-lockfile && bun run build",
+    "build:rules": "bun scripts/gitleaks.ts",
+    "bench": "bun src/redact.bench.ts"
+  },
+  "type": "module",
+  "dependencies": {
+    "@opencode/cli": "2.2.5"
+  }
+}
