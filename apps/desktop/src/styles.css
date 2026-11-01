@@ -1,0 +1,106 @@
+@import "tailwindcss";
+
+/* Rose Rocket: paper and white surfaces, cream panels, forest and pine for actions, muted grey
+   for secondary words. Geist Sans for the interface, Geist Mono for labels and key names. */
+
+@font-face {
+  font-family: "Geist Sans";
+  src: url("/fonts/GeistSans.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/fonts/GeistMono.woff2") format("woff2");
+  font-weight: 400 500;
+  font-display: swap;
+}
+
+@theme {
+  --font-sans: "Geist Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+
+  --color-paper: #fbfaf7;
+  --color-white: #ffffff;
+  --color-cream: #f4f3f1;
+  --color-sand: #eceae6;
+  --color-line: #e7e4df;
+  --color-ink: #181818;
+  --color-ink-soft: #555555;
+  --color-muted: #b3aea7;
+  --color-dim: #8a837b;
+  --color-forest: #1f3b2d;
+  --color-pine: #1f4a3a;
+  --color-rust: #a8522f;
+  --color-amber: #9a6b1f;
+}
+
+@layer base {
+  * {
+    @apply border-line;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  html {
+    color-scheme: light;
+  }
+  body {
+    @apply bg-paper font-sans text-ink antialiased;
+    font-size: 13px;
+    line-height: 1.5;
+    letter-spacing: -0.003em;
+    -webkit-user-select: none;
+    user-select: none;
+    cursor: default;
+  }
+  input,
+  textarea,
+  .selectable {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--color-pine) 18%, white);
+  }
+  button {
+    cursor: pointer;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-1 outline-pine/50;
+  }
+}
+
+.label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-dim);
+}
+
+.drag {
+  -webkit-app-region: drag;
+}
+
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.rise {
+  animation: rise 160ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rise {
+    animation: none;
+  }
+}
