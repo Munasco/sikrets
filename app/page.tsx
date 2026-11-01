@@ -1,8 +1,10 @@
 import Image from "next/image"
-import { Accordion, AgentArt, ApproveArt, CardPhoto, Check, Container, GuardArt, GuardCard, Headline, HeroButton, MediaCard, Pill, WatchArt } from "@/components/landing"
+import { Accordion, CardPhoto, Check, Container, Headline, HeroButton, MediaCard, Pill, ProductBlock } from "@/components/landing"
+import { AgentAccessScene, ChatScene, GuardFeed, GuardScene, LeakScene, SceneBackdrop } from "@/components/scenes"
 import { SikretsMark } from "@/components/logo"
 import { Reveal } from "@/components/reveal"
 import { site } from "@/lib/site"
+import { cn } from "@/lib/utils"
 
 const { tennantUrl, waitlistUrl, demoUrl, githubUrl } = site
 
@@ -26,29 +28,58 @@ const nav = [
   { label: "FAQ", href: "#faq" },
 ]
 
-/** Moments the guard steps in. One line each; no claim is repeated elsewhere on the page. */
+/** Moments the guard steps in, keys and everything else. One line each. */
 const uses = [
+  "A key lands in a public repo.",
   "An attachment tries to open your keychain.",
   "Someone signs in to your email from a new country.",
-  "A payment doesn't look like you.",
-  "Your SIM moves to a phone you don't own.",
-  "A key shows up somewhere it shouldn't.",
   "An AI agent asks for more than its task needs.",
+  "Your SIM moves to a phone you don't own.",
+  "A payment doesn't look like you.",
 ]
 
-/** What the agent does, in the order it does it: watch, hold, ask, answer. */
+/** The three things it guards, each with a live scene. */
 const products = [
-  { art: <WatchArt />, title: "Watches", body: "Learns what normal looks like across your devices, accounts and agents. No rules to write." },
-  { art: <GuardArt />, title: "Holds", body: "Anything unusual waits for you: a download, a sign-in, a payment, an agent's request." },
-  { art: <ApproveArt />, title: "Acts", body: "Signs out sessions, rotates keys and locks accounts. You approve on your phone, or let it act on its own." },
-  { art: <AgentArt />, title: "Answers", body: "Ask it anything. Is this email real, is this app safe, what changed on my account." },
+  {
+    name: "Leaked keys",
+    line: "Finds your API keys wherever they leak and replaces them before anyone can use them. Your apps keep running.",
+    points: [
+      ["Leak detection", "Watches public repos, logs and pastes for your keys."],
+      ["Automatic rotation", "A leaked key is replaced in seconds. Nothing to redeploy."],
+      ["No keys in your code", "Your .env, CI and hosting hold placeholders. The real key is attached on the way out."],
+    ] as [string, string][],
+    scene: <LeakScene />,
+    photo: "/landing/tower.jpg",
+  },
+  {
+    name: "Your devices and accounts",
+    line: "Learns what normal looks like on your laptop, phone and accounts, and holds anything that isn't until you decide.",
+    points: [
+      ["Watches quietly", "Downloads, sign-ins, apps and payments. No rules to write."],
+      ["Holds, then asks", "Approve on your phone or laptop, like a passkey."],
+      ["Keeps the evidence", "Every hold comes with what happened and why."],
+    ] as [string, string][],
+    scene: <GuardScene />,
+    photo: "/landing/cabin.jpg",
+  },
+  {
+    name: "Your AI agents",
+    line: "Claude, ChatGPT and Cursor get the access a task needs, for as long as it takes. They never see the key.",
+    points: [
+      ["Scoped access", "Each agent reaches only the services you allow."],
+      ["Expires on its own", "Access ends with the task, or after an hour."],
+      ["Works over MCP", "Connect any agent in one command."],
+    ] as [string, string][],
+    scene: <AgentAccessScene />,
+    photo: "/landing/road.jpg",
+  },
 ]
 
-/** How the guard decides, from the blueprint: the model proposes, policy enforces. */
+/** How it decides, from the blueprint: the model proposes, policy enforces. */
 const rules = [
-  ["The model never grants authority", "It investigates and proposes. A fixed policy decides what runs."],
-  ["Every permission expires", "Access is narrow, time-limited and revocable. Nothing stands open."],
-  ["You see why", "Each action comes with a reason and an undo. Only you can see it."],
+  ["The model proposes, policy decides", "It investigates and suggests. A fixed policy decides what runs."],
+  ["Every permission expires", "Access is narrow, time-limited and revocable."],
+  ["Each action has a reason and an undo", "Only you can see them."],
 ]
 
 /** Plans. Prices are the founder's call; the paid tiers show availability until they are set. */
@@ -58,19 +89,15 @@ const plans = [
   { name: "Citadel", price: "Custom", term: "", tag: "Money, wallets and recovery", cta: { label: "Talk to us", href: demoUrl, variant: "outline" as const }, features: ["Everything in Warden", "Covers bank accounts and wallets", "2-of-3 approval with an emergency contact", "48-hour hold after a SIM change", "Hardware vault"] },
 ]
 
-/** Why it can be trusted with everything it watches. */
+/** Why it can be trusted with what it watches. */
 const trust = [
-  ["Confidential compute", "The agent runs in a sealed enclave. Neither we nor the cloud can see what it sees."],
-  ["Thinks like an attacker", "Built on models that don't refuse security work, so it finds what attackers would."],
-  ["Uses keys, never reads them", "It can use, rotate or revoke a credential. Nothing can read one, including us."],
-  ["Your call, per action", "Off, ask, hold or act. Anything involving money always asks."],
-  ["Works with your agents", "Claude, ChatGPT and Cursor get access for one task, never the password."],
-  ["Keeps your password manager", "1Password, Bitwarden and Apple Passwords stay where they are."],
-  ["Private by default", "What it watches and does stays yours. No public log of your activity."],
+  ["Confidential compute", "Runs in a sealed enclave. Neither we nor the cloud can see what it sees."],
+  ["Uses keys, never reads them", "It can use, rotate or revoke a key. Nothing can read one, including us."],
+  ["Thinks like an attacker", "Built on models that don't refuse security work."],
   ["Open source", "Read the code that guards you."],
 ]
 
-const surfaces = ["Mac", "iPhone", "Gmail", "GitHub", "1Password", "Slack", "AWS", "Claude"]
+const surfaces = ["GitHub", "Stripe", "OpenAI", "AWS", "Gmail", "1Password", "Claude", "iPhone"]
 
 const tiers = [
   { who: "You", role: "Virtual security guard", image: "/landing/cabin.jpg", alt: "A small cabin with a lit window in a misty forest", cta: { label: "Get started", href: waitlistUrl } },
@@ -79,7 +106,7 @@ const tiers = [
 ]
 
 const faq = [
-  { q: "What is Sikrets?", a: "An AI security agent for you and your company. It watches, holds what looks wrong and asks before it acts." },
+  { q: "What is Sikrets?", a: "An AI security agent for you and your company. It rotates leaked keys, holds what looks wrong and asks before anything that matters." },
   { q: "Can it see my data?", a: "Only inside a sealed enclave. Neither we nor the cloud provider can read what it sees." },
   { q: "What does it do without asking?", a: "Only what you allow. Each kind of action is off, ask, hold or act. Anything involving money always asks." },
   { q: "Does it work with my AI agents?", a: "Yes. Claude, ChatGPT, Cursor and others connect over MCP and get access for one task, never the secret itself." },
@@ -129,19 +156,18 @@ export default function LandingPage() {
             <div className="relative flex min-h-[780px] flex-col items-center px-5 pb-6 pt-20 text-center sm:min-h-[820px] md:min-h-[max(760px,calc(100svh-96px))] md:pb-10 md:pt-32">
               <h1 className="display text-balance text-[3rem] text-forest sm:text-6xl md:text-[5.2rem]">Your virtual security guard.</h1>
               <p className="mt-6 max-w-lg text-[16px] leading-snug text-[#3d4540] md:text-[18px]">
-                An AI agent that watches your devices, accounts and agents.
-                <br />
-                It stops what looks wrong and asks before it acts.
+                An AI agent that rotates leaked keys, stops what looks wrong
+                <br className="hidden sm:block" /> and asks before anything that matters.
               </p>
               <div className="mt-8">
                 <HeroButton href={waitlistUrl}>Get started</HeroButton>
               </div>
-              <GuardCard className="mt-auto md:absolute md:bottom-10 md:right-10 md:mt-0" />
+              <GuardFeed className="mt-auto md:absolute md:bottom-10 md:right-10 md:mt-0" />
             </div>
           </div>
         </section>
 
-        {/* What it watches */}
+        {/* Works with */}
         <Container className="py-12 md:py-16">
           <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-3 sm:gap-x-10">
             {surfaces.map((p) => (
@@ -157,7 +183,7 @@ export default function LandingPage() {
           <Container className="grid gap-10 md:grid-cols-[1fr_1.4fr] md:gap-16">
             <Reveal>
               <Headline eyebrow="When it steps in">
-                It watches, so you don't have to. <b>It asks before anything that matters.</b>
+                It watches, so you don't have to. <b>You hear from it when it matters.</b>
               </Headline>
             </Reveal>
             <Reveal delay={80}>
@@ -173,25 +199,58 @@ export default function LandingPage() {
           </Container>
         </section>
 
-        {/* Product */}
+        {/* Product: one block per thing it guards, each with a live scene. */}
         <section id="product" className="scroll-mt-24 py-16 md:py-24">
           <Container>
             <Reveal>
               <Headline eyebrow="Product">
-                Learns your normal. <b>Stops what isn't.</b>
+                One guard for <b>your keys, your devices and your agents.</b>
               </Headline>
             </Reveal>
-            <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {products.map((c, i) => (
-                <Reveal key={c.title} delay={i * 80}>
-                  <MediaCard media={c.art} title={c.title} body={c.body} />
+            <div className="mt-16 space-y-20 md:space-y-28">
+              {products.map((p, i) => (
+                <Reveal key={p.name}>
+                  <ProductBlock
+                    name={p.name}
+                    line={p.line}
+                    points={p.points}
+                    flip={i % 2 === 1}
+                    scene={
+                      <SceneBackdrop src={p.photo} className="min-h-[22rem] md:min-h-[26rem]">
+                        {p.scene}
+                      </SceneBackdrop>
+                    }
+                  />
                 </Reveal>
               ))}
             </div>
           </Container>
         </section>
 
-        {/* Trust */}
+        {/* Ask it: the dark band, with the rules it acts under. */}
+        <section id="security" className="scroll-mt-24 bg-forest py-20 text-white md:py-28">
+          <Container>
+            <Reveal className="grid items-center gap-12 md:grid-cols-[1fr_1.1fr] md:gap-16">
+              <div>
+                <h2 className="display text-balance text-[2.4rem] sm:text-5xl md:text-[3.4rem]">
+                  Ask it anything.
+                  <span className="block text-white/50">It checks, explains, and acts only within your rules.</span>
+                </h2>
+              </div>
+              <ChatScene />
+            </Reveal>
+            <Reveal className="mt-16 grid gap-8 border-t border-white/10 pt-10 md:grid-cols-3" delay={80}>
+              {rules.map(([t, b]) => (
+                <div key={t}>
+                  <p className="text-[16px] font-medium">{t}</p>
+                  <p className="mt-1.5 text-[14px] leading-snug text-white/60">{b}</p>
+                </div>
+              ))}
+            </Reveal>
+          </Container>
+        </section>
+
+        {/* Trust: four cells in one bordered strip. */}
         <section id="trust" className="scroll-mt-24 py-16 md:py-24">
           <Container>
             <Reveal>
@@ -199,36 +258,13 @@ export default function LandingPage() {
                 A guard sees everything. <b>So it can't be the weak spot.</b>
               </Headline>
             </Reveal>
-            <Reveal className="mt-12" delay={80}>
-              <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {trust.map(([t, b]) => (
-                  <li key={t} className="rounded-2xl bg-cream p-6 md:min-h-36">
-                    <p className="text-[16px] font-medium text-forest">{t}</p>
-                    <p className="mt-1.5 text-[14px] leading-snug text-ink-soft">{b}</p>
-                  </li>
-                ))}
-              </ul>
-            </Reveal>
-          </Container>
-        </section>
-
-        {/* How it decides */}
-        <section id="security" className="scroll-mt-24 py-16 md:py-24">
-          <Container>
-            <Reveal>
-              <Headline eyebrow="How it decides">
-                The model proposes. <b>Policy enforces.</b>
-              </Headline>
-            </Reveal>
-            <Reveal className="mt-12" delay={80}>
-              <ul className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                {rules.map(([t, b]) => (
-                  <li key={t} className="rounded-2xl bg-cream p-6 md:min-h-44 md:flex md:flex-col md:justify-between">
-                    <p className="display text-[1.6rem] text-forest md:text-[1.75rem]">{t}</p>
-                    <p className="mt-3 text-[15px] leading-snug text-ink-soft">{b}</p>
-                  </li>
-                ))}
-              </ul>
+            <Reveal className="mt-12 grid overflow-hidden rounded-2xl border border-line sm:grid-cols-2 lg:grid-cols-4" delay={80}>
+              {trust.map(([t, b], i) => (
+                <div key={t} className={cn("p-6 md:p-7", i > 0 && "border-t border-line sm:border-t-0", i % 2 === 1 && "sm:border-l", i >= 2 && "sm:border-t lg:border-t-0", i > 0 && "lg:border-l")}>
+                  <p className="text-[16px] font-medium text-forest">{t}</p>
+                  <p className="mt-1.5 text-[14px] leading-snug text-ink-soft">{b}</p>
+                </div>
+              ))}
             </Reveal>
           </Container>
         </section>

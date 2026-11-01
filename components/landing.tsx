@@ -1,6 +1,5 @@
 import Image from "next/image"
 import type { ReactNode } from "react"
-import { SikretsMark } from "@/components/logo"
 import { cn } from "@/lib/utils"
 
 // Landing page building blocks. White page, light grey rounded cards, pastel photography,
@@ -86,6 +85,28 @@ export function Check() {
   )
 }
 
+/** A product, Infisical-style: a highlighted name and one sentence, then a bordered block with
+ *  three short capabilities on one side and a live scene on a blurred photo on the other. */
+export function ProductBlock({ name, line, points, scene, flip }: { name: string; line: string; points: [string, string][]; scene: ReactNode; flip?: boolean }) {
+  return (
+    <div>
+      <h3 className="display inline bg-[#e3ece5] px-1.5 text-[2rem] text-forest md:text-[2.4rem]">{name}</h3>
+      <p className="mt-4 max-w-xl text-[17px] leading-relaxed text-ink-soft">{line}</p>
+      <div className="mt-8 grid overflow-hidden rounded-2xl border border-line bg-white md:grid-cols-[1fr_1.5fr]">
+        <ul className={cn("divide-y divide-line", flip && "md:order-2")}>
+          {points.map(([label, body]) => (
+            <li key={label} className="p-6 md:p-7">
+              <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted">{label}</p>
+              <p className="mt-2 text-[15px] leading-relaxed text-ink">{body}</p>
+            </li>
+          ))}
+        </ul>
+        {scene}
+      </div>
+    </div>
+  )
+}
+
 /** Light card: a photo or illustration on top, then a mono label and a serif line. */
 export function MediaCard({ media, label, title, body, cta, className }: { media: ReactNode; label?: string; title: string; body?: string; cta?: { label: string; href: string }; className?: string }) {
   return (
@@ -107,110 +128,4 @@ export function MediaCard({ media, label, title, body, cta, className }: { media
 
 export function CardPhoto({ src, alt }: { src: string; alt: string }) {
   return <Image src={src} alt={alt} fill sizes="(min-width: 768px) 33vw, 100vw" className="object-cover transition-transform duration-700 hover:scale-[1.03] motion-reduce:transition-none" />
-}
-
-/** The guard's status, frosted white over the hero photo: on duty, what it watches, what it just did. */
-export function GuardCard({ className }: { className?: string }) {
-  const events = [
-    { what: "Held a sign-in from a new country", when: "now" },
-    { what: "Stopped an app reading your keychain", when: "4m" },
-  ]
-  return (
-    <div className={cn("w-full max-w-sm rounded-2xl border border-white/70 bg-white/70 p-5 text-forest shadow-[0_20px_60px_rgba(40,50,45,0.15)] backdrop-blur-xl md:w-[21rem]", className)}>
-      <div className="flex items-center justify-between">
-        <span className="flex items-center gap-2.5 font-mono text-[12px] uppercase tracking-[0.08em] text-ink-soft">
-          <span className="relative flex size-2.5">
-            <span className="absolute inline-flex size-full animate-ping rounded-full bg-[#3fae6f] opacity-60 motion-reduce:animate-none" />
-            <span className="relative inline-flex size-2.5 rounded-full bg-[#3fae6f]" />
-          </span>
-          On duty
-        </span>
-        <SikretsMark size={16} />
-      </div>
-      <p className="display mt-3 text-[1.45rem] sm:mt-4 sm:text-[1.6rem]">Watching 3 devices · 14 accounts</p>
-      <ul className="mt-4 hidden divide-y divide-forest/10 border-t border-forest/10 text-[14px] sm:block">
-        {events.map((e) => (
-          <li key={e.what} className="flex items-center justify-between gap-4 py-2.5">
-            <span className="flex min-w-0 items-center gap-2.5 text-ink">
-              <svg className="size-4 shrink-0 text-pine" viewBox="0 0 16 16" fill="none" aria-hidden>
-                <path d="M3 8.5l3 3 7-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              <span className="truncate">{e.what}</span>
-            </span>
-            <span className="shrink-0 font-mono text-[11px] text-muted">{e.when}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
-
-/* Small product sketches for the product cards: white panels on the card's grey well. */
-
-function Panel({ children }: { children: ReactNode }) {
-  return (
-    <div className="absolute inset-0 grid place-items-center p-6">
-      <div className="w-full max-w-[18rem] rounded-xl bg-white p-4 shadow-[0_8px_30px_rgba(40,50,45,0.08)]">{children}</div>
-    </div>
-  )
-}
-
-const Lock = () => (
-  <svg className="size-3.5 shrink-0 text-pine" viewBox="0 0 16 16" fill="none" aria-hidden>
-    <rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
-    <path d="M5.5 7V5a2.5 2.5 0 015 0v2" stroke="currentColor" strokeWidth="1.5" />
-  </svg>
-)
-
-export function WatchArt() {
-  return (
-    <Panel>
-      <ul className="space-y-2.5 text-[12px] text-ink-soft">
-        {[["MacBook", "normal"], ["Gmail", "normal"], ["GitHub", "new sign-in"]].map(([what, state]) => (
-          <li key={what} className="flex items-center justify-between gap-3 rounded-lg bg-cream px-3 py-2">
-            <span className="truncate">{what}</span>
-            <span className={cn("flex shrink-0 items-center gap-1.5 whitespace-nowrap font-mono text-[11px]", state === "normal" ? "text-muted" : "text-[#b4572e]")}>
-              <span className={cn("inline-block size-1.5 rounded-full", state === "normal" ? "bg-[#3fae6f]" : "bg-[#d9894f]")} aria-hidden />
-              {state}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </Panel>
-  )
-}
-
-export function ApproveArt() {
-  return (
-    <Panel>
-      <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted">Sikrets wants to</p>
-      <p className="mt-2 text-[12px] text-ink">Sign out an unknown GitHub session.</p>
-      <div className="mt-3 flex gap-2 whitespace-nowrap text-[11px] font-medium">
-        <span className="rounded-full bg-pine px-2.5 py-1 text-white">Approve</span>
-        <span className="rounded-full bg-cream px-2.5 py-1 text-ink-soft">Not now</span>
-      </div>
-    </Panel>
-  )
-}
-
-export function GuardArt() {
-  return (
-    <Panel>
-      <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted">Held</p>
-      <p className="mt-2 text-[12px] text-ink">invoice_oct.pdf.app wants your keychain.</p>
-      <div className="mt-3 flex gap-2 whitespace-nowrap text-[11px] font-medium">
-        <span className="rounded-full bg-pine px-2.5 py-1 text-white">Allow once</span>
-        <span className="rounded-full bg-cream px-2.5 py-1 text-ink-soft">Keep blocked</span>
-      </div>
-    </Panel>
-  )
-}
-
-export function AgentArt() {
-  return (
-    <Panel>
-      <p className="rounded-lg bg-cream px-3 py-2 text-[12px] text-ink-soft">Is this invoice email real?</p>
-      <p className="mt-2 rounded-lg bg-pine px-3 py-2 text-[12px] text-white">No. The link goes to a lookalike domain. I moved it to spam.</p>
-    </Panel>
-  )
 }
