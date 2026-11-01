@@ -66,4 +66,12 @@ security find-generic-password -s sikrets-agent-demo -a access-code -w
 - **Secrets:** the host reads the access code and the model key from SSM and hands them to the enclave over vsock every 15 minutes. So the host can see the model key: anyone who controls the instance could use it. Conversations and pasted keys stay inside the enclave.
 - **Attestation:** `/attestation` returns a document signed by the Nitro Security Module. Its PCR0–2 must match the measurements `nitro-cli build-enclave` printed for this build.
 
+Live build (commit `d25b50c`, deployed 2026-11-01):
+
+| PCR | Value |
+|---|---|
+| PCR0 | `9b8ed97223978f3cb9821bc4473a165938d98eab13f64d7e1c1c4990bf016fc0da678d4a9c4af6b794c636da9b5a4b05` |
+| PCR1 | `3b4a7e1b5f13c5a1000b3ed32ef8995ee13e9876329f9bc72650b918329ef9cf4e2e4d1e1e37375dab0ba56ba0974d03` |
+| PCR2 | `57be25a04b024e0615c9a4744599a894406c8bca6aab555247c0eb8480f232f1f412ce1f822d452e555d3e56c6a4f91e` |
+
 `host.sh down` serves from the host again.
