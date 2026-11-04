@@ -1,4 +1,5 @@
 import { awsClientConfig } from "../providers/aws.ts";
+import type { TemporaryCredentials } from "../cloud/types.ts";
 import { ensureDataKey, loadDataKey } from "./datakey.ts";
 import { envelopeKind, openValue, projectKey, sealValue } from "./envelope.ts";
 import { registerUndo } from "./plan.ts";
@@ -10,8 +11,16 @@ import { keychainVaultService, SSM_PREFIX } from "../constants.ts";
 // fallback. Values only ever cross this boundary wrapped in Secret. Anything bound for SSM is
 // sealed on this machine first (see envelope.ts), so the account holds ciphertext it can't read;
 // legacy plaintext parameters stay readable until `sikrets migrate encrypt` seals them.
+// A cloud vault ("aws") is the secret store of your self-hosted Sikrets stack (`sikrets cloud
+// connect`, see cloud/types.ts): the same sealed values, readable by agents only through their own
+// cloud identities.
 
-export type VaultName = "ssm" | "keychain";
+export type VaultName = "ssm" | "keychain" | "aws";
+export const VAULT_NAMES: readonly VaultName[] = ["ssm", "keychain", "aws"];
+/** Vaults that store values off this machine, and so hold only sealed (sk1:) envelopes. */
+export const isRemoteVault = (name: VaultName) => name !== "keychain";
+/** Vaults that live in a self-hosted Sikrets stack; the name is the cloud's id. */
+export const isCloudVault = (name: VaultName): name is "aws" => name === "aws";
 
 export interface Vault {
   readonly name: VaultName;
@@ -25,6 +34,8 @@ export interface VaultOptions {
   requireSealed?: boolean;
   /** Tests pass a fake; otherwise an SSMClient for the connected AWS profile. */
   client?: SsmClient;
+  /** Cloud vaults: read with an agent's temporary credentials instead of yours. */
+  as?: TemporaryCredentials;
 }
 
 const KEY = /^[A-Z][A-Z0-9_]{0,127}$/;
@@ -65,7 +76,8 @@ export interface SsmParams {
   delete(key: string): Promise<void>;
 }
 
-export async function ssmParams(project: string, client?: SsmClient): Promise<SsmParams> {
+export async function ssmParams(project: string, client?: SsmClient, keyId?: string): Promise<SsmParams> {
+  // SsmParams is the SecretStore shape cloud providers return, so the sealing below works on any of them.
   const { SSMClient, PutParameterCommand, GetParameterCommand, GetParametersByPathCommand, DeleteParameterCommand, ParameterNotFound } = await import("@aws-sdk/client-ssm");
   const c = client ?? new SSMClient(await awsClientConfig());
   const prefix = `${SSM_PREFIX}/${project}`;
@@ -95,7 +107,7 @@ export async function ssmParams(project: string, client?: SsmClient): Promise<Ss
       }
     },
     // Still a SecureString: KMS stays on as a second layer, it just no longer holds the only key.
-    put: async (key, stored) => void (await c.send(new PutParameterCommand({ Name: path(key), Value: stored, Type: "SecureString", Overwrite: true, Tier: "Standard" }))),
+    put: async (key, stored) => void (await c.send(new PutParameterCommand({ Name: path(key), Value: stored, Type: "SecureString", Overwrite: true, Tier: "Standard", ...(keyId ? { KeyId: keyId } : {}) }))),
     async delete(key) {
       try {
         await c.send(new DeleteParameterCommand({ Name: path(key) }));
@@ -117,8 +129,15 @@ export async function writeKey(project: string, params: SsmParams): Promise<Buff
   return projectKey(await ensureDataKey(), project);
 }
 
-export async function ssmVault(project: string, opts: VaultOptions = {}): Promise<Vault> {
-  const params = await ssmParams(project, opts.client);
+/** Raw store for a remote vault: Parameter Store via your connected profile (ssm), or your cloud stack's secret store. */
+export async function vaultParams(project: string, name: VaultName, opts: VaultOptions = {}): Promise<SsmParams> {
+  if (!isCloudVault(name) || opts.client) return ssmParams(project, opts.client);
+  const { cloudProvider } = await import("../cloud/index.ts");
+  return (await cloudProvider(name)).secretStore(project, opts.as ? { as: opts.as } : {});
+}
+
+export async function ssmVault(project: string, opts: VaultOptions = {}, name: VaultName = "ssm"): Promise<Vault> {
+  const params = await vaultParams(project, name, opts);
   let key: Promise<Buffer> | undefined;
   const readKey = async () => {
     const dataKey = await loadDataKey();
@@ -126,7 +145,7 @@ export async function ssmVault(project: string, opts: VaultOptions = {}): Promis
     return projectKey(dataKey, project);
   };
   return {
-    name: "ssm",
+    name,
     put: async (k, value) => params.put(k, sealValue(await (key ??= writeKey(project, params)), params.path(k), value.reveal())),
     get: async (k) => {
       const stored = await params.get(k);
@@ -142,7 +161,7 @@ export async function ssmVault(project: string, opts: VaultOptions = {}): Promis
 }
 
 export const openVault = async (project: string, name: VaultName, opts: VaultOptions = {}): Promise<Vault> =>
-  name === "ssm" ? ssmVault(project, opts) : keychainVault(project);
+  isRemoteVault(name) ? ssmVault(project, opts, name) : keychainVault(project);
 
 registerUndo("vault.delete", async ({ project, keys }, ctx) => {
   const vault = await openVault(project!, ctx.vault, ctx);

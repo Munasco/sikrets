@@ -1,49 +1,83 @@
-import { agentCredentials, agentRoleName, brokerSession, connectedStack, deleteAgentRole, ensureAgentRole, iamClient, parseAllow } from "../core/aws-stack.ts";
-import { sessionEnv, sessionSeconds } from "../core/aws-session.ts";
+import { agents, agentStatus, type Agent } from "../core/agents.ts";
+import { sessionSeconds } from "../core/aws-session.ts";
+import type { Context } from "../core/plan.ts";
+import { state } from "../core/state.ts";
 import { until } from "../core/ttl.ts";
-import { awsProfile } from "../providers/aws.ts";
+import { isCloudVault } from "../core/vault.ts";
+import { activeCloud, cloudProvider } from "../cloud/index.ts";
 import { log } from "../ui.ts";
 import { deliver, recipient } from "./deliver.ts";
-import { AGENT_ROLE } from "../constants.ts";
+import { AGENT_ROLE, AWS_SESSION } from "../constants.ts";
 
-// `sikrets agent role <name>`: an IAM role for one agent in your Sikrets stack, created as the broker
-// so it always carries the stack's permissions boundary and the sikrets:agent tag. The agent only
-// ever gets temporary credentials for it (AssumeRole, 15 to 60 minutes), never a long-lived key.
+// Agents in your self-hosted Sikrets stack. With a cloud vault, every agent (`sikrets agent add`)
+// gets its own cloud identity (AWS: an IAM role under the stack's permissions boundary, tagged
+// sikrets:agent) that can read only the vault secrets in its scope, until it expires, plus any
+// --allow permissions. It is only ever used through temporary credentials; nobody gets a key for it.
+//
+// `sikrets agent role <name>` hands those credentials to a command or a shell.
 
 const USAGE = "sikrets agent role";
-const list = (v: unknown) => (v === undefined ? [] : Array.isArray(v) ? v.map(String) : [String(v)]);
+export const list = (v: unknown) => (v === undefined ? [] : Array.isArray(v) ? v.map(String) : [String(v)]);
+
+/** Vault keys an agent's scope covers: whole resources expand to their keys. */
+async function scopedKeys(root: string, scope: readonly string[]): Promise<string[]> {
+  const { resources } = await state.load(root);
+  const keys = new Set<string>();
+  for (const s of scope) {
+    if (s === AWS_SESSION.profileScope) continue;
+    const r = resources.find((x) => x.name === s);
+    for (const k of r ? r.envKeys : [s]) keys.add(k);
+  }
+  return [...keys];
+}
+
+/** Creates or updates the agent's cloud identity for a cloud vault; nothing for other vaults. */
+export async function syncAgentIdentity(ctx: Context, agent: Agent, allow: string[]) {
+  if (!isCloudVault(ctx.vault)) {
+    if (allow.length) throw new Error(`--allow needs a cloud vault (sikrets cloud connect, then "vault": "aws" in sikrets.json)`);
+    return undefined;
+  }
+  const provider = await cloudProvider(ctx.vault);
+  return provider.ensureAgentIdentity({
+    name: agent.name,
+    project: ctx.project,
+    keys: await scopedKeys(ctx.root, agent.scope),
+    ...(agent.expiresAt ? { expiresAt: agent.expiresAt } : {}),
+    ...(allow.length ? { allow } : {}),
+  });
+}
+
+/** Deletes the agent's cloud identity, if its vault is a cloud one. */
+export async function removeAgentIdentity(ctx: Context, name: string): Promise<boolean> {
+  if (!isCloudVault(ctx.vault)) return false;
+  return (await cloudProvider(ctx.vault)).removeAgentIdentity(name);
+}
+
+/** Temporary credentials for reading an agent's secrets from a cloud vault. */
+export async function agentVaultCredentials(vault: "aws", agent: string) {
+  return (await cloudProvider(vault)).issueCredentials(agent, { seconds: sessionSeconds(AGENT_ROLE.defaultTtl) });
+}
 
 export async function run(agent: string, command: string[], opts: Record<string, unknown>) {
-  const stack = await connectedStack();
-  const profile = (typeof opts.profile === "string" ? opts.profile : undefined) ?? stack.profile ?? (await awsProfile());
+  const provider = await activeCloud(typeof opts.provider === "string" ? opts.provider : undefined);
+  const profile = typeof opts.profile === "string" ? opts.profile : undefined;
 
   if (opts.revoke) {
-    const iam = await iamClient(await brokerSession(stack, profile), stack.region);
-    try {
-      await deleteAgentRole(iam, agentRoleName(agent));
-    } finally {
-      iam.destroy();
-    }
-    if (opts.json) return console.log(JSON.stringify({ agent, deleted: agentRoleName(agent) }));
-    return log(opts, `Deleted the role for ${agent}. Credentials already issued stop working when they expire (at most ${AGENT_ROLE.maxSessionSeconds / 60}m).`);
+    if (!(await provider.removeAgentIdentity(agent))) throw new Error(`Agent ${agent} has no identity in your ${provider.name} stack`);
+    if (opts.json) return console.log(JSON.stringify({ agent, removed: true }));
+    return log(opts, `Removed ${agent}'s ${provider.name} identity. Credentials already issued stop working when they expire (at most ${AGENT_ROLE.maxSessionSeconds / 60}m).`);
   }
+
+  // An agent this project revoked, or that expired, gets nothing here either.
+  const known = await agents.find(process.cwd(), agent);
+  if (known && agentStatus(known) !== "active") throw new Error(`Agent "${agent}" is ${agentStatus(known)}; it gets no credentials`);
 
   const seconds = sessionSeconds(typeof opts.ttl === "string" ? opts.ttl : AGENT_ROLE.defaultTtl);
   const allow = list(opts.allow);
-  const statements = allow.length ? parseAllow(allow) : undefined;
-  // Checked before anything is created, so a refused delivery leaves no role behind.
+  // Checked before anything is created, so a refused delivery leaves no identity behind.
   const to = recipient(command, opts, `${USAGE} ${agent}`);
-
-  const broker = await brokerSession(stack, profile);
-  const iam = await iamClient(broker, stack.region);
-  let role: Awaited<ReturnType<typeof ensureAgentRole>>;
-  try {
-    role = await ensureAgentRole(iam, stack, agent, statements);
-  } finally {
-    iam.destroy();
-  }
-  const creds = await agentCredentials(broker, { region: stack.region, roleArn: role.arn, agent, seconds, fresh: role.created });
-  const session = sessionEnv(creds, stack.region, role.arn);
-  log({}, `sikrets: AWS credentials for ${agent} as ${role.arn}${role.created ? " (new role)" : ""}, for ${to}, expire ${until(session.expiresAt)}`);
-  await deliver(session.env, command);
+  const identity = await provider.ensureAgentIdentity({ name: agent, ...(allow.length ? { allow } : {}) });
+  const creds = await provider.issueCredentials(agent, { seconds, identity, ...(profile ? { profile } : {}) });
+  log({}, `sikrets: ${provider.name} credentials for ${agent} as ${creds.identity}${identity.created ? " (new)" : ""}, for ${to}, expire ${until(creds.expiresAt)}`);
+  await deliver(creds.env, command);
 }

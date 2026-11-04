@@ -12,7 +12,7 @@ import { AWS_SESSION } from "../constants.ts";
 
 // `sikrets aws session`: 15–60 minute AWS credentials from a long-lived key, for a command or a
 // shell. The long-lived key never leaves Sikrets; only the temporary set is handed out.
-// `sikrets aws connect|disconnect` (the Sikrets stack in your account) live in aws-stack.ts.
+// `sikrets aws connect|disconnect` is `sikrets cloud connect|disconnect --provider aws` (cloud.ts).
 
 const USAGE = "sikrets aws session";
 
@@ -30,7 +30,7 @@ function storedKey(resources: readonly Resource[], name: unknown): Resource | un
 
 export async function run(args: string[], opts: Record<string, unknown>) {
   const [sub, ...command] = args;
-  if (sub === "connect" || sub === "disconnect") return (await import("./aws-stack.ts")).run(sub, opts);
+  if (sub === "connect" || sub === "disconnect") return (await import("./cloud.ts")).run([sub], { ...opts, provider: "aws" });
   if (sub !== "session") throw new Error(`Usage: sikrets aws connect|disconnect, or ${USAGE} [--role ARN] [--for 30m] (--env | -- <command>)`);
   const root = process.cwd();
   const seconds = sessionSeconds(typeof opts.for === "string" ? opts.for : AWS_SESSION.defaultDuration);

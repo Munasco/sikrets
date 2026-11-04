@@ -3,7 +3,7 @@ import { projectContext } from "../core/config.ts";
 import { state } from "../core/state.ts";
 import { envValues, outputKeys } from "../core/standin.ts";
 import { record } from "../core/activity.ts";
-import { openVault } from "../core/vault.ts";
+import { isRemoteVault, openVault } from "../core/vault.ts";
 import { recordUse } from "../core/usage.ts";
 import { loadDataKey } from "../core/datakey.ts";
 import { projectKey } from "../core/envelope.ts";
@@ -27,7 +27,7 @@ export async function run(args: string[], opts: Record<string, unknown>) {
     const real = Boolean(opts.real);
     const values = await envValues(vault, applied, real);
     if (opts["project-key"]) {
-      if (ctx.vault !== "ssm") throw new Error("--project-key is for the ssm vault; keychain values aren't encrypted by Sikrets");
+      if (!isRemoteVault(ctx.vault)) throw new Error("--project-key is for the ssm and aws vaults; keychain values aren't encrypted by Sikrets");
       const dataKey = await loadDataKey();
       if (!dataKey) throw new Error("This device doesn't have your data key. Restore it with: sikrets recovery restore");
       values.set(ENV.project, Secret.of(ctx.project));

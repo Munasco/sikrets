@@ -10,7 +10,7 @@ export const USER_AGENT = "sikrets-cli";
 export const ENV = {
   /** Overrides ~/.sikrets (connections, browser profiles, run logs). */
   configDir: "SIKRETS_CONFIG_DIR",
-  /** Overrides the project's vault for one run: "ssm" or "keychain". */
+  /** Overrides the project's vault for one run: "ssm", "keychain" or "aws". */
   vault: "SIKRETS_VAULT",
   /** Terraform-compatible binary to use instead of terraform/tofu on PATH. */
   terraform: "SIKRETS_TERRAFORM",
@@ -18,7 +18,7 @@ export const ENV = {
   project: "SIKRETS_PROJECT",
   /** Agent a command hands keys to (same as --agent); see `sikrets agent`. */
   agent: "SIKRETS_AGENT",
-  /** S3 URL of the published stack template, for `sikrets aws connect --link`. */
+  /** S3 URL of the published stack template, for `sikrets cloud connect --link`. */
   stackTemplateUrl: "SIKRETS_STACK_TEMPLATE_URL",
   /** One project's derived key (base64), for deployed apps that read the ssm vault without a keychain. */
   projectKey: "SIKRETS_PROJECT_KEY",
@@ -115,48 +115,65 @@ export const AWS_SESSION = {
   securityCredentials: "https://console.aws.amazon.com/iam/home#/security_credentials",
 } as const;
 
+// ── Self-hosted Sikrets in your cloud account (src/cloud) ────────────────
+export const CLOUD = {
+  defaultProvider: "aws",
+} as const;
+
 // ── Sikrets stack in your AWS account (packages/stack/sikrets.yaml) ───────
 export const AWS_STACK = {
   defaultName: "sikrets",
   /** CloudFormation template parameters, by name. */
   params: {
+    vaultPath: "VaultPath",
+    agentRolePath: "AgentRolePath",
+    githubRepository: "GitHubRepository",
+    createGitHubProvider: "CreateGitHubOidcProvider",
     trustedAccount: "TrustedAccountId",
     externalId: "ExternalId",
-    agentRolePath: "AgentRolePath",
   },
   /** CloudFormation template outputs, by name. */
   outputs: {
-    brokerRole: "BrokerRoleArn",
     key: "KeyArn",
+    vaultPath: "VaultPath",
     boundary: "AgentBoundaryArn",
+    managerPolicy: "AgentManagerPolicyArn",
     agentRolePath: "AgentRolePath",
+    eventBus: "EventBusName",
+    eventBusArn: "EventBusArn",
     auditLogGroup: "AuditLogGroupName",
+    brokerRole: "BrokerRoleArn",
+    githubRole: "GitHubActionsRoleArn",
   },
-  capabilities: ["CAPABILITY_IAM"],
+  /** The template names the GitHub Actions role, so CloudFormation needs the named-IAM acknowledgement. */
+  capabilities: ["CAPABILITY_NAMED_IAM"],
   /** Stack tags (also on the resources CloudFormation creates). */
   managedByTag: "sikrets:managed-by",
   /** Where the stack's outputs are recorded, under the user dir. No secrets. */
   stateFile: "aws-stack.json",
-  /** Keychain account (under the aws provider) holding a stack's external ID. */
+  /** Keychain account (under the aws provider) holding the optional broker's external ID. */
   externalIdAccount: (region: string, stack: string) => `external-id:${region}:${stack}`,
   externalIdBytes: 24,
+  /** `--trust-account none` turns the cross-account broker off again. */
+  noBroker: "none",
   pollMs: 5_000,
   timeoutMs: 30 * 60_000,
-  /** Sessions as the broker are only used to create the agent role and assume it. */
-  brokerSessionName: "sikrets-broker",
-  brokerSeconds: 900,
   quickCreate: (region: string) => `https://console.aws.amazon.com/cloudformation/home?region=${region}#/stacks/quickcreate`,
 } as const;
 
 export const AGENT_ROLE = {
   path: "/sikrets/agents/",
   namePrefix: "sikrets-agent-",
-  /** Every agent role is tagged sikrets:agent=<name>; the broker refuses to create one without it. */
+  /** Every agent role is tagged sikrets:agent=<name>; the manager policy refuses to create one without it. */
   tag: "sikrets:agent",
-  policyName: "sikrets-allow",
+  /** Inline policies: the vault secrets in the agent's scope, and extra AWS actions from --allow. */
+  vaultPolicy: "sikrets-vault",
+  allowPolicy: "sikrets-allow",
   maxSessionSeconds: 3600,
   defaultTtl: "15m",
   sessionName: (agent: string) => `sikrets-${agent}`,
+  /** The agent role the stack creates for GitHub Actions when GitHubRepository is set. */
+  githubAgent: "github-actions",
   /** Services the boundary denies outright; refused up front with a clearer message. */
   deniedServices: ["iam", "sts", "organizations", "account", "sso", "identitystore"],
   /** A new role can take a few seconds to become assumable. */

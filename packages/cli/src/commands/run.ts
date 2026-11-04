@@ -2,7 +2,7 @@ import { providerEnv, toProcessEnv, type Env } from "../core/credentials.ts";
 import { projectContext } from "../core/config.ts";
 import { state } from "../core/state.ts";
 import { record } from "../core/activity.ts";
-import { openVault } from "../core/vault.ts";
+import { isCloudVault, openVault } from "../core/vault.ts";
 import { authorize, currentAgent } from "../core/agents.ts";
 import { recordUse } from "../core/usage.ts";
 
@@ -13,13 +13,16 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   const root = process.cwd();
   const { resources } = await state.load(root);
   const { ctx } = await projectContext(root, { log: () => {} });
-  const vault = await openVault(ctx.project, ctx.vault, ctx);
 
   // An agent gets only the keys in its scope, and none once revoked or expired.
   const agent = currentAgent(opts);
   if (agent && opts.providers) throw new Error("Agents don't get provider admin credentials; run that yourself");
   const live = resources.filter((x) => x.applied);
   const allowed = agent ? new Set(await authorize(root, agent, live.flatMap((r) => r.envKeys.map((key) => ({ key, resource: r.name }))))) : undefined;
+  // In a cloud vault an agent's secrets are read with its own identity's temporary credentials, so
+  // the cloud enforces its scope too, and its audit log records the read as the agent's.
+  const as = agent && isCloudVault(ctx.vault) ? await (await import("./agent-role.ts")).agentVaultCredentials(ctx.vault, agent) : undefined;
+  const vault = await openVault(ctx.project, ctx.vault, { ...ctx, ...(as ? { as } : {}) });
 
   const env: Env = {};
   for (const r of live) {

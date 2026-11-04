@@ -5,7 +5,7 @@ import { loadDataKey } from "../core/datakey.ts";
 import { projectKey } from "../core/envelope.ts";
 import { migrateEncrypt } from "../core/migrate.ts";
 import { readRecord } from "../core/recovery.ts";
-import { ssmParams, writeKey } from "../core/vault.ts";
+import { isRemoteVault, vaultParams, writeKey } from "../core/vault.ts";
 import { confirm, log } from "../ui.ts";
 import { ENCRYPTION_REQUIRED } from "../constants.ts";
 
@@ -20,12 +20,12 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   const dryRun = Boolean(opts["dry-run"]);
   const purgeHistory = Boolean(opts["purge-history"]);
   const { config, ctx } = await projectContext(root, { dryRun, log: say });
-  if (ctx.vault !== "ssm") {
+  if (!isRemoteVault(ctx.vault)) {
     if (opts.json) return console.log(JSON.stringify({ vault: ctx.vault, sealed: [], already: [], unreadable: [], purged: [] }));
     return say(`Nothing to migrate: the ${ctx.vault} vault never leaves this machine.`);
   }
 
-  const params = await ssmParams(ctx.project);
+  const params = await vaultParams(ctx.project, ctx.vault);
   say(`${dryRun ? "Dry run — checking" : "Encrypting"} values under /sikrets/${ctx.project}/ …`);
   if (!dryRun && purgeHistory && !opts.yes && process.stdin.isTTY) {
     if (!(await confirm("Delete and recreate each parameter to drop its history? Take a backup first (sikrets backup create)."))) return say("Cancelled; nothing changed.");

@@ -8,7 +8,7 @@ import type { Context } from "../core/plan.ts";
 import { outputKeys, standInKey } from "../core/standin.ts";
 import { Secret } from "../core/secret.ts";
 import { state } from "../core/state.ts";
-import { openVault, ssmParams } from "../core/vault.ts";
+import { isRemoteVault, openVault, vaultParams } from "../core/vault.ts";
 import { providers } from "../providers/index.ts";
 import { configDir, keychain, listConnections, saveConnection } from "../store.ts";
 import { log, promptHidden } from "../ui.ts";
@@ -76,7 +76,7 @@ async function collect(root: string, config: ProjectConfig, ctx: Context, withLo
   const { resources } = await state.load(root);
   const keys = new Set(resources.flatMap(outputKeys).flatMap((k) => [k.key, standInKey(k.key)]));
   // SSM can be listed, so values Sikrets no longer tracks in state are kept too.
-  if (ctx.vault === "ssm") for (const k of (await (await ssmParams(ctx.project)).list()).keys()) keys.add(k);
+  if (isRemoteVault(ctx.vault)) for (const k of (await (await vaultParams(ctx.project, ctx.vault)).list()).keys()) keys.add(k);
   const values: Record<string, string> = {};
   for (const key of [...keys].sort()) {
     const value = await vault.get(key);

@@ -1,0 +1,93 @@
+import type { Env } from "../core/credentials.ts";
+
+// Self-hosting Sikrets in your own cloud account. Everything cloud-specific sits behind this
+// interface: deploying and tearing down the stack, the secret store the vault writes its sealed
+// (sk1:) values to, one identity per agent, and the temporary credentials an agent uses. AWS is
+// implemented (cloud/aws.ts); GCP is planned (docs/aws-stack.md). Without either, use the hosted
+// Sikrets service.
+
+export type CloudId = "aws";
+
+/** Raw stored values, exactly as written: the vault seals before put and opens after get. */
+export interface SecretStore {
+  /** Full name of a key's stored value, which is also each value's associated data when sealed. */
+  path(key: string): string;
+  /** Every value under this project, keyed by vault key. */
+  list(): Promise<Map<string, string>>;
+  get(key: string): Promise<string | undefined>;
+  put(key: string, stored: string): Promise<void>;
+  delete(key: string): Promise<void>;
+}
+
+/** Options for deploying the stack; a provider ignores what doesn't apply to it. */
+export interface DeployOptions {
+  region?: string;
+  /** Local CLI profile to deploy with (AWS: an AWS CLI profile). */
+  profile?: string;
+  /** Stack (or deployment) name. */
+  name?: string;
+  /** owner/repo whose GitHub Actions workflows get an agent identity, via OIDC. "" removes it. */
+  githubRepository?: string;
+  /** The account already trusts GitHub's OIDC issuer; don't create another provider. */
+  githubOidcExists?: boolean;
+  /** Optional: another account a Sikrets service may manage agents from. "none" removes it. */
+  brokerAccount?: string;
+  log: (message: string) => void;
+}
+
+export interface Deployment {
+  provider: CloudId;
+  name: string;
+  account: string;
+  region: string;
+  action: "created" | "updated" | "unchanged";
+  /** Labelled outputs worth showing (ARNs, paths, bus names), no secrets. */
+  outputs: [label: string, value: string][];
+  /** The full provider-specific record, for --json. */
+  details: object;
+}
+
+/** What an agent may use: the vault secrets in its scope, until `expiresAt`, plus extra cloud permissions. */
+export interface AgentGrant {
+  name: string;
+  project?: string;
+  /** Vault keys; undefined keeps what the identity has. */
+  keys?: string[];
+  expiresAt?: string;
+  /** Extra provider permissions (AWS: ACTION[,ACTION]=RESOURCE); undefined keeps what it has. */
+  allow?: string[];
+}
+
+export interface AgentIdentity {
+  /** AWS: the role ARN. */
+  id: string;
+  created: boolean;
+}
+
+export interface TemporaryCredentials {
+  /** Environment a command gets, secret halves masked. */
+  env: Env;
+  expiresAt: string;
+  identity: string;
+  /** Provider-specific credentials, for opening the secret store as the agent. */
+  handle: unknown;
+}
+
+export interface CloudProvider {
+  id: CloudId;
+  name: string;
+  connected(): Promise<boolean>;
+  deploy(o: DeployOptions): Promise<Deployment>;
+  /** A console link that deploys the stack, for someone without the CLI. */
+  deployLink(o: DeployOptions & { templateUrl: string }): Promise<string>;
+  /** Removes every agent identity, then the stack. */
+  teardown(o: { profile?: string; log: (message: string) => void }): Promise<{ name: string; agentIdentities: string[]; kept: string[] }>;
+  /** The secret store for one project; `as` reads with an agent's temporary credentials instead of yours. */
+  secretStore(project: string, o?: { as?: TemporaryCredentials }): Promise<SecretStore>;
+  /** Creates or updates the agent's identity under the stack's permissions boundary (or the cloud's equivalent). */
+  ensureAgentIdentity(grant: AgentGrant): Promise<AgentIdentity>;
+  /** Deletes it (or, for one the stack owns, strips what Sikrets granted). False if there was none. */
+  removeAgentIdentity(name: string): Promise<boolean>;
+  /** Short-lived credentials for the agent's identity. */
+  issueCredentials(agent: string, o: { seconds: number; identity?: AgentIdentity; profile?: string }): Promise<TemporaryCredentials>;
+}

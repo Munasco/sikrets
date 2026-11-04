@@ -1,4 +1,4 @@
-import { AGENT_ROLE, AWS_STACK, ENV } from "../constants.ts";
+import { AGENT_ROLE, AWS_STACK, CLOUD, ENV } from "../constants.ts";
 
 // Command specs are plain data (after the Vercel CLI's command.ts files): they drive parsing,
 // help and typo suggestions without loading any implementation. Each command's code is imported
@@ -40,7 +40,7 @@ export const commands: CommandSpec[] = [
     arguments: [],
     options: [
       { name: "project", type: "string", argument: "NAME", description: "Project name (default: directory name)" },
-      { name: "vault", type: "string", argument: "ssm|keychain", description: "Where secrets live (default: ssm)" },
+      { name: "vault", type: "string", argument: "ssm|keychain|aws", description: "Where secrets live (default: ssm; aws: your self-hosted stack, see sikrets cloud connect)" },
       jsonOption,
     ],
     examples: ["sikrets init", "sikrets init --project shop --vault keychain"],
@@ -240,20 +240,22 @@ export const commands: CommandSpec[] = [
   {
     name: "agent",
     aliases: ["agents"],
-    description: "Scoped identities for agents (add, list, revoke), and `agent role`: an IAM role in your Sikrets AWS stack, handed out as short-lived credentials",
+    description: "Scoped identities for agents (add, list, revoke). With a cloud vault each gets its own cloud identity; `agent role` hands out its short-lived credentials",
     arguments: [{ name: "add|list|revoke|role", required: false }, { name: "name", required: false }],
     options: [
       { name: "key", type: "string", multiple: true, argument: "RESOURCE|KEY", description: "add: a resource or key name the agent may use (repeatable)" },
       { name: "expires", type: "string", argument: "DURATION", description: "add: the identity stops working after this, e.g. 7d" },
-      { name: "allow", type: "string", multiple: true, argument: "ACTION[,ACTION]=RESOURCE", description: "role: what the role may do, e.g. s3:GetObject=arn:aws:s3:::logs/* (repeatable; replaces its permissions)" },
+      { name: "allow", type: "string", multiple: true, argument: "ACTION[,ACTION]=RESOURCE", description: "add, role: extra cloud permissions for the agent, e.g. s3:GetObject=arn:aws:s3:::logs/* (repeatable; replaces earlier ones)" },
       { name: "ttl", type: "string", argument: "DURATION", description: `role: how long the credentials last, 15m to 60m (default ${AGENT_ROLE.defaultTtl})` },
       { name: "revoke", type: "boolean", description: "role: delete the agent's role" },
-      { name: "profile", type: "string", argument: "PROFILE", description: "role: AWS CLI profile to assume the broker with" },
+      { name: "profile", type: "string", argument: "PROFILE", description: "role: local CLI profile to issue the credentials with" },
+      { name: "provider", type: "string", argument: "aws", description: "role: which cloud stack (default: the connected one)" },
       envOption,
       jsonOption,
     ],
     examples: [
       "sikrets agent add reviewer --key github-app --expires 7d",
+      "sikrets agent add reporter --key warehouse --allow s3:GetObject=arn:aws:s3:::reports/*",
       "sikrets agent list",
       "sikrets agent revoke reviewer",
       "sikrets agent role reporter --allow s3:GetObject,s3:ListBucket=arn:aws:s3:::reports/* --ttl 30m -- aws s3 ls s3://reports",
@@ -272,17 +274,44 @@ export const commands: CommandSpec[] = [
     load: () => import("./offboard.ts"),
   },
   {
+    name: "cloud",
+    description: "Self-host Sikrets in your own cloud account: `cloud connect` deploys the vault, agent guardrails and audit events; `cloud disconnect` removes them",
+    arguments: [{ name: "connect|disconnect", required: true }],
+    options: [
+      { name: "provider", type: "string", argument: "aws", description: `Which cloud (default ${CLOUD.defaultProvider}; GCP is planned)` },
+      { name: "region", type: "string", argument: "REGION", description: "Region for the stack (default: AWS_REGION or us-east-1)" },
+      { name: "profile", type: "string", argument: "PROFILE", description: "Local CLI profile to deploy with (default: the connected one)" },
+      { name: "stack", type: "string", argument: "NAME", description: `connect: stack name (default ${AWS_STACK.defaultName})` },
+      { name: "github-repo", type: "string", argument: "OWNER/REPO", description: "connect: give this repo's GitHub Actions an agent identity via OIDC (\"\" removes it)" },
+      { name: "github-oidc-exists", type: "boolean", description: "connect: the account already trusts GitHub's OIDC issuer" },
+      { name: "broker-account", type: "string", argument: "ACCOUNT_ID", description: `connect: optional, off by default: let a Sikrets service in this account manage agents ("${AWS_STACK.noBroker}" removes it)` },
+      { name: "link", type: "boolean", description: "connect: print a console link that deploys the stack, instead of deploying" },
+      { name: "template-url", type: "string", argument: "URL", description: `connect --link: where the template is published (or set ${ENV.stackTemplateUrl})` },
+      { ...yesOption, description: "disconnect: skip the confirmation prompt" },
+      jsonOption,
+    ],
+    examples: [
+      "sikrets cloud connect --provider aws",
+      "sikrets cloud connect --provider aws --region eu-west-1 --profile admin --github-repo acme/api",
+      "sikrets cloud connect --provider aws --link --template-url https://my-bucket.s3.amazonaws.com/sikrets.yaml",
+      "sikrets cloud disconnect --yes",
+    ],
+    load: () => import("./cloud.ts"),
+  },
+  {
     name: "aws",
-    description: "`aws connect|disconnect`: the Sikrets stack in your AWS account; `aws session`: 15–60 minute AWS credentials from a stored key or the connected profile",
+    description: "`aws connect|disconnect`: same as `cloud connect|disconnect --provider aws`; `aws session`: 15–60 minute AWS credentials from a stored key or the connected profile",
     arguments: [{ name: "connect|disconnect|session", required: true }],
     options: [
       { name: "role", type: "string", argument: "ARN", description: "session: assume this role (AssumeRole) instead of a session for the key itself" },
       { name: "for", type: "string", argument: "DURATION", description: "session: 15m to 60m (default 60m)" },
       { name: "key", type: "string", argument: "NAME", description: "session: which stored aws/access-key (default: the only one, else the connected profile)" },
       { name: "region", type: "string", argument: "REGION", description: "Region for STS or the stack (default: AWS_REGION or us-east-1)" },
-      { name: "profile", type: "string", argument: "PROFILE", description: "connect/disconnect: AWS CLI profile to deploy with (default: the connected one)" },
+      { name: "profile", type: "string", argument: "PROFILE", description: "connect/disconnect: AWS CLI profile to deploy with" },
       { name: "stack", type: "string", argument: "NAME", description: `connect: stack name (default ${AWS_STACK.defaultName})` },
-      { name: "trust-account", type: "string", argument: "ACCOUNT_ID", description: "connect: account allowed to assume the broker role (default: your own)" },
+      { name: "github-repo", type: "string", argument: "OWNER/REPO", description: "connect: give this repo's GitHub Actions an agent role via OIDC" },
+      { name: "github-oidc-exists", type: "boolean", description: "connect: the account already has GitHub's OIDC provider" },
+      { name: "broker-account", type: "string", argument: "ACCOUNT_ID", description: "connect: optional cross-account broker (off by default)" },
       { name: "link", type: "boolean", description: "connect: print a CloudFormation quick-create link instead of deploying" },
       { name: "template-url", type: "string", argument: "URL", description: `connect --link: S3 URL of the template (or set ${ENV.stackTemplateUrl})` },
       { ...yesOption, description: "disconnect: skip the confirmation prompt" },
@@ -292,8 +321,6 @@ export const commands: CommandSpec[] = [
     ],
     examples: [
       "sikrets aws connect",
-      "sikrets aws connect --region eu-west-1 --profile admin",
-      "sikrets aws connect --link --template-url https://my-bucket.s3.amazonaws.com/sikrets.yaml",
       "sikrets aws disconnect --yes",
       "sikrets aws session -- aws s3 ls",
       'eval "$(sikrets aws session --for 15m --env)"',

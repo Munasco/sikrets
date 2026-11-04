@@ -1,30 +1,37 @@
 import path from "node:path";
 import template from "../../../stack/sikrets.yaml" with { type: "text" };
 import { configDir, keychain } from "../store.ts";
-import { readJson, remove, writePrivate } from "./fs.ts";
-import { stsCredentials, type AwsCredentials } from "./aws-session.ts";
-import { AGENT_ROLE, AWS_STACK, MANAGED_BY_TAG } from "../constants.ts";
+import { readJson, remove, writePrivate } from "../core/fs.ts";
+import { stsCredentials } from "../core/aws-session.ts";
+import { AGENT_ROLE, AWS_STACK, MANAGED_BY_TAG, SSM_PREFIX } from "../constants.ts";
 
-// The Sikrets stack in your own AWS account (packages/stack/sikrets.yaml): a broker role Sikrets
-// assumes with an external ID, a KMS key only the broker can use, a permissions boundary every agent
-// role carries, and an audit log. `connect` deploys it with your local AWS credentials; agent roles
-// are then created and assumed *as the broker*, so IAM itself enforces the boundary.
+// The Sikrets stack in your own AWS account (packages/stack/sikrets.yaml): the vault (SSM Parameter
+// Store under the stack's KMS key), a permissions boundary every agent role carries, an event bus
+// and audit log for secret access, and optional GitHub Actions and cross-account broker roles.
+// Everything here runs on your own AWS credentials; the broker is only for a Sikrets service in
+// another account, and is off unless you pass --trust-account.
 
 export const TEMPLATE: string = template;
 
-/** What `connect` records about the stack. No secrets: the external ID lives in the keychain. */
+/** What `connect` records about the stack. No secrets: the broker's external ID lives in the keychain. */
 export interface StackState {
   stackName: string;
   stackId: string;
   region: string;
   account: string;
-  trustedAccount: string;
   profile?: string;
-  brokerRoleArn: string;
   keyArn: string;
+  vaultPath: string;
   boundaryArn: string;
+  managerPolicyArn: string;
   agentRolePath: string;
+  eventBusName: string;
+  eventBusArn: string;
   auditLogGroup: string;
+  brokerRoleArn?: string;
+  trustedAccount?: string;
+  githubRoleArn?: string;
+  githubRepository?: string;
   connectedAt: string;
 }
 
@@ -41,28 +48,25 @@ const saveStack = (s: StackState) => writePrivate(stateFile(), JSON.stringify(s,
 
 export async function connectedStack(): Promise<StackState> {
   const s = await loadStack();
-  if (!s) throw new Error("No Sikrets stack connected. Deploy one to your AWS account: sikrets aws connect");
+  if (!s) throw new Error("No Sikrets stack connected. Deploy one to your AWS account: sikrets cloud connect --provider aws");
   return s;
 }
 
 const auth = (t: AwsTarget) => ({ region: t.region, ...(t.profile ? { profile: t.profile } : {}) });
+/** SDK client config for calls into the stack's account with your own credentials. */
+export const stackClientConfig = (s: StackState, profile?: string) => auth({ region: s.region, ...((profile ?? s.profile) ? { profile: (profile ?? s.profile)! } : {}) });
 const errorName = (e: unknown) => (e as { name?: string })?.name ?? "";
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-// ── External ID ────────────────────────────────────────────────────────────
+// ── External ID (optional broker only) ─────────────────────────────────────
 
 const externalIdKey = (region: string, stackName: string) => AWS_STACK.externalIdAccount(region, stackName);
 
-function newExternalId(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(AWS_STACK.externalIdBytes));
-  return Buffer.from(bytes).toString("base64url");
-}
-
-/** The stack's external ID from the keychain, minted (and saved) on first use. */
+/** The broker's external ID from the keychain, minted (and saved) on first use. */
 export async function externalId(region: string, stackName: string): Promise<{ value: string; minted: boolean }> {
   const stored = await keychain.get("aws", externalIdKey(region, stackName));
   if (stored) return { value: stored, minted: false };
-  const value = newExternalId();
+  const value = Buffer.from(crypto.getRandomValues(new Uint8Array(AWS_STACK.externalIdBytes))).toString("base64url");
   await keychain.set("aws", externalIdKey(region, stackName), value);
   return { value, minted: true };
 }
@@ -81,18 +85,31 @@ export async function callerAccount(t: AwsTarget): Promise<string> {
   }
 }
 
-export function stackParameters(o: { trustedAccount: string; externalId: string }) {
+export interface StackOptions {
+  /** owner/repo whose GitHub Actions may assume the github-actions agent role. */
+  githubRepository: string;
+  /** The account already has GitHub's OIDC provider; don't create another. */
+  githubProviderExists: boolean;
+  /** Account of a cross-account Sikrets broker; empty for none (the default). */
+  trustedAccount: string;
+  externalId: string;
+}
+
+export function stackParameters(o: StackOptions): Record<string, string> {
   return {
-    [AWS_STACK.params.trustedAccount]: o.trustedAccount,
-    [AWS_STACK.params.externalId]: o.externalId,
+    [AWS_STACK.params.vaultPath]: `${SSM_PREFIX}/`,
     [AWS_STACK.params.agentRolePath]: AGENT_ROLE.path,
+    [AWS_STACK.params.githubRepository]: o.githubRepository,
+    [AWS_STACK.params.createGitHubProvider]: o.githubProviderExists ? "false" : "true",
+    [AWS_STACK.params.trustedAccount]: o.trustedAccount,
+    [AWS_STACK.params.externalId]: o.trustedAccount ? o.externalId : "",
   };
 }
 
 /** A CloudFormation console link that creates the stack with its parameters filled in. */
-export function quickCreateUrl(o: { region: string; stackName: string; templateUrl: string; trustedAccount: string; externalId: string }) {
+export function quickCreateUrl(o: StackOptions & { region: string; stackName: string; templateUrl: string }) {
   const q = new URLSearchParams({ templateURL: o.templateUrl, stackName: o.stackName });
-  for (const [k, v] of Object.entries(stackParameters(o))) q.set(`param_${k}`, v);
+  for (const [k, v] of Object.entries(stackParameters(o))) if (v) q.set(`param_${k}`, v);
   return `${AWS_STACK.quickCreate(o.region)}?${q}`;
 }
 
@@ -111,7 +128,7 @@ async function describe(cfn: Cfn, stack: string) {
   }
 }
 
-/** Polls until the stack leaves *_IN_PROGRESS; returns its final status (or DELETE_COMPLETE once it's gone). */
+/** Polls until the stack leaves *_IN_PROGRESS; returns it (undefined once it's gone). */
 async function settle(cfn: Cfn, stack: string, o: { pollMs: number; timeoutMs: number; log: Log }) {
   const deadline = Date.now() + o.timeoutMs;
   let last = "";
@@ -136,7 +153,9 @@ async function failureReasons(cfn: Cfn, stack: string): Promise<string> {
     .join("; ");
 }
 
-export async function deployStack(o: AwsTarget & { stackName: string; trustedAccount?: string; log: Log; pollMs?: number; timeoutMs?: number }): Promise<StackState & { action: "created" | "updated" | "unchanged" }> {
+export async function deployStack(
+  o: AwsTarget & { stackName: string; githubRepository?: string; githubProviderExists?: boolean; trustedAccount?: string; log: Log; pollMs?: number; timeoutMs?: number },
+): Promise<StackState & { action: "created" | "updated" | "unchanged" }> {
   const { CloudFormationClient, CreateStackCommand, UpdateStackCommand } = await import("@aws-sdk/client-cloudformation");
   const account = await callerAccount(o);
   const cfn = new CloudFormationClient(auth(o));
@@ -146,17 +165,30 @@ export async function deployStack(o: AwsTarget & { stackName: string; trustedAcc
     const status = existing?.StackStatus;
     if (status?.endsWith("_IN_PROGRESS")) throw new Error(`Stack ${o.stackName} is busy (${status}); try again when it finishes`);
     if (status === "ROLLBACK_COMPLETE" || status === "ROLLBACK_FAILED") {
-      throw new Error(`Stack ${o.stackName} failed to create (${status}). Remove it with: sikrets aws disconnect --yes, then connect again`);
+      throw new Error(`Stack ${o.stackName} failed to create (${status}). Remove it with: sikrets cloud disconnect --yes, then connect again`);
     }
-    const previousTrust = existing?.Parameters?.find((p) => p.ParameterKey === AWS_STACK.params.trustedAccount)?.ParameterValue;
-    const trustedAccount = o.trustedAccount ?? previousTrust ?? account;
-    const ext = await externalId(o.region, o.stackName);
-    if (existing && ext.minted) o.log("No external ID for this stack in your keychain; setting a new one.");
+    // Options not given this time keep the stack's current values.
+    const prev = Object.fromEntries((existing?.Parameters ?? []).map((p) => [p.ParameterKey, p.ParameterValue ?? ""]));
+    const trust = o.trustedAccount === AWS_STACK.noBroker ? "" : (o.trustedAccount ?? prev[AWS_STACK.params.trustedAccount] ?? "");
+    const ext = trust ? await externalId(o.region, o.stackName) : undefined;
+    if (existing && ext?.minted && prev[AWS_STACK.params.trustedAccount]) o.log("No broker external ID for this stack in your keychain; setting a new one.");
+    const opts: StackOptions = {
+      githubRepository: o.githubRepository ?? prev[AWS_STACK.params.githubRepository] ?? "",
+      githubProviderExists: o.githubProviderExists ?? prev[AWS_STACK.params.createGitHubProvider] === "false",
+      trustedAccount: trust,
+      externalId: ext?.value ?? "",
+    };
     const input = {
       StackName: o.stackName,
       TemplateBody: TEMPLATE,
       Capabilities: [...AWS_STACK.capabilities],
-      Parameters: Object.entries(stackParameters({ trustedAccount, externalId: ext.value })).map(([ParameterKey, ParameterValue]) => ({ ParameterKey, ParameterValue })),
+      Parameters: [
+        ...Object.entries(stackParameters(opts)).map(([ParameterKey, ParameterValue]) => ({ ParameterKey, ParameterValue })),
+        // Parameters the CLI doesn't manage (CreateTrail, AuditRetentionDays) keep what you set in the console.
+        ...Object.keys(prev)
+          .filter((k) => !(k in stackParameters(opts)))
+          .map((ParameterKey) => ({ ParameterKey, UsePreviousValue: true })),
+      ],
       Tags: [{ Key: AWS_STACK.managedByTag, Value: MANAGED_BY_TAG }],
     };
 
@@ -182,25 +214,32 @@ export async function deployStack(o: AwsTarget & { stackName: string; trustedAcc
       const why = await failureReasons(cfn, done?.StackId ?? o.stackName).catch(() => "");
       throw new Error(`Stack ${o.stackName} ended in ${final ?? "an unknown state"}${why ? `: ${why}` : ""}`);
     }
+    if (!trust) await keychain.delete("aws", externalIdKey(o.region, o.stackName));
 
-    const out = Object.fromEntries((done!.Outputs ?? []).map((x) => [x.OutputKey, x.OutputValue]));
+    const out: Record<string, string | undefined> = Object.fromEntries((done!.Outputs ?? []).map((x) => [x.OutputKey, x.OutputValue]));
     const need = (k: string) => {
       const v = out[k];
       if (!v) throw new Error(`Stack ${o.stackName} has no ${k} output; is it the Sikrets template?`);
       return v;
     };
+    const broker = out[AWS_STACK.outputs.brokerRole];
+    const github = out[AWS_STACK.outputs.githubRole];
     const state: StackState = {
       stackName: o.stackName,
       stackId: done!.StackId!,
       region: o.region,
       account,
-      trustedAccount,
       ...(o.profile ? { profile: o.profile } : {}),
-      brokerRoleArn: need(AWS_STACK.outputs.brokerRole),
       keyArn: need(AWS_STACK.outputs.key),
+      vaultPath: need(AWS_STACK.outputs.vaultPath),
       boundaryArn: need(AWS_STACK.outputs.boundary),
+      managerPolicyArn: need(AWS_STACK.outputs.managerPolicy),
       agentRolePath: need(AWS_STACK.outputs.agentRolePath),
+      eventBusName: need(AWS_STACK.outputs.eventBus),
+      eventBusArn: need(AWS_STACK.outputs.eventBusArn),
       auditLogGroup: need(AWS_STACK.outputs.auditLogGroup),
+      ...(broker ? { brokerRoleArn: broker, trustedAccount: trust } : {}),
+      ...(github ? { githubRoleArn: github, githubRepository: opts.githubRepository } : {}),
       connectedAt: new Date().toISOString(),
     };
     await saveStack(state);
@@ -213,20 +252,21 @@ export async function deployStack(o: AwsTarget & { stackName: string; trustedAcc
 /** Deletes every agent role (they carry the boundary, which blocks deleting it), then the stack. */
 export async function deleteStack(s: StackState, o: { profile?: string; log: Log; pollMs?: number; timeoutMs?: number }) {
   const { CloudFormationClient, DeleteStackCommand } = await import("@aws-sdk/client-cloudformation");
-  const t = { region: s.region, ...(o.profile ?? s.profile ? { profile: (o.profile ?? s.profile)! } : {}) };
-  const broker = await brokerSession(s, t.profile);
-  const iam = await iamClient(broker, s.region);
+  const config = stackClientConfig(s, o.profile);
+  const iam = await iamClient(config);
+  const githubRole = s.githubRoleArn?.split("/").at(-1);
   let roles: string[];
   try {
     roles = await listAgentRoles(iam, s.agentRolePath);
     for (const name of roles) {
-      await deleteAgentRole(iam, name);
-      o.log(`  deleted agent role ${name}`);
+      // The stack owns the GitHub Actions role; only the permissions Sikrets added are removed here.
+      await deleteAgentRole(iam, name, { keepRole: name === githubRole });
+      o.log(`  removed agent role ${name}`);
     }
   } finally {
     iam.destroy();
   }
-  const cfn = new CloudFormationClient(auth(t));
+  const cfn = new CloudFormationClient(config);
   try {
     o.log(`Deleting stack ${s.stackName}…`);
     await cfn.send(new DeleteStackCommand({ StackName: s.stackId }));
@@ -243,27 +283,13 @@ export async function deleteStack(s: StackState, o: { profile?: string; log: Log
   return { agentRoles: roles };
 }
 
-// ── Broker and agent roles ────────────────────────────────────────────────
-
-/** Short-lived credentials as the broker role, from your local AWS credentials and the external ID. */
-export async function brokerSession(s: StackState, profile?: string): Promise<AwsCredentials> {
-  const ext = await keychain.get("aws", externalIdKey(s.region, s.stackName));
-  if (!ext) throw new Error(`No external ID for stack ${s.stackName} in your keychain. Run sikrets aws connect to set a new one`);
-  return stsCredentials({
-    region: s.region,
-    ...(profile ? { profile } : {}),
-    role: s.brokerRoleArn,
-    externalId: ext,
-    seconds: AWS_STACK.brokerSeconds,
-    sessionName: AWS_STACK.brokerSessionName,
-  });
-}
+// ── Agent roles ───────────────────────────────────────────────────────────
 
 type Iam = InstanceType<typeof import("@aws-sdk/client-iam").IAMClient>;
 
-export async function iamClient(credentials: AwsCredentials, region: string): Promise<Iam> {
+export async function iamClient(config: { region: string; profile?: string }): Promise<Iam> {
   const { IAMClient } = await import("@aws-sdk/client-iam");
-  return new IAMClient({ region, credentials });
+  return new IAMClient(config);
 }
 
 export const agentRoleName = (agent: string) => `${AGENT_ROLE.namePrefix}${agent}`;
@@ -271,7 +297,8 @@ export const agentRoleName = (agent: string) => `${AGENT_ROLE.namePrefix}${agent
 export interface Statement {
   Effect: "Allow";
   Action: string[];
-  Resource: string;
+  Resource: string | string[];
+  Condition?: Record<string, Record<string, string>>;
 }
 
 /**
@@ -300,9 +327,28 @@ export function parseAllow(values: readonly string[]): Statement[] {
   return [...byResource].map(([Resource, actions]) => ({ Effect: "Allow" as const, Action: [...actions].sort(), Resource }));
 }
 
-/** Creates the agent's role under the boundary if needed, and sets its permissions when given. */
-export async function ensureAgentRole(iam: Iam, s: StackState, agent: string, statements: Statement[] | undefined) {
-  const { GetRoleCommand, CreateRoleCommand, PutRolePolicyCommand } = await import("@aws-sdk/client-iam");
+/** ARN of one vault parameter, /sikrets/<project>/<KEY>, in the stack's account and region. */
+export const parameterArn = (s: StackState, project: string, key: string) =>
+  `arn:${s.keyArn.split(":")[1]}:ssm:${s.region}:${s.account}:parameter${s.vaultPath}${project}/${key}`;
+
+/** Read access to exactly these vault secrets, and the key only through SSM. Until `expiresAt`, if given. */
+export function vaultStatements(s: StackState, project: string, keys: readonly string[], expiresAt?: string): Statement[] {
+  if (!keys.length) return [];
+  const until: Record<string, Record<string, string>> = expiresAt ? { DateLessThan: { "aws:CurrentTime": expiresAt } } : {};
+  return [
+    { Effect: "Allow", Action: ["ssm:GetParameter", "ssm:GetParameters"], Resource: [...keys].sort().map((k) => parameterArn(s, project, k)), ...(expiresAt ? { Condition: until } : {}) },
+    { Effect: "Allow", Action: ["kms:Decrypt"], Resource: s.keyArn, Condition: { StringEquals: { "kms:ViaService": `ssm.${s.region}.amazonaws.com` }, ...until } },
+  ];
+}
+
+const policyDoc = (statements: Statement[]) => JSON.stringify({ Version: "2012-10-17", Statement: statements });
+
+/**
+ * Creates the agent's role under the boundary if needed, and sets the policies given (vault: the
+ * secrets in its scope; allow: extra actions). A policy left undefined is kept as it is.
+ */
+export async function ensureAgentRole(iam: Iam, s: StackState, agent: string, policies: { vault?: Statement[]; allow?: Statement[] }) {
+  const { GetRoleCommand, CreateRoleCommand, PutRolePolicyCommand, DeleteRolePolicyCommand } = await import("@aws-sdk/client-iam");
   const RoleName = agentRoleName(agent);
   let role = await iam.send(new GetRoleCommand({ RoleName })).then(
     (r) => r.Role,
@@ -318,8 +364,12 @@ export async function ensureAgentRole(iam: Iam, s: StackState, agent: string, st
       throw new Error(`Role ${RoleName} exists but isn't a Sikrets agent role (missing the ${AGENT_ROLE.tag} tag or the boundary); refusing to touch it`);
     }
   } else {
-    if (!statements?.length) throw new Error(`Agent ${agent} has no role yet. Say what it may do: --allow s3:GetObject=arn:aws:s3:::bucket/*`);
-    const trust = { Version: "2012-10-17", Statement: [{ Effect: "Allow", Principal: { AWS: s.brokerRoleArn }, Action: "sts:AssumeRole" }] };
+    if (!policies.vault?.length && !policies.allow?.length) {
+      throw new Error(`Agent ${agent} has no role yet. Grant it secrets (sikrets agent add ${agent} --key <resource>) or actions (--allow s3:GetObject=arn:aws:s3:::bucket/*)`);
+    }
+    // You (anyone in this account IAM lets assume it) and, if enabled, the broker; nobody else.
+    const principals = [`arn:${s.keyArn.split(":")[1]}:iam::${s.account}:root`, ...(s.brokerRoleArn ? [s.brokerRoleArn] : [])];
+    const trust = { Version: "2012-10-17", Statement: [{ Effect: "Allow", Principal: { AWS: principals }, Action: "sts:AssumeRole" }] };
     role = (
       await iam.send(
         new CreateRoleCommand({
@@ -338,19 +388,29 @@ export async function ensureAgentRole(iam: Iam, s: StackState, agent: string, st
     ).Role;
     created = true;
   }
-  if (statements?.length) {
-    const policy = { Version: "2012-10-17", Statement: statements };
-    await iam.send(new PutRolePolicyCommand({ RoleName, PolicyName: AGENT_ROLE.policyName, PolicyDocument: JSON.stringify(policy) }));
+  for (const [PolicyName, statements] of [
+    [AGENT_ROLE.vaultPolicy, policies.vault],
+    [AGENT_ROLE.allowPolicy, policies.allow],
+  ] as const) {
+    if (statements === undefined) continue;
+    if (statements.length) await iam.send(new PutRolePolicyCommand({ RoleName, PolicyName, PolicyDocument: policyDoc(statements) }));
+    else if (!created) {
+      await iam.send(new DeleteRolePolicyCommand({ RoleName, PolicyName })).catch((e) => {
+        if (!errorName(e).startsWith("NoSuchEntity")) throw e;
+      });
+    }
   }
   if (!role?.Arn) throw new Error(`IAM returned no ARN for ${RoleName}`);
   return { arn: role.Arn, name: RoleName, created };
 }
 
-/** Temporary credentials for the agent role, assumed as the broker. A new role can take a few seconds to work. */
-export async function agentCredentials(broker: AwsCredentials, o: { region: string; roleArn: string; agent: string; seconds: number; fresh: boolean }) {
+/** Temporary credentials for the agent role, assumed with your credentials. A new role can take a few seconds to work. */
+export async function agentCredentials(s: StackState, o: { roleArn?: string; agent: string; seconds: number; fresh?: boolean; profile?: string }) {
+  const roleArn = o.roleArn ?? `arn:${s.keyArn.split(":")[1]}:iam::${s.account}:role${s.agentRolePath}${agentRoleName(o.agent)}`;
+  const config = stackClientConfig(s, o.profile);
   for (let attempt = 0; ; attempt++) {
     try {
-      return await stsCredentials({ credentials: broker, region: o.region, role: o.roleArn, seconds: o.seconds, sessionName: AGENT_ROLE.sessionName(o.agent) });
+      return await stsCredentials({ ...config, role: roleArn, seconds: o.seconds, sessionName: AGENT_ROLE.sessionName(o.agent) });
     } catch (e) {
       if (!o.fresh || errorName(e) !== "AccessDenied" || attempt >= AGENT_ROLE.assumeRetries) throw e;
       await Bun.sleep(AGENT_ROLE.assumeRetryMs);
@@ -370,9 +430,16 @@ export async function listAgentRoles(iam: Iam, rolePath: string): Promise<string
   return names;
 }
 
-export async function deleteAgentRole(iam: Iam, RoleName: string) {
+/** Removes the role's inline policies, then the role (unless it's one the stack owns). Missing is fine. */
+export async function deleteAgentRole(iam: Iam, RoleName: string, o: { keepRole?: boolean } = {}): Promise<boolean> {
   const { ListRolePoliciesCommand, DeleteRolePolicyCommand, DeleteRoleCommand } = await import("@aws-sdk/client-iam");
-  const { PolicyNames = [] } = await iam.send(new ListRolePoliciesCommand({ RoleName }));
-  for (const PolicyName of PolicyNames) await iam.send(new DeleteRolePolicyCommand({ RoleName, PolicyName }));
-  await iam.send(new DeleteRoleCommand({ RoleName }));
+  try {
+    const { PolicyNames = [] } = await iam.send(new ListRolePoliciesCommand({ RoleName }));
+    for (const PolicyName of PolicyNames) await iam.send(new DeleteRolePolicyCommand({ RoleName, PolicyName }));
+    if (!o.keepRole) await iam.send(new DeleteRoleCommand({ RoleName }));
+    return true;
+  } catch (e) {
+    if (errorName(e).startsWith("NoSuchEntity")) return false;
+    throw e;
+  }
 }

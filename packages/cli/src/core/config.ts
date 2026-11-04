@@ -2,7 +2,7 @@ import path from "node:path";
 import { readJson, writeJson } from "./fs.ts";
 import type { Context } from "./plan.ts";
 import { parseDuration } from "./ttl.ts";
-import type { VaultName } from "./vault.ts";
+import { VAULT_NAMES, type VaultName } from "./vault.ts";
 import { DEFAULTS, ENCRYPTION_REQUIRED, ENV, FILES, IAC_DIR, SCHEMA_URL } from "../constants.ts";
 
 // sikrets.json: the committed, hand-editable project file (like vercel.json). Machine-written
@@ -52,7 +52,7 @@ export function validateConfig(raw: unknown, root: string): ProjectConfig {
   if (unknown.length) fail(`unknown field${unknown.length > 1 ? "s" : ""} ${unknown.join(", ")}`);
   const c = { ...defaultConfig(root), ...(raw as Partial<ProjectConfig>) };
   if (typeof c.project !== "string" || !PROJECT.test(c.project)) fail(`"project" must be lowercase letters, digits and dashes`);
-  if (c.vault !== "ssm" && c.vault !== "keychain") fail(`"vault" must be "ssm" or "keychain"`);
+  if (!VAULT_NAMES.includes(c.vault)) fail(`"vault" must be one of ${VAULT_NAMES.join(", ")}`);
   if (typeof c.env !== "string" || !c.env || path.isAbsolute(c.env) || c.env.split(/[\\/]/).includes("..")) fail(`"env" must be a relative path inside the project`);
   if (c.iac?.tool !== "terraform" || typeof c.iac.dir !== "string" || path.isAbsolute(c.iac.dir)) fail(`"iac" must be { "tool": "terraform", "dir": "<relative dir>" }`);
   if (typeof c.connections !== "object" || c.connections === null || Object.values(c.connections).some((v) => typeof v !== "string")) {
@@ -82,8 +82,8 @@ export const writeConfig = (root: string, config: ProjectConfig) => writeJson(pa
 export function effectiveVault(config: ProjectConfig): VaultName {
   const override = Bun.env[ENV.vault];
   if (override === undefined) return config.vault;
-  if (override !== "ssm" && override !== "keychain") throw new Error(`${ENV.vault} must be "ssm" or "keychain", not "${override}"`);
-  return override;
+  if (!(VAULT_NAMES as readonly string[]).includes(override)) throw new Error(`${ENV.vault} must be one of ${VAULT_NAMES.join(", ")}, not "${override}"`);
+  return override as VaultName;
 }
 
 /** Everything a command needs about the project in the current directory. */
