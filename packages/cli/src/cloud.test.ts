@@ -417,8 +417,9 @@ describe("aws connect", () => {
   });
 
   test("--link prints a quick-create URL and deploys nothing", async () => {
-    await expect(connect({ link: true })).rejects.toThrow("--template-url");
     const query = () => new URLSearchParams(out.at(-1)!.split("quickcreate?")[1]);
+    await connect({ link: true });
+    expect(query().get("templateURL")).toBe(AWS_STACK.templateUrl);
     await connect({ link: true, "template-url": "https://bucket.s3.amazonaws.com/sikrets.yaml", "github-repo": "acme/api" });
     expect(out.at(-1)).toStartWith(`https://console.aws.amazon.com/cloudformation/home?region=${REGION}#/stacks/quickcreate?`);
     expect(Object.fromEntries(query())).toEqual({
@@ -647,6 +648,16 @@ describe("stack template", () => {
       Trail: "AWS::CloudTrail::Trail",
     });
     expect(Object.values(types).some((x) => /^AWS::(EC2|ECS|Lambda)::/.test(String(x)))).toBe(false);
+  });
+
+  test("has no null values (CloudFormation rejects them; an unquoted comma in a { } map makes one)", async () => {
+    const nulls: string[] = [];
+    const walk = (v: unknown, at: string) => {
+      if (v === null) nulls.push(at);
+      else if (typeof v === "object") for (const [k, x] of Object.entries(v as object)) walk(x, `${at}/${k}`);
+    };
+    walk(await parsed(), "");
+    expect(nulls).toEqual([]);
   });
 
   test("every Ref, GetAtt, Condition and ${} names something defined", async () => {

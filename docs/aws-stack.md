@@ -69,8 +69,10 @@ project key (`sikrets env pull --project-key`, stored as a GitHub secret) and `@
 
 ### Without the CLI
 
-`sikrets cloud connect --provider aws --link --template-url <S3 URL of the template>` prints a
-CloudFormation quick-create link with the parameters filled in. Once the stack exists, run
+`sikrets cloud connect --provider aws --link` prints a CloudFormation quick-create link with the
+parameters filled in. It points at the published template,
+https://sikrets-stack-templates.s3.amazonaws.com/stack/v1/sikrets.yaml (the same file as
+`packages/stack/sikrets.yaml`); pass `--template-url` to use your own copy. Once the stack exists, run
 `sikrets cloud connect --provider aws` to record it.
 
 ## Remove it
@@ -99,7 +101,6 @@ impersonation, and Workload Identity Federation for GitHub Actions.
 
 ## Follow-ups
 
-- Publish the template to a public S3 bucket so `--link` works without `--template-url`.
 - GCP provider (above).
 - A Sikrets-emitted "secret rotated" event on the bus (today rotation shows up as the `PutParameter` call).
 - Run `cfn-lint` and `cfn-guard` on the template in CI.

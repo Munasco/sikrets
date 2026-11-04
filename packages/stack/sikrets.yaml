@@ -29,7 +29,7 @@ Metadata:
         Parameters: [VaultPath, AgentRolePath]
       - Label: { default: GitHub Actions (optional) }
         Parameters: [GitHubRepository, CreateGitHubOidcProvider]
-      - Label: { default: Cross-account Sikrets broker (optional, off by default) }
+      - Label: { default: "Cross-account Sikrets broker (optional, off by default)" }
         Parameters: [TrustedAccountId, ExternalId]
       - Label: { default: Audit }
         Parameters: [CreateTrail, AuditRetentionDays]

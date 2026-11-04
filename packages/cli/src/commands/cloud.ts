@@ -37,8 +37,7 @@ export async function run(args: string[], opts: Record<string, unknown>) {
     };
 
     if (opts.link) {
-      const templateUrl = str(opts["template-url"]) || Bun.env[ENV.stackTemplateUrl];
-      if (!templateUrl) throw new Error(`--link needs the template's URL: --template-url https://… (or set ${ENV.stackTemplateUrl})`);
+      const templateUrl = str(opts["template-url"]) || Bun.env[ENV.stackTemplateUrl] || AWS_STACK.templateUrl;
       const url = await provider.deployLink({ ...o, templateUrl });
       if (opts.json) return console.log(JSON.stringify({ provider: provider.id, url }));
       console.log(url);

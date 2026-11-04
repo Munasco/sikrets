@@ -18,7 +18,7 @@ export const ENV = {
   project: "SIKRETS_PROJECT",
   /** Agent a command hands keys to (same as --agent); see `sikrets agent`. */
   agent: "SIKRETS_AGENT",
-  /** S3 URL of the published stack template, for `sikrets cloud connect --link`. */
+  /** Overrides the published stack template URL, for `sikrets cloud connect --link`. */
   stackTemplateUrl: "SIKRETS_STACK_TEMPLATE_URL",
   /** One project's derived key (base64), for deployed apps that read the ssm vault without a keychain. */
   projectKey: "SIKRETS_PROJECT_KEY",
@@ -123,6 +123,10 @@ export const CLOUD = {
 // ── Sikrets stack in your AWS account (packages/stack/sikrets.yaml) ───────
 export const AWS_STACK = {
   defaultName: "sikrets",
+  /** Public copy of packages/stack/sikrets.yaml (published by packages/stack/publish.sh). */
+  templateBucket: "sikrets-stack-templates",
+  templateKey: "stack/v1/sikrets.yaml",
+  templateUrl: "https://sikrets-stack-templates.s3.amazonaws.com/stack/v1/sikrets.yaml",
   /** CloudFormation template parameters, by name. */
   params: {
     vaultPath: "VaultPath",
