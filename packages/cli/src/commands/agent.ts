@@ -6,12 +6,17 @@ import { AWS_SESSION } from "../constants.ts";
 
 // `sikrets agent add|list|revoke`: scoped identities for agents. An agent is handed only the keys
 // in its scope, only until it expires, and nothing once revoked (see core/agents.ts).
+// `sikrets agent role`: an IAM role for the agent in your Sikrets AWS stack (agent-role.ts).
 
 const list = (v: unknown) => (v === undefined ? [] : Array.isArray(v) ? v.map(String) : [String(v)]);
 
 export async function run(args: string[], opts: Record<string, unknown>) {
   const root = process.cwd();
   const [sub = "list", name] = args;
+  if (sub === "role") {
+    if (!name) throw new Error("Usage: sikrets agent role <name> --allow ACTION=RESOURCE [--ttl 15m] (--env | -- <command>)");
+    return (await import("./agent-role.ts")).run(checkAgentName(name), args.slice(2), opts);
+  }
   const all = await agents.load(root);
 
   if (sub === "list" || sub === "ls") {
@@ -53,5 +58,5 @@ export async function run(args: string[], opts: Record<string, unknown>) {
     return log(opts, `Revoked ${name}; other agents are unaffected. To replace the keys it saw: sikrets offboard ${name}`);
   }
 
-  throw new Error(`Unknown agent subcommand "${sub}". Use: sikrets agent add|list|revoke <name>`);
+  throw new Error(`Unknown agent subcommand "${sub}". Use: sikrets agent add|list|revoke|role <name>`);
 }

@@ -18,6 +18,8 @@ export const ENV = {
   project: "SIKRETS_PROJECT",
   /** Agent a command hands keys to (same as --agent); see `sikrets agent`. */
   agent: "SIKRETS_AGENT",
+  /** S3 URL of the published stack template, for `sikrets aws connect --link`. */
+  stackTemplateUrl: "SIKRETS_STACK_TEMPLATE_URL",
 } as const;
 
 // ── Files and folders ─────────────────────────────────────────────────────
@@ -109,6 +111,55 @@ export const AWS_SESSION = {
   /** Agent scope that grants sessions from the connected AWS profile (not a stored key). */
   profileScope: "aws-profile",
   securityCredentials: "https://console.aws.amazon.com/iam/home#/security_credentials",
+} as const;
+
+// ── Sikrets stack in your AWS account (packages/stack/sikrets.yaml) ───────
+export const AWS_STACK = {
+  defaultName: "sikrets",
+  /** CloudFormation template parameters, by name. */
+  params: {
+    trustedAccount: "TrustedAccountId",
+    externalId: "ExternalId",
+    agentRolePath: "AgentRolePath",
+  },
+  /** CloudFormation template outputs, by name. */
+  outputs: {
+    brokerRole: "BrokerRoleArn",
+    key: "KeyArn",
+    boundary: "AgentBoundaryArn",
+    agentRolePath: "AgentRolePath",
+    auditLogGroup: "AuditLogGroupName",
+  },
+  capabilities: ["CAPABILITY_IAM"],
+  /** Stack tags (also on the resources CloudFormation creates). */
+  managedByTag: "sikrets:managed-by",
+  /** Where the stack's outputs are recorded, under the user dir. No secrets. */
+  stateFile: "aws-stack.json",
+  /** Keychain account (under the aws provider) holding a stack's external ID. */
+  externalIdAccount: (region: string, stack: string) => `external-id:${region}:${stack}`,
+  externalIdBytes: 24,
+  pollMs: 5_000,
+  timeoutMs: 30 * 60_000,
+  /** Sessions as the broker are only used to create the agent role and assume it. */
+  brokerSessionName: "sikrets-broker",
+  brokerSeconds: 900,
+  quickCreate: (region: string) => `https://console.aws.amazon.com/cloudformation/home?region=${region}#/stacks/quickcreate`,
+} as const;
+
+export const AGENT_ROLE = {
+  path: "/sikrets/agents/",
+  namePrefix: "sikrets-agent-",
+  /** Every agent role is tagged sikrets:agent=<name>; the broker refuses to create one without it. */
+  tag: "sikrets:agent",
+  policyName: "sikrets-allow",
+  maxSessionSeconds: 3600,
+  defaultTtl: "15m",
+  sessionName: (agent: string) => `sikrets-${agent}`,
+  /** Services the boundary denies outright; refused up front with a clearer message. */
+  deniedServices: ["iam", "sts", "organizations", "account", "sso", "identitystore"],
+  /** A new role can take a few seconds to become assumable. */
+  assumeRetries: 6,
+  assumeRetryMs: 2_000,
 } as const;
 
 // ── Providers ─────────────────────────────────────────────────────────────

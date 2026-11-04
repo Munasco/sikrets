@@ -1,0 +1,441 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Sikrets in your own AWS account. A broker role Sikrets assumes (with an external ID), a KMS key
+  only that broker (or an attested enclave) can use, a permissions boundary every agent role
+  carries, and an audit log of everything the broker and agent roles do.
+  Source: https://github.com/Munasco/sikrets/tree/main/packages/stack
+
+# How it fits together
+#
+#   Sikrets (your laptop, or the hosted service)
+#     └─ sts:AssumeRole + ExternalId ─▶ BrokerRole            (this stack)
+#          ├─ kms:Encrypt/Decrypt ─────▶ VaultKey              (this stack)
+#          ├─ iam:CreateRole ──────────▶ role/sikrets/agents/* (only with AgentBoundary attached)
+#          └─ sts:AssumeRole ──────────▶ role/sikrets/agents/* (15 to 60 minute credentials)
+#
+#   Every call by the broker or an agent role ─▶ EventBridge ─▶ CloudWatch Logs (AuditLogGroup)
+#
+# Nothing here runs compute. The Nitro Enclave host is a separate, optional piece: pass its
+# instance role and image measurement (PCR0) to let the enclave decrypt with VaultKey.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label: { default: Who may assume the broker role }
+        Parameters: [TrustedAccountId, ExternalId]
+      - Label: { default: Agent roles }
+        Parameters: [AgentRolePath]
+      - Label: { default: Audit }
+        Parameters: [CreateTrail, AuditRetentionDays]
+      - Label: { default: Nitro Enclave (optional) }
+        Parameters: [EnclaveRoleArn, EnclaveImageSha384]
+
+Parameters:
+  TrustedAccountId:
+    Type: String
+    Description: >-
+      AWS account allowed to assume the broker role. Your own account when you run Sikrets
+      yourself; the Sikrets service account when you use the hosted broker.
+    AllowedPattern: "^\\d{12}$"
+    ConstraintDescription: a 12-digit AWS account ID
+  ExternalId:
+    Type: String
+    NoEcho: true
+    Description: Shared value the caller must present to assume the broker role (confused-deputy protection).
+    MinLength: 16
+    MaxLength: 128
+    AllowedPattern: "^[\\w+=,.@:/-]+$"
+  AgentRolePath:
+    Type: String
+    Default: /sikrets/agents/
+    Description: IAM path for agent roles. The broker can only create, assume and delete roles under it.
+    AllowedPattern: "^/([\\w+=,.@-]+/)+$"
+  CreateTrail:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: >-
+      Create a multi-region CloudTrail trail (and its S3 bucket) so API calls reach EventBridge.
+      Set to false if the account already has a trail.
+  AuditRetentionDays:
+    Type: Number
+    Default: 365
+    AllowedValues: [30, 60, 90, 180, 365, 731, 1827, 3653]
+    Description: How long the audit log keeps agent activity.
+  EnclaveRoleArn:
+    Type: String
+    Default: ""
+    Description: Optional. Instance role of the Nitro Enclave host; with EnclaveImageSha384, it may decrypt with the key.
+  EnclaveImageSha384:
+    Type: String
+    Default: ""
+    Description: Optional. PCR0 of the enclave image allowed to decrypt (96 hex characters).
+    AllowedPattern: "^([0-9a-fA-F]{96})?$"
+
+Conditions:
+  WantTrail: !Equals [!Ref CreateTrail, "true"]
+  HasEnclave: !And
+    - !Not [!Equals [!Ref EnclaveRoleArn, ""]]
+    - !Not [!Equals [!Ref EnclaveImageSha384, ""]]
+
+Resources:
+  # ── Broker ──────────────────────────────────────────────────────────────
+  BrokerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Assumed by Sikrets to manage agent roles and use the vault key. Nothing else.
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: SikretsWithExternalId
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:${AWS::Partition}:iam::${TrustedAccountId}:root
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                sts:ExternalId: !Ref ExternalId
+      Tags:
+        - { Key: sikrets:managed-by, Value: sikrets }
+        - { Key: sikrets:stack, Value: !Ref AWS::StackName }
+
+  BrokerPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: sikrets-broker
+      Roles: [!Ref BrokerRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          # A new agent role must carry the boundary and a sikrets:agent tag.
+          - Sid: CreateAgentRolesWithBoundary
+            Effect: Allow
+            Action: iam:CreateRole
+            Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role${AgentRolePath}*
+            Condition:
+              StringEquals:
+                iam:PermissionsBoundary: !Ref AgentBoundary
+              "Null":
+                aws:RequestTag/sikrets:agent: "false"
+          # Inline permissions only on roles that already carry the boundary.
+          - Sid: SetAgentPermissions
+            Effect: Allow
+            Action: iam:PutRolePolicy
+            Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role${AgentRolePath}*
+            Condition:
+              StringEquals:
+                iam:PermissionsBoundary: !Ref AgentBoundary
+          - Sid: ManageAgentRoles
+            Effect: Allow
+            Action:
+              - iam:TagRole
+              - iam:GetRole
+              - iam:ListRolePolicies
+              - iam:GetRolePolicy
+              - iam:DeleteRolePolicy
+              - iam:DeleteRole
+            Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role${AgentRolePath}*
+          - Sid: ListAgentRoles
+            Effect: Allow
+            Action: iam:ListRoles
+            Resource: "*"
+          - Sid: IssueAgentCredentials
+            Effect: Allow
+            Action: sts:AssumeRole
+            Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role${AgentRolePath}*
+          # Belt and braces: the boundary can never be removed, swapped or edited by the broker.
+          - Sid: KeepTheBoundary
+            Effect: Deny
+            Action:
+              - iam:DeleteRolePermissionsBoundary
+              - iam:PutRolePermissionsBoundary
+              - iam:AttachRolePolicy
+              - iam:CreatePolicyVersion
+              - iam:SetDefaultPolicyVersion
+              - iam:DeletePolicy
+            Resource: "*"
+
+  # ── Vault key ───────────────────────────────────────────────────────────
+  # The account can manage the key but not decrypt with it. Only the broker (and, if configured,
+  # the attested enclave) can use it.
+  VaultKey:
+    Type: AWS::KMS::Key
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Properties:
+      Description: !Sub Sikrets vault key (${AWS::StackName}); usable only by the Sikrets broker role
+      EnableKeyRotation: true
+      PendingWindowInDays: 30
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AccountManagesButCannotDecrypt
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
+            Action:
+              - kms:DescribeKey
+              - kms:GetKeyPolicy
+              - kms:PutKeyPolicy
+              - kms:GetKeyRotationStatus
+              - kms:EnableKeyRotation
+              - kms:DisableKeyRotation
+              - kms:ListResourceTags
+              - kms:TagResource
+              - kms:UntagResource
+              - kms:ListGrants
+              - kms:RevokeGrant
+              - kms:CreateAlias
+              - kms:UpdateAlias
+              - kms:DeleteAlias
+              - kms:UpdateKeyDescription
+              - kms:EnableKey
+              - kms:DisableKey
+              - kms:ScheduleKeyDeletion
+              - kms:CancelKeyDeletion
+            Resource: "*"
+          - Sid: BrokerUsesTheKey
+            Effect: Allow
+            Principal:
+              AWS: !GetAtt BrokerRole.Arn
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:DescribeKey
+            Resource: "*"
+          - !If
+            - HasEnclave
+            - Sid: AttestedEnclaveDecrypts
+              Effect: Allow
+              Principal:
+                AWS: !Ref EnclaveRoleArn
+              Action: kms:Decrypt
+              Resource: "*"
+              Condition:
+                StringEqualsIgnoreCase:
+                  kms:RecipientAttestation:ImageSha384: !Ref EnclaveImageSha384
+            - !Ref AWS::NoValue
+      Tags:
+        - { Key: sikrets:managed-by, Value: sikrets }
+        - { Key: sikrets:stack, Value: !Ref AWS::StackName }
+
+  VaultKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub alias/${AWS::StackName}
+      TargetKeyId: !Ref VaultKey
+
+  # ── Agent boundary ──────────────────────────────────────────────────────
+  # The most any agent role can ever do, whatever its own policy says. Agents get the narrow
+  # permissions `sikrets agent role --allow` grants, minus everything below.
+  AgentBoundary:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Permissions boundary every Sikrets agent role carries.
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowWhatTheRoleGrants
+            Effect: Allow
+            Action: "*"
+            Resource: "*"
+          - Sid: NoIdentityOrAccountChanges
+            Effect: Deny
+            Action:
+              - iam:*
+              - sts:AssumeRole
+              - sts:AssumeRoleWithSAML
+              - sts:AssumeRoleWithWebIdentity
+              - sts:GetFederationToken
+              - organizations:*
+              - account:*
+              - sso:*
+              - identitystore:*
+            Resource: "*"
+          - Sid: NoBlindingTheAudit
+            Effect: Deny
+            Action:
+              - cloudtrail:StopLogging
+              - cloudtrail:DeleteTrail
+              - cloudtrail:UpdateTrail
+              - cloudtrail:PutEventSelectors
+              - events:DeleteRule
+              - events:DisableRule
+              - events:PutRule
+              - events:PutTargets
+              - events:RemoveTargets
+              - logs:DeleteLogGroup
+              - logs:DeleteLogStream
+              - logs:PutRetentionPolicy
+              - logs:DeleteResourcePolicy
+              - logs:PutResourcePolicy
+            Resource: "*"
+          - Sid: NoTouchingThisStack
+            Effect: Deny
+            Action: cloudformation:*
+            Resource: !Ref AWS::StackId
+          - Sid: NoVaultKey
+            Effect: Deny
+            Action: kms:*
+            Resource: !GetAtt VaultKey.Arn
+
+  # ── Audit ───────────────────────────────────────────────────────────────
+  # Everything the broker or an agent role does lands in one log group. EventBridge sees API calls
+  # through CloudTrail; IAM calls arrive in us-east-1, everything else in the region it happened.
+  AuditLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub /aws/events/${AWS::StackName}-agents
+      RetentionInDays: !Ref AuditRetentionDays
+      Tags:
+        - { Key: sikrets:managed-by, Value: sikrets }
+
+  AuditLogPolicy:
+    Type: AWS::Logs::ResourcePolicy
+    Properties:
+      PolicyName: !Sub ${AWS::StackName}-agent-audit
+      PolicyDocument: !Sub |
+        {
+          "Version": "2012-10-17",
+          "Statement": [{
+            "Sid": "EventBridgeWrites",
+            "Effect": "Allow",
+            "Principal": { "Service": ["events.amazonaws.com", "delivery.logs.amazonaws.com"] },
+            "Action": ["logs:CreateLogStream", "logs:PutLogEvents"],
+            "Resource": "${AuditLogGroup.Arn}"
+          }]
+        }
+
+  AgentActivityRule:
+    Type: AWS::Events::Rule
+    DependsOn: AuditLogPolicy
+    Properties:
+      Description: Every API call made by the Sikrets broker role or an agent role.
+      EventPattern:
+        detail-type: [AWS API Call via CloudTrail]
+        detail:
+          userIdentity:
+            sessionContext:
+              sessionIssuer:
+                arn:
+                  - !GetAtt BrokerRole.Arn
+                  - prefix: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role${AgentRolePath}
+      Targets:
+        - Id: audit-log
+          Arn: !GetAtt AuditLogGroup.Arn
+
+  BrokerAssumedRule:
+    Type: AWS::Events::Rule
+    DependsOn: AuditLogPolicy
+    Properties:
+      Description: Every time someone assumes the Sikrets broker role.
+      EventPattern:
+        source: [aws.sts]
+        detail-type: [AWS API Call via CloudTrail]
+        detail:
+          eventName: [AssumeRole]
+          requestParameters:
+            roleArn: [!GetAtt BrokerRole.Arn]
+      Targets:
+        - Id: audit-log
+          Arn: !GetAtt AuditLogGroup.Arn
+
+  TrailBucket:
+    Type: AWS::S3::Bucket
+    Condition: WantTrail
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-audit
+            Status: Enabled
+            ExpirationInDays: !Ref AuditRetentionDays
+      Tags:
+        - { Key: sikrets:managed-by, Value: sikrets }
+
+  TrailBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Condition: WantTrail
+    Properties:
+      Bucket: !Ref TrailBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: CloudTrailAclCheck
+            Effect: Allow
+            Principal: { Service: cloudtrail.amazonaws.com }
+            Action: s3:GetBucketAcl
+            Resource: !GetAtt TrailBucket.Arn
+            Condition:
+              StringEquals:
+                aws:SourceArn: !Sub arn:${AWS::Partition}:cloudtrail:${AWS::Region}:${AWS::AccountId}:trail/${AWS::StackName}-audit
+          - Sid: CloudTrailWrite
+            Effect: Allow
+            Principal: { Service: cloudtrail.amazonaws.com }
+            Action: s3:PutObject
+            Resource: !Sub ${TrailBucket.Arn}/AWSLogs/${AWS::AccountId}/*
+            Condition:
+              StringEquals:
+                aws:SourceArn: !Sub arn:${AWS::Partition}:cloudtrail:${AWS::Region}:${AWS::AccountId}:trail/${AWS::StackName}-audit
+          - Sid: TlsOnly
+            Effect: Deny
+            Principal: "*"
+            Action: s3:*
+            Resource:
+              - !GetAtt TrailBucket.Arn
+              - !Sub ${TrailBucket.Arn}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: "false"
+
+  Trail:
+    Type: AWS::CloudTrail::Trail
+    Condition: WantTrail
+    DependsOn: TrailBucketPolicy
+    Properties:
+      TrailName: !Sub ${AWS::StackName}-audit
+      S3BucketName: !Ref TrailBucket
+      IsLogging: true
+      IsMultiRegionTrail: true
+      IncludeGlobalServiceEvents: true
+      EnableLogFileValidation: true
+      Tags:
+        - { Key: sikrets:managed-by, Value: sikrets }
+
+Outputs:
+  BrokerRoleArn:
+    Description: Role Sikrets assumes (with the external ID) to manage agent roles.
+    Value: !GetAtt BrokerRole.Arn
+  KeyArn:
+    Description: KMS key only the broker (or the attested enclave) can use.
+    Value: !GetAtt VaultKey.Arn
+  AgentBoundaryArn:
+    Description: Permissions boundary every agent role must carry.
+    Value: !Ref AgentBoundary
+  AgentRolePath:
+    Description: IAM path agent roles live under.
+    Value: !Ref AgentRolePath
+  AuditLogGroupName:
+    Description: CloudWatch Logs group with every broker and agent API call.
+    Value: !Ref AuditLogGroup
+  TrailBucketName:
+    Condition: WantTrail
+    Description: S3 bucket the audit trail writes to (kept when the stack is deleted).
+    Value: !Ref TrailBucket
