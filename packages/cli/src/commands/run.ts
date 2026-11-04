@@ -13,7 +13,7 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   const root = process.cwd();
   const { resources } = await state.load(root);
   const { ctx } = await projectContext(root, { log: () => {} });
-  const vault = await openVault(ctx.project, ctx.vault);
+  const vault = await openVault(ctx.project, ctx.vault, ctx);
 
   // An agent gets only the keys in its scope, and none once revoked or expired.
   const agent = currentAgent(opts);

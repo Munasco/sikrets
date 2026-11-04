@@ -20,6 +20,8 @@ export const ENV = {
   agent: "SIKRETS_AGENT",
   /** S3 URL of the published stack template, for `sikrets aws connect --link`. */
   stackTemplateUrl: "SIKRETS_STACK_TEMPLATE_URL",
+  /** One project's derived key (base64), for deployed apps that read the ssm vault without a keychain. */
+  projectKey: "SIKRETS_PROJECT_KEY",
 } as const;
 
 // ── Files and folders ─────────────────────────────────────────────────────
@@ -176,4 +178,87 @@ export const PROVIDER_URLS = {
   },
   openai: { login: "https://platform.openai.com/login" },
   x: { login: "https://x.com/i/flow/login" },
+} as const;
+
+// ── Recovery ──────────────────────────────────────────────────────────────
+export const RECOVERY = {
+  /** Per-user file holding the wrapped data key (never the key or the code). */
+  file: "recovery.json",
+  /** Keychain slot for this device's copy of the data key. */
+  dataKeyProvider: "datakey",
+  dataKeyAccount: "default",
+  dataKeyBytes: 32,
+  /** Random bytes in a recovery code (160 bits), before the checksum group. */
+  codeBytes: 20,
+  /** Crockford base32: no I, L, O or U, so codes survive being read aloud or handwritten. */
+  alphabet: "0123456789ABCDEFGHJKMNPQRSTVWXYZ",
+  groupSize: 4,
+  checksumChars: 4,
+  sharePrefix: "S",
+  shares: 3,
+  threshold: 2,
+  /** Argon2id per RFC 9106's second recommendation (64 MiB, 3 passes). scrypt is the fallback. */
+  argon2: { memoryKiB: 65_536, passes: 3, parallelism: 4 },
+  scrypt: { N: 131_072, r: 8, p: 1, maxmem: 256 * 1024 * 1024 },
+  saltBytes: 16,
+  ivBytes: 12,
+  /** Bound into every wrap as AES-GCM associated data. */
+  aad: "sikrets-recovery-v1",
+  fingerprintLabel: "sikrets-datakey-fingerprint",
+} as const;
+
+// ── Client-side encryption ────────────────────────────────────────────────
+export const ENVELOPE = {
+  /** Every value written to a remote vault starts with this; anything else is legacy plaintext. */
+  prefix: "sk1:",
+  /** Matches any envelope version, so a newer one fails loudly instead of being read as plaintext. */
+  versionPattern: /^sk(\d+):/,
+  /** HKDF from the data key to one project's key: a deployed app holds that, never the data key. */
+  hkdfSalt: "sikrets-project-key",
+  hkdfInfo: (project: string) => `sikrets-project-v1|${project}`,
+  /** Bound into every value as AES-GCM associated data, with the full parameter name. */
+  aad: (name: string) => `sikrets-value-v1|${name}`,
+  ivBytes: 12,
+  tagBytes: 16,
+} as const;
+/** sikrets.json "encryption" value that refuses legacy plaintext once a project is migrated. */
+export const ENCRYPTION_REQUIRED = "required";
+
+// ── Backups ───────────────────────────────────────────────────────────────
+export const BACKUP = {
+  format: "sikrets-backup",
+  version: 1,
+  /** Default folder, under the per-user folder, so a backup never lands inside a repo by accident. */
+  dir: "backups",
+  extension: ".sikrets-backup",
+  /** Default file name: sikrets-<project>-<timestamp>.sikrets-backup */
+  fileName: (project: string, at: Date) => `sikrets-${project}-${at.toISOString().replace(/[:.]/g, "-")}.sikrets-backup`,
+  /** Matches only fileName()'s output for this project, so pruning never touches another project's files. */
+  filePattern: (project: string) => new RegExp(`^sikrets-${project}-\\d{4}-\\d{2}-\\d{2}T\\d{2}-\\d{2}-\\d{2}-\\d{3}Z\\.sikrets-backup$`),
+  /** HKDF info for the data-key mode, so a backup key never equals a project key. */
+  hkdfInfo: "sikrets-backup-v1",
+  aad: "sikrets-backup-v1",
+  minPassphrase: 12,
+  /** --keep default for --dir backups: older files in that folder are pruned. */
+  keep: 14,
+} as const;
+
+// ── Doorman (human approval before rotating) ──────────────────────────────
+export const APPROVALS_FILE = "approvals.json";
+/** Pending requests lapse after this long without a decision. */
+export const APPROVAL_TTL = "24h";
+/** What a person is told. Generic on purpose: never the detection source. */
+export const APPROVAL_REASONS = {
+  exposed: "We think this key may be exposed",
+  expired: "This key is past its rotation date",
+  requested: "An agent asked to rotate this key",
+} as const;
+export const DOORMAN = {
+  title: "Sikrets",
+  /** Compiled Touch ID helpers are cached here, under the user folder. */
+  binDir: "bin",
+  helperName: "sikrets-touchid",
+  dialogTimeoutSeconds: 120,
+  approveButton: "Approve",
+  denyButton: "Deny",
 } as const;

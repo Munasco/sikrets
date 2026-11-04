@@ -45,7 +45,7 @@ registerUndo("terraform.destroy", async ({ names }, ctx: Context) => {
   const targets = resources.filter((r) => list.includes(r.name));
   const env = await providerEnv(targets.map((r) => r.provider));
   await terraform(ctx.root, ["destroy", "-input=false", "-auto-approve", ...targets.map((r) => `-target=module.${tfIdent(r.name)}`)], env);
-  const vault = await openVault(ctx.project, ctx.vault);
+  const vault = await openVault(ctx.project, ctx.vault, ctx);
   for (const r of targets) {
     for (const key of r.envKeys) await vault.delete(key);
     await state.upsert(ctx.root, { ...r, applied: false, outputs: {} });

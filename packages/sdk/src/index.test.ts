@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import { createSikrets, SikretsError } from "./index.ts";
 
 const STAND_IN = "sk-sikrets-AAAAbbbbCCCCddddEEEEffffGGGGhhhh";
@@ -83,5 +83,57 @@ describe("errors", () => {
     const s = createSikrets({ env: { KEY_A: STAND_IN }, project: "demo", fetch: fakeVault({}).fetch });
     const err = await s.get("KEY_A").catch((e: Error) => e);
     expect(String(err)).not.toContain(STAND_IN);
+  });
+});
+
+// A value sealed by the CLI (packages/cli core/envelope.ts) for project "shop", with a test data key
+// of 32 bytes of 0x07. Fixed here so the SDK is checked against the CLI's exact format.
+const VECTOR = {
+  dataKey: "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=",
+  projectKey: "sWk4+fZ3YRVSRKKXZ5gxnVznc7J/NAHm2lld4NdLF/M=",
+  sealed: "sk1:9OvtWBxtiH/By46uyV5VeUYM5OA0onjCn1nkL7yIM77Ox1XyU9ny",
+};
+
+describe("encrypted values", () => {
+  const codeOf = (p: Promise<unknown>) => p.then(() => "ok", (e) => (e instanceof SikretsError ? e.code : "other"));
+
+  test("opens a CLI-sealed value with SIKRETS_PROJECT_KEY", async () => {
+    const s = createSikrets({ env: { SIKRETS_PROJECT_KEY: VECTOR.projectKey }, project: "shop", fetch: fakeVault({ ANTHROPIC_API_KEY: VECTOR.sealed }).fetch });
+    expect(await s.get("ANTHROPIC_API_KEY")).toBe("sk-ant-real");
+  });
+
+  test("derives the same project key from the data key in the Bun keychain", async () => {
+    const get = spyOn(Bun.secrets, "get").mockImplementation(async ({ service, name }) => (service === "dev.sikrets.datakey" && name === "default" ? VECTOR.dataKey : null));
+    try {
+      const s = createSikrets({ env: {}, project: "shop", fetch: fakeVault({ ANTHROPIC_API_KEY: VECTOR.sealed }).fetch });
+      expect(await s.get("ANTHROPIC_API_KEY")).toBe("sk-ant-real");
+    } finally {
+      get.mockRestore();
+    }
+  });
+
+  test("a wrong key, another project or a moved value fails with code decrypt, never the value", async () => {
+    const wrongKey = createSikrets({ projectKey: new Uint8Array(32), env: {}, project: "shop", fetch: fakeVault({ ANTHROPIC_API_KEY: VECTOR.sealed }).fetch });
+    expect(await codeOf(wrongKey.get("ANTHROPIC_API_KEY"))).toBe("decrypt");
+    const moved = createSikrets({ projectKey: VECTOR.projectKey, env: {}, project: "shop", fetch: fakeVault({ OTHER_KEY: VECTOR.sealed }).fetch });
+    const err = await moved.get("OTHER_KEY").catch((e: Error) => e);
+    expect((err as SikretsError).code).toBe("decrypt");
+    expect(String(err)).not.toContain("sk-ant-real");
+  });
+
+  test("without any key, a sealed value explains how to get one", async () => {
+    const get = spyOn(Bun.secrets, "get").mockImplementation(async () => null);
+    try {
+      const s = createSikrets({ env: {}, project: "shop", fetch: fakeVault({ ANTHROPIC_API_KEY: VECTOR.sealed }).fetch });
+      expect(String(await s.get("ANTHROPIC_API_KEY").catch((e: Error) => e))).toContain("SIKRETS_PROJECT_KEY");
+    } finally {
+      get.mockRestore();
+    }
+  });
+
+  test("legacy plaintext passes through, unless encryption is required", async () => {
+    const v = fakeVault({ ANTHROPIC_API_KEY: "sk-ant-legacy" });
+    expect(await createSikrets({ env: {}, project: "shop", fetch: v.fetch }).get("ANTHROPIC_API_KEY")).toBe("sk-ant-legacy");
+    expect(await codeOf(createSikrets({ env: {}, project: "shop", fetch: v.fetch, requireEncrypted: true }).get("ANTHROPIC_API_KEY"))).toBe("decrypt");
   });
 });
