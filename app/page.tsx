@@ -94,7 +94,7 @@ export default function LandingPage() {
               <h1 className="display text-balance text-[3.3rem] text-forest sm:text-7xl md:text-[5.6rem]">Your virtual security guard.</h1>
               <p className="mt-6 max-w-xl text-balance text-[17px] leading-snug text-ink-soft md:text-[19px]">
                 The AI agent you can paste keys into.
-                <br />
+                <br className="hidden sm:block" />
                 Like Grokbot, but for security. For you and your company.
               </p>
               <div className="mt-8">
@@ -193,7 +193,7 @@ export default function LandingPage() {
             <div className="mt-8 grid grid-cols-1 gap-4 md:mt-10 md:grid-cols-3">
               {plans.map((p, i) => (
                 <Reveal key={p.name} delay={i * 80}>
-                  <div className={p.featured ? "flex h-full flex-col rounded-2xl bg-[linear-gradient(180deg,#eef1f1,#f6eee8)] p-6 shadow-[0_20px_60px_rgba(40,50,45,0.08)] ring-1 ring-pine/20 md:p-8" : "flex h-full flex-col rounded-2xl bg-cream p-6 md:p-8"}>
+                  <div className={p.featured ? "flex h-full flex-col rounded-2xl bg-[linear-gradient(180deg,#eef1f1,#f6eee8)] p-6 shadow-[0_12px_32px_-12px_rgba(40,50,45,0.12)] ring-1 ring-pine/20 md:p-8" : "flex h-full flex-col rounded-2xl bg-cream p-6 md:p-8"}>
                     <p className="font-mono text-[12px] uppercase tracking-[0.08em] text-muted">{p.who}</p>
                     <h3 className="display mt-3 text-[2rem] text-forest">{p.name}</h3>
                     <p className="mt-4 flex items-baseline gap-1.5">
