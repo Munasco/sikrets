@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import { ArrowUp, ChevronRight, KeyRound, PanelLeft, Search, ShieldCheck, ShieldQuestion, Sparkles, Square, SquarePen } from "lucide-react";
+import { ArrowUp, ChevronRight, KeyRound, Zap, PanelLeft, Search, ShieldCheck, ShieldQuestion, Sparkles, Square, SquarePen } from "lucide-react";
 import { api, ApiError, subscribe, type AssistantPart, type Attestation, type Me, type Message, type OcEvent, type PermissionRequest, type SessionInfo, type ToolPart } from "./api.ts";
 import { Markdown, withSecrets } from "./markdown.tsx";
 import { ToolRow } from "./tools.tsx";
@@ -36,7 +36,7 @@ export function App() {
   useEffect(() => void api.me().then(setMe, () => setMe({ authed: false, gated: true, model: "" })), []);
   if (!me) return null;
   if (!me.authed) return <Gate onIn={() => api.me().then(setMe)} />;
-  return <Workspace model={me.model} />;
+  return <Workspace model={me.model} fullAccess={Boolean(me.fullAccess)} />;
 }
 
 function Gate({ onIn }: { onIn: () => void }) {
@@ -66,11 +66,12 @@ function Gate({ onIn }: { onIn: () => void }) {
   );
 }
 
-function Workspace({ model }: { model: string }) {
+function Workspace({ model, fullAccess: initialAccess }: { model: string; fullAccess: boolean }) {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [current, setCurrent] = useState<string | undefined>(routeSession());
   const [messages, setMessages] = useState<Message[]>([]);
   const [pending, setPending] = useState<PermissionRequest[]>([]);
+  const [fullAccess, setFullAccess] = useState(initialAccess);
   const [working, setWorking] = useState<Record<string, number>>({});
   const [approvals, setApprovals] = useState<Record<string, boolean>>({});
   const [unread, setUnread] = useState<Record<string, boolean>>({});
@@ -182,6 +183,14 @@ function Workspace({ model }: { model: string }) {
 
   const stop = () => current && void api.interrupt(current);
 
+  const toggleAccess = async () => {
+    try {
+      setFullAccess((await api.fullAccess(!fullAccess)).fullAccess);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   // Shortcuts: new chat, toggle sidebar, previous/next chat, stop; typing anywhere goes to the composer.
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
@@ -225,7 +234,7 @@ function Workspace({ model }: { model: string }) {
 
         <div className={cn("pointer-events-none absolute inset-x-0 z-20 px-3 sm:px-12", empty ? "inset-y-0 flex flex-col items-center justify-center" : "bottom-0 pb-3 pt-2")}>
           {empty && <Hero />}
-          <Composer ref={composer} model={model} running={Boolean(running)} awaiting={pending.length > 0} onSend={send} onStop={stop} />
+          <Composer ref={composer} model={model} running={Boolean(running)} awaiting={pending.length > 0} fullAccess={fullAccess} onToggleAccess={toggleAccess} onSend={send} onStop={stop} />
         </div>
       </section>
     </div>
@@ -332,12 +341,14 @@ interface ComposerProps {
   model: string;
   running: boolean;
   awaiting: boolean;
+  fullAccess: boolean;
+  onToggleAccess: () => void;
   onSend: (text: string) => Promise<void>;
   onStop: () => void;
   ref: React.Ref<HTMLTextAreaElement>;
 }
 
-function Composer({ model, running, awaiting, onSend, onStop, ref }: ComposerProps) {
+function Composer({ model, running, awaiting, fullAccess, onToggleAccess, onSend, onStop, ref }: ComposerProps) {
   const [text, setText] = useState("");
   const area = useRef<HTMLTextAreaElement | null>(null);
   const resize = () => {
@@ -387,6 +398,12 @@ function Composer({ model, running, awaiting, onSend, onStop, ref }: ComposerPro
               <KeyRound className="size-3.5" aria-hidden />
               <span className="max-sm:hidden">Keys hidden</span>
             </span>
+          </Tip>
+          <Tip label={fullAccess ? "Full access: everything the agent asks for is approved, even with this page closed. Click to ask first again." : "Approve everything the agent asks for without stopping, even with this page closed."}>
+            <button type="button" aria-pressed={fullAccess} onClick={onToggleAccess} className={cn("flex h-7 items-center gap-1.5 rounded-md px-2 text-[12px] transition-colors", fullAccess ? "bg-tan/[0.12] text-tan" : "text-muted hover:text-ink")}>
+              <Zap className={cn("size-3.5", fullAccess && "fill-current")} aria-hidden />
+              <span className="max-sm:hidden">Full access</span>
+            </button>
           </Tip>
           <span className="flex-1" />
           <span className="flex h-7 items-center gap-1 px-2 font-mono text-[11px] text-faint">

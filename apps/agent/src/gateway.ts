@@ -2,6 +2,7 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypt
 import path from "node:path";
 import { MODEL, PROXY, SERVER } from "./constants.ts";
 import type { Server } from "./opencode.ts";
+import { autoApprove, FullAccess } from "./full-access.ts";
 import { Owners, proxy, type Owner } from "./proxy.ts";
 
 // The gateway in front of opencode: the chat page, the access code, rate limits, the attestation
@@ -18,6 +19,8 @@ export interface Options {
   attestationFile?: string;
   /** Where to keep the session-to-owner map across restarts. */
   ownersFile?: string;
+  /** Where to keep who turned on full access (src/full-access.ts). */
+  fullAccessFile?: string;
 }
 
 const UI = path.join(import.meta.dir, "..", SERVER.uiDir);
@@ -48,6 +51,8 @@ export function createGateway(oc: Server, opts: Options = {}) {
   const code = opts.accessCode;
   const key = code ? createHmac("sha256", "sikrets-agent").update(code).digest() : undefined;
   const api = proxy(oc, new Owners(opts.ownersFile));
+  const access = new FullAccess(opts.fullAccessFile);
+  const approver = autoApprove(oc, api.owners, access);
 
   const sign = (payload: string) => `${payload}.${createHmac("sha256", key!).update(payload).digest("base64url")}`;
   const same = (a: string, b: string) => {
@@ -106,7 +111,20 @@ export function createGateway(oc: Server, opts: Options = {}) {
       return json({ ok: true }, 200, { "set-cookie": `${SERVER.cookie}=${value}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${SERVER.sessionDays * 86_400}` });
     }
 
-    if (url.pathname === "/api/me") return json({ authed: Boolean(owner(req)), gated: Boolean(key), model: MODEL.name });
+    if (url.pathname === "/api/me") {
+      const who = owner(req);
+      return json({ authed: Boolean(who), gated: Boolean(key), model: MODEL.name, fullAccess: access.has(who) });
+    }
+
+    if (url.pathname === "/api/full-access" && req.method === "PUT") {
+      const who = owner(req);
+      if (!who) return json({ error: "Enter the access code first." }, 401);
+      const { on } = (await req.json().catch(() => ({}))) as { on?: unknown };
+      if (typeof on !== "boolean") return json({ error: "Send { on: true | false }." }, 400);
+      access.set(who, on);
+      if (on) await approver.pending(who);
+      return json({ fullAccess: on });
+    }
 
     if (url.pathname.startsWith("/api/")) {
       // opencode's desktop app calls from its own page origin, so it needs CORS; no other origin gets it.
@@ -150,5 +168,5 @@ export function createGateway(oc: Server, opts: Options = {}) {
     return new Response(file, { headers: { ...SECURITY_HEADERS, "cache-control": asset ? "public, max-age=31536000, immutable" : "no-cache" } });
   }
 
-  return { fetch, owners: api.owners };
+  return { fetch, owners: api.owners, stop: approver.stop };
 }

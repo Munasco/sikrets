@@ -98,6 +98,7 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(() => {
+  gateway?.stop();
   oc?.stop();
   model.stop(true);
 });
@@ -163,6 +164,26 @@ describe("the gateway's proxy, end to end", () => {
       call(`/api/session/${session}/permission/${asked.data.id}/reply`, { method: "POST", body: JSON.stringify({ decision: "reject" }) }),
     );
     expect(done.at(-1)?.type).toMatch(/^session\.execution\./);
+  }, 60_000);
+
+  test("with full access on, the gateway approves the download and the run finishes unattended", async () => {
+    expect(((await (await call("/api/me")).json()) as { fullAccess: boolean }).fullAccess).toBe(false);
+    expect((await call("/api/full-access", { method: "PUT", body: JSON.stringify({ on: "yes" }) })).status).toBe(400);
+    expect((await call("/api/full-access", { method: "PUT", body: JSON.stringify({ on: true }) }, {})).status).toBe(401);
+    expect((await call("/api/full-access", { method: "PUT", body: JSON.stringify({ on: true }) })).status).toBe(200);
+    expect(((await (await call("/api/me")).json()) as { fullAccess: boolean }).fullAccess).toBe(true);
+    // Another login is unaffected.
+    expect(((await (await call("/api/me", {}, { cookie })).json()) as { fullAccess: boolean }).fullAccess).toBe(false);
+
+    const seen = await events(basic, terminal(session), () =>
+      call(`/api/session/${session}/prompt`, { method: "POST", body: JSON.stringify({ text: "please scan the repo once more" }) }),
+    );
+    const asked = seen.find((e) => e.type === "permission.asked");
+    const replied = seen.find((e) => e.type === "permission.replied");
+    expect(asked).toBeDefined();
+    expect(replied?.data).toMatchObject({ requestID: asked!.data.id, reply: "always" });
+    expect(seen.at(-1)?.type).toMatch(/^session\.execution\./);
+    expect((await call("/api/full-access", { method: "PUT", body: JSON.stringify({ on: false }) })).status).toBe(200);
   }, 60_000);
 
   test("callers see only their own sessions", async () => {

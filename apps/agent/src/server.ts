@@ -9,7 +9,7 @@ const oc = await start();
 process.on("exit", () => oc.stop());
 for (const sig of ["SIGINT", "SIGTERM"] as const) process.on(sig, () => process.exit(0));
 
-const gateway = createGateway(oc, { accessCode: SERVER.accessCode, ownersFile: path.join(OPENCODE.home, "owners.json") });
+const gateway = createGateway(oc, { accessCode: SERVER.accessCode, ownersFile: path.join(OPENCODE.home, "owners.json"), fullAccessFile: path.join(OPENCODE.home, "full-access.json") });
 
 const clientOf = (req: Request, server: Bun.Server<unknown>) =>
   req.headers.get("cloudfront-viewer-address")?.replace(/:\d+$/, "") ?? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? server.requestIP(req)?.address ?? "unknown";

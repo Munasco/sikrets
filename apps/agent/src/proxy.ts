@@ -59,6 +59,9 @@ export class Owners {
   known(session: string) {
     return this.map.has(session);
   }
+  ownerOf(session: string): Owner | undefined {
+    return this.map.get(session)?.owner;
+  }
   owns(session: string, owner: Owner) {
     return this.map.get(session)?.owner === owner;
   }

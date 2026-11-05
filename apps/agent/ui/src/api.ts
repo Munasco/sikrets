@@ -35,6 +35,8 @@ export interface Me {
   authed: boolean;
   gated: boolean;
   model: string;
+  /** The gateway approves everything this login's agent asks for. */
+  fullAccess?: boolean;
 }
 
 export interface Attestation {
@@ -75,6 +77,7 @@ export const api = {
   prompt: (id: string, text: string) => post<unknown>(`/api/session/${id}/prompt`, { text }),
   interrupt: (id: string) => post<unknown>(`/api/session/${id}/interrupt`),
   permissions: async (id: string) => (await call<{ data: PermissionRequest[] }>(`/api/session/${id}/permission`)).data,
+  fullAccess: (on: boolean) => call<{ fullAccess: boolean }>("/api/full-access", { method: "PUT", body: JSON.stringify({ on }) }),
   reply: (id: string, request: string, decision: "once" | "always" | "reject") => post<void>(`/api/session/${id}/permission/${request}/reply`, { decision }),
 };
 
