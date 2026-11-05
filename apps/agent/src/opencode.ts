@@ -1,27 +1,30 @@
-import { mkdirSync, realpathSync } from "node:fs";
+import { chownSync, mkdirSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import path from "node:path";
 import { COMMANDS, MCP, MODEL, OPENCODE, PROXY, SKILLS, SYSTEM_PROMPT } from "./constants.ts";
 import { TOOLS } from "./tools.ts";
 import { loadMcp, loadSkills, mcpConfig, mcpPermissions, type McpServers, type Skill } from "./capabilities.ts";
+import { wrap, type Mode } from "./sandbox.ts";
 
-// Runs opencode as a private server for the gateway: bound to loopback, behind a random password,
-// with its own home directory and no project or user config. The guard agent has the Sikrets tools,
-// which run freely, and opencode's shell, file and web tools, which ask first; the owner's Full
-// access switch answers those automatically (src/full-access.ts). Its API also has file and shell endpoints, so it is never exposed directly.
+// Runs opencode as a private server for one owner: bound to loopback, behind its own random
+// password and model-relay token, with the owner's own home directory, no project or user config,
+// and confined by src/sandbox.ts. The guard agent has the Sikrets tools, which run freely, and every
+// one of opencode's built-in tools, which ask first; the owner's Full access switch answers those
+// automatically (src/full-access.ts). Its API also has file and shell endpoints, so it is never
+// exposed directly.
 // It also has the skills shipped in SKILLS.dir and the MCP servers in MCP.file (src/capabilities.ts):
 // skills load without asking, and every MCP tool asks first, like the built-ins.
 
 const APP = path.join(import.meta.dir, "..");
 
-/** The Sikrets tools run freely; opencode's built-ins (OPENCODE.builtins) and MCP tools ask first;
- * only our own skills can be loaded; nothing else. */
+/** The Sikrets tools run freely; everything else opencode has (its built-ins, MCP tools) asks first;
+ * only our own skills can be loaded. Later rules win. */
 function permissions(skills: Skill[], mcp: McpServers) {
   return [
-    { action: "*", resource: "*", effect: "deny" },
+    { action: "*", resource: "*", effect: "ask" },
     ...Object.keys(TOOLS).map((action) => ({ action, resource: "*", effect: "allow" })),
-    ...OPENCODE.builtins.map((action) => ({ action, resource: "*", effect: "ask" })),
     ...PROXY.ask.map((action) => ({ action, resource: "*", effect: "ask" })),
+    { action: SKILLS.tool, resource: "*", effect: "deny" },
     ...skills.map((s) => ({ action: SKILLS.tool, resource: s.id, effect: "allow" })),
     ...mcpPermissions(mcp),
   ];
@@ -34,8 +37,10 @@ export interface Options {
   model?: ModelConfig;
   /** Extra plugin directories, loaded after the Sikrets plugin (tests use one to record requests). */
   plugins?: string[];
+  /** The owner's home: database, config, working directory. */
   home?: string;
-  port?: number;
+  /** How the instance is confined (src/sandbox.ts), and the owner's uid for the modes that use one. */
+  sandbox?: { mode: Mode; uid?: number; readOnly?: string[]; shared?: string[] };
   /** MCP servers; by default, the ones in MCP.file. */
   mcp?: McpServers;
   /** Where the skills are; by default SKILLS.dir. */
@@ -88,10 +93,12 @@ export function config(model: ModelConfig = MODEL, plugins: string[] = [], caps:
         steps: model.maxSteps,
         permissions: PERMISSIONS,
       },
+      // opencode's subagents, for the subagent tool: the guard's prompt, model and permissions.
+      ...Object.fromEntries(
+        OPENCODE.subagents.map((name) => [name, { mode: "subagent", model: { providerID: model.provider, model: model.id }, system: SYSTEM_PROMPT, steps: model.maxSteps, permissions: PERMISSIONS }]),
+      ),
       build: { disabled: true },
       plan: { disabled: true },
-      general: { disabled: true },
-      explore: { disabled: true },
     },
   };
 }
@@ -127,6 +134,22 @@ export function binary(): string {
   return path.join(path.dirname(require.resolve(`${pkg}/package.json`)), "bin", "opencode");
 }
 
+/** A free loopback port. */
+async function freePort() {
+  const probe = Bun.serve({ hostname: OPENCODE.host, port: 0, fetch: () => new Response() });
+  const port = probe.port!;
+  probe.stop(true);
+  return port;
+}
+
+/** Hands the owner's home to their uid (root only; new directories start as root's). */
+function chownTree(dir: string, uid: number) {
+  const st = statSync(dir);
+  if (st.uid !== uid || st.gid !== uid) chownSync(dir, uid, uid);
+  if (!st.isDirectory()) return;
+  for (const e of readdirSync(dir, { withFileTypes: true })) if (!e.isSymbolicLink()) chownTree(path.join(dir, e.name), uid);
+}
+
 export interface Server {
   url: string;
   capabilities: Capabilities;
@@ -150,7 +173,8 @@ async function mcpSettled(server: Server) {
 
 export async function start(opts: Options = {}): Promise<Server> {
   const model: ModelConfig = opts.model ?? MODEL;
-  const port = opts.port ?? OPENCODE.port;
+  const port = await freePort();
+  const sandbox = opts.sandbox ?? { mode: "none" as const };
   // Resolved (macOS's /var is /private/var), so every path the agent is told matches what it sees.
   mkdirSync(opts.home ?? OPENCODE.home, { recursive: true, mode: 0o700 });
   const home = realpathSync(opts.home ?? OPENCODE.home);
@@ -192,8 +216,19 @@ export async function start(opts: Options = {}): Promise<Server> {
   const bin = binary();
   const version = (await Bun.$`${bin} --version`.env(env).quiet().text()).trim();
   if (!version.endsWith(OPENCODE.version)) throw new Error(`opencode ${OPENCODE.version} expected, found ${version}`);
+  // After the version check, which runs here (as root, on Linux) and may write to the home.
+  if (sandbox.uid !== undefined && process.getuid?.() === 0) chownTree(home, sandbox.uid);
 
-  const proc = Bun.spawn([bin, "serve", "--hostname", OPENCODE.host, "--port", String(port), "--log-level", "warn"], {
+  const cmd = wrap([bin, "serve", "--hostname", OPENCODE.host, "--port", String(port), "--log-level", "warn"], {
+    mode: sandbox.mode,
+    uid: sandbox.uid,
+    home,
+    cwd: dirs.work,
+    app: APP,
+    readOnly: [caps.skillsDir, ...(opts.plugins ?? []), ...(sandbox.readOnly ?? [])],
+    shared: sandbox.shared,
+  });
+  const proc = Bun.spawn(cmd, {
     cwd: dirs.work,
     env,
     stdout: "ignore",
@@ -217,12 +252,15 @@ export async function start(opts: Options = {}): Promise<Server> {
 
   const deadline = Date.now() + OPENCODE.startupMs;
   while (Date.now() < deadline) {
-    if (proc.exitCode !== null) throw new Error(`opencode exited (${proc.exitCode})`);
+    if (proc.exitCode !== null) {
+      relay?.stop();
+      throw new Error(`opencode exited (${proc.exitCode})`);
+    }
     const ok = await server.fetch("/api/agent").then((r) => r.ok, () => false);
     // Ready once every MCP server has connected or failed, so the first chat has their tools.
     if (ok && (await mcpSettled(server))) return server;
     await Bun.sleep(250);
   }
-  proc.kill();
+  server.stop();
   throw new Error("opencode didn't start in time");
 }

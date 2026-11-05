@@ -11,8 +11,9 @@ Chat with an agent that finds leaked keys and walks you through fixing them.
 It runs on [opencode](https://github.com/anomalyco/opencode) (MIT; `@opencode/cli`, pinned in `package.json`), as a custom harness:
 
 - **`plugin/`** is an opencode plugin: the five tools, the skills, and the hooks that keep secrets out (below).
-- **`src/opencode.ts`** runs `opencode serve` on loopback with a random password, a private home directory, no project or user config, sharing and updates off, and one agent, `guard`. The five tools run freely; opencode's shell, read, write, edit, glob, grep, webfetch and websearch, and every MCP tool, ask first (the per-login Full access switch answers for you); our skills load without asking; everything else is denied.
-- **`src/gateway.ts`** is the gateway in front of it: the chat page, the access code, rate limits, `/attestation`, and a filtered proxy for opencode's own API (`src/proxy.ts`), so opencode's TUI and desktop app can connect too.
+- **`src/opencode.ts`** runs `opencode serve` on loopback with a random password, a private home directory, no project or user config, sharing and updates off, and one agent, `guard`. The five tools run freely; every one of opencode's built-in tools (shell, read, write, edit, glob, grep, webfetch, websearch, question, subagent, execute) and every MCP tool asks first (the per-login Full access switch answers for you); our skills load without asking, and no others exist. Only opencode's own namespace (tools that manage the server: sessions, worktrees, models, MCP resources) is removed: the gateway owns those, and their ids name opencode.
+- **`src/pool.ts`** gives every owner (each browser login; all basic-auth clients share one) their own opencode, started on their first request, sandboxed by `src/sandbox.ts`, and stopped when idle (below).
+- **`src/gateway.ts`** is the gateway in front of them: the chat page, the access code, rate limits, `/attestation`, and a filtered proxy for opencode's own API (`src/proxy.ts`) that sends each owner's requests to their own instance, so opencode's TUI and desktop app can connect too.
 - **`ui/`** is the chat page: Vite, React and Tailwind, built to static files the gateway serves. Its layout and interaction model follow [t3code](https://github.com/pingdotgg/t3code) (MIT; ideas only, no code copied), in the Sikrets theme.
 - **Model:** Gemini 4 Argon through opencode's Google provider. Provider, model and key env var are set in `MODEL` in `src/constants.ts` and nowhere else.
 
@@ -22,7 +23,20 @@ Keys in a message are swapped for placeholders like `[[secret sk_live_…cdef #5
 
 ### What the agent says it is
 
-The agent is Sikrets' security agent and never names what it runs on. opencode adds its own system text to every request (an `<env>` block with its paths and temp directory, and a note about its own session tools); the plugin's `context`, `generate` and `compaction` hooks rewrite it before the request leaves: the env block is rebuilt with the working directory, a scratch directory inside it (also the shell's `$TMPDIR`) and the platform, notes about opencode's own tools are dropped, and any other mention, in a system part or a tool description, is renamed (`BRAND` in `src/constants.ts`). The system prompt tells the model not to name its runtime, framework or model host. Paths are Sikrets-named too: `AGENT_HOME` (`/run/sikrets` in the enclave), its `work` directory and `work/.tmp`. A test checks that no request's system prompt or tool list contains "opencode".
+The agent is Sikrets' security agent and never names what it runs on. opencode adds its own system text to every request (an `<env>` block with its paths and temp directory, and a note about its own session tools); the plugin's `context`, `generate` and `compaction` hooks rewrite it before the request leaves: the env block is rebuilt with the working directory, a scratch directory inside it (also the shell's `$TMPDIR`) and the platform, notes about opencode's own tools are dropped, and any other mention, in a system part or a tool description, is renamed (`BRAND` in `src/constants.ts`). The system prompt tells the model not to name its runtime, framework or model host. Paths are Sikrets-named too: `AGENT_HOME` (`/run/sikrets` in the enclave), and in each owner's home a `work` directory and `work/.tmp`. A test checks that no request's system prompt or tool list contains "opencode".
+
+### One sandbox per owner
+
+Each owner gets their own opencode process (`src/pool.ts`), with its own home under `AGENT_HOME/owners/<hash>/` (database, config, working directory), its own random server password and its own model-relay token: nothing secret is shared between instances. Instances start on the owner's first request and stop after `AGENT_IDLE_MINUTES` (30) with no request, no open event stream and no chat running; at most `AGENT_MAX_INSTANCES` (8) run at once, and past that the longest-idle one is stopped. Sessions live in the owner's home, so a stopped instance comes back with them.
+
+On Linux each instance is confined (`src/sandbox.ts`). The agent runs inside a Nitro Enclave, which has no KVM, so microVMs such as Firecracker can't run there; Linux namespaces can:
+
+- **bubblewrap, gateway as root** (the enclave): its own pid, mount, ipc and uts namespaces; a filesystem with only `/usr`, `/etc`, the libraries, the parts of the app it needs (not `mcp.json`) read-only, and its owner's home; `/proc` that lists only its own processes; then `setpriv` drops it to the owner's own uid (from 200000), with no capabilities and `no_new_privs`.
+- **bubblewrap, not root:** the same namespaces in an unprivileged user namespace, without separate uids.
+- **setpriv only:** separate uids; homes are `0700`, so files and process environments stay private, but process lists are shared.
+- **macOS, or Linux with none of these:** separate processes and directories only. The gateway logs a warning at startup; never serve more than one person like this.
+
+The opencode process also marks itself non-dumpable (the plugin calls `prctl`), so the agent's own shell, running as the same uid, can't read its server password, config or relay token from `/proc`. Instances share the gateway's network namespace, so they reach exactly what the enclave allows (loopback and the vsock-proxied hosts); each one's server and relay on loopback are behind its own secrets. `src/isolation.test.ts` checks that owner B's shell can't list or read owner A's files, sessions or process environments; where there's no sandbox it skips those checks and says why. The startup line names the mode in use (`sandbox: bwrap`).
 
 ### Skills, slash commands and MCP servers
 
@@ -37,12 +51,12 @@ Modelled on [t3code](https://github.com/pingdotgg/t3code)'s composer (MIT; behav
 
 opencode's API also has file, shell, git and config endpoints, so the gateway passes on only what chat clients need:
 
-- **Forwarded:** server, agent, model, provider and config reads; sessions, messages, prompts, our slash commands, compaction, interrupts, permission replies; the event stream; skill, command and MCP lists, filtered to what the gateway configured.
+- **Forwarded, to the caller's own instance:** server, agent, model, provider and config reads; sessions, messages, prompts, our slash commands, compaction, interrupts, permission replies and the question tool's forms; the event stream; skill, command and MCP lists, filtered to what the gateway configured.
 - **Answered by the gateway:** MCP connect/disconnect (per login, as above).
 - **Answered empty, without calling opencode:** files and find, git, shells, worktrees, MCP resources, references, plugins, integrations, plugin RPC.
 - **Everything else:** 404.
 
-Every request runs in opencode's private directory, whatever location a client sends. Creating a session can't choose its agent, model, permissions or an existing id. Prompts carry text and our skills' ids only. Each caller sees only the sessions it created, in lists and in the event stream: each browser login is one caller, and all basic-auth clients share one. `scan_github_repo` asks before downloading, so clients show a permission prompt; "always allow" is saved for the whole server.
+Every request runs in the instance's private directory, whatever location a client sends. Creating a session can't choose its agent, model, permissions or an existing id. Prompts carry text and our skills' ids only. Each caller has only its own instance, so it sees only its own sessions and events: each browser login is one caller, and all basic-auth clients share one. `scan_github_repo` asks before downloading, so clients show a permission prompt; "always allow" is saved for that owner's instance.
 
 ### Clients
 
@@ -63,7 +77,9 @@ cd ui && GATEWAY=http://127.0.0.1:8787 bun run dev   # the page with hot reload
 | `GEMINI_API_KEY` | The model key (`MODEL.keyEnv`). In the enclave, `bootstrap.py` decrypts it and passes it as `MODEL_API_KEY`. |
 | `ACCESS_CODE` | unset: open. Set: the page asks for it. |
 | `PORT` / `HOST` | `8787` / `127.0.0.1` |
-| `AGENT_RUNTIME_PORT` / `AGENT_HOME` | `4097` / `$TMPDIR/sikrets-agent` |
+| `AGENT_HOME` | `$TMPDIR/sikrets-agent`: the gateway's state, and each owner's home under `owners/` |
+| `AGENT_IDLE_MINUTES` / `AGENT_MAX_INSTANCES` | `30` / `8` |
+| `AGENT_SANDBOX` | `off` runs without a sandbox on Linux too (never in production) |
 | `AGENT_MCP_FILE` | `mcp.json` next to this README; missing means no MCP servers. |
 | `GATEWAY_LOG` | `1` logs each API call's method, path and status (never queries or bodies). |
 
@@ -92,7 +108,7 @@ test "$(sudo -u sikrets git rev-parse HEAD)" = <sha> && apps/agent/deploy/enclav
 
 `deploy/enclave/host.sh up` (on the instance) runs the agent inside the Nitro Enclave:
 
-- **Isolation:** the host can't read the enclave's memory. It only relays encrypted bytes: TLS to the model API (`MODEL.host`, now generativelanguage.googleapis.com), GitHub, OSV and KMS runs from inside the enclave, through vsock proxies allowed to reach just those four hosts. The gateway and opencode both run inside.
+- **Isolation:** the host can't read the enclave's memory. It only relays encrypted bytes: TLS to the model API (`MODEL.host`, now generativelanguage.googleapis.com), GitHub, OSV and KMS runs from inside the enclave, through vsock proxies allowed to reach just those four hosts. The gateway and every owner's opencode run inside, each opencode in its own bubblewrap sandbox and uid (the image installs `bubblewrap` and `util-linux`). That changes the image, so a build with it has new PCR0–2: pin the new PCR0 (below) before it can decrypt the model key, and publish the new measurements.
 - **The model key:** stored only as KMS ciphertext. The KMS key's policy lets nobody decrypt, re-encrypt or create grants, except the instance role calling `Decrypt` with an attestation document whose PCR0 (`kms:RecipientAttestation:ImageSha384`) is the pinned build. The host hands the enclave the ciphertext and the role's temporary credentials; the enclave makes a fresh RSA key, asks the Nitro Security Module for an attestation document carrying it, and calls KMS itself. KMS returns the key encrypted to that RSA key, so the host relaying the call only ever sees ciphertext, and the same call from the host, without the enclave's attestation, is refused. Whoever controls the AWS account can still change the key policy; that's logged in CloudTrail.
 - **The access code:** the host reads it from SSM and hands it over vsock with the ciphertext, every 15 minutes, so a rotated value reaches the enclave without a rebuild. The enclave answers with a status the host logs (`journalctl -u sikrets-enclave-feed`), never a secret.
 - **Attestation:** `/attestation` returns a document signed by the Nitro Security Module. Its PCR0–2 must match the measurements `nitro-cli build-enclave` printed for this build.

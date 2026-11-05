@@ -13,9 +13,9 @@ import { loadSkills, mcpTool } from "../src/capabilities.ts";
 // 2. tools: the model passes placeholders; each Sikrets tool swaps them back here, on the server,
 //    and returns redacted findings only. MCP tools never get the real values: their input is
 //    redacted again on the way out, and their output on the way back, before opencode stores it.
-// 3. context: every outgoing model request is scanned again, and any tool outside the Sikrets tools,
-//    OPENCODE.builtins, the skill tool and the session's switched-on MCP servers is dropped,
-//    whatever the config says.
+// 3. context: every outgoing model request is scanned again, and the tools of MCP servers this
+//    owner switched off are dropped, whatever the config says. opencode's own namespace (tools
+//    that manage the server itself) is removed when the tools are registered.
 // 4. identity: opencode's own system text (its <env> block, notes about its own tools) and tool
 //    descriptions name opencode, its paths and its tool ids. Every system part and tool the model
 //    gets is rewritten under Sikrets names first, so the agent can't say what it runs on.
@@ -74,10 +74,27 @@ function scrubDeep<T>(v: T): T {
 }
 
 const vault = new Vault();
-/** MCP servers each session's owner switched off, as the gateway reports them. Module-wide, like
- * the vault: opencode may set the plugin up more than once. */
-const off = new Map<string, Set<string>>();
-const ALLOWED = new Set([...Object.keys(TOOLS), ...OPENCODE.builtins, SKILLS.tool]);
+/** MCP servers the owner switched off, as the gateway reports them; undefined until it does (each
+ * server's default applies). One owner per instance, so it covers every session, subagents' too.
+ * Module-wide, like the vault: opencode may set the plugin up more than once. */
+let off: Set<string> | undefined;
+
+/** On Linux, marks this process (opencode) non-dumpable, so the agent's shell, running as the same
+ * user, can't read its environment (the server password, the config with MCP servers' variables,
+ * the model relay's token) from /proc/<pid>/environ, or attach to it. Children reset the flag
+ * when they exec, so their own /proc entries are unaffected. */
+function undumpable() {
+  if (process.platform !== "linux") return;
+  try {
+    const { dlopen, FFIType } = require("bun:ffi") as typeof import("bun:ffi");
+    const libc = dlopen("libc.so.6", { prctl: { args: [FFIType.i32, FFIType.u64, FFIType.u64, FFIType.u64, FFIType.u64], returns: FFIType.i32 } });
+    const PR_SET_DUMPABLE = 4;
+    if (libc.symbols.prctl(PR_SET_DUMPABLE, 0, 0, 0, 0) !== 0) throw new Error("prctl failed");
+  } catch (e) {
+    console.error(`sikrets: couldn't make the server non-dumpable: ${e}`);
+  }
+}
+undumpable();
 
 const plugin: Plugin.Plugin = {
   id: "sikrets.guard",
@@ -88,11 +105,11 @@ const plugin: Plugin.Plugin = {
     const skillIDs = new Set(skills.map((s) => s.id));
     const defaultOff = new Set(Object.entries(servers).filter(([, s]) => !s.enabled).map(([name]) => name));
 
-    /** Whether a session may use a tool, by name. */
-    const usable = (sessionID: string, tool: string) => {
-      if (ALLOWED.has(tool)) return true;
+    /** Whether the owner may use a tool, by name: every tool but the MCP ones they switched off. */
+    const usable = (tool: string) => {
       const m = mcpTool(servers, tool);
-      if (!m || (off.get(sessionID) ?? defaultOff).has(m.server)) return false;
+      if (!m) return true;
+      if ((off ?? defaultOff).has(m.server)) return false;
       const only = servers[m.server]!.tools;
       return !only || only.includes(m.name);
     };
@@ -102,9 +119,9 @@ const plugin: Plugin.Plugin = {
     await ctx.rpc.register({ id: MCP.rpc.id, methods: { [MCP.rpc.method]: method, [MCP.rpc.tools]: method }, events: {} } as never, {
       [MCP.rpc.tools]: async () => ({ tools: (await ctx.tool.list()).map((t) => t.id).filter((id) => mcpTool(servers, id)) }),
       [MCP.rpc.method]: async (input: unknown) => {
-        const { sessionID, off: names } = (input ?? {}) as { sessionID?: unknown; off?: unknown };
-        if (typeof sessionID !== "string" || !Array.isArray(names)) return { ok: false };
-        off.set(sessionID, new Set(names.filter((n): n is string => typeof n === "string")));
+        const { off: names } = (input ?? {}) as { off?: unknown };
+        if (!Array.isArray(names)) return { ok: false };
+        off = new Set(names.filter((n): n is string => typeof n === "string"));
         return { ok: true };
       },
     } as never);
@@ -126,6 +143,12 @@ const plugin: Plugin.Plugin = {
     });
 
     await ctx.tool.transform((editor) => {
+      // opencode's tools for managing itself (sessions, worktrees, models, MCP resources): the
+      // gateway owns all of that, and their ids name opencode.
+      for (const t of editor.list()) {
+        const ns = (t.options as { namespace?: string } | undefined)?.namespace;
+        if (ns === OPENCODE.ownNamespace || t.id.startsWith(`${OPENCODE.ownNamespace}.`) || t.id.startsWith(`${OPENCODE.ownNamespace}_`)) editor.remove(t.id);
+      }
       for (const [name, tool] of Object.entries(TOOLS)) {
         editor.add({
           name,
@@ -157,7 +180,7 @@ const plugin: Plugin.Plugin = {
     // someone else's code, so it never gets a pasted key).
     await ctx.tool.hook("execute.before", (event) => {
       if (!mcpTool(servers, event.tool)) return;
-      if (!usable(event.sessionID, event.tool)) throw new Error(`${event.tool} isn't switched on for this chat.`);
+      if (!usable(event.tool)) throw new Error(`${event.tool} isn't switched on for this chat.`);
       event.input = vault.shieldDeep(event.sessionID, structuredClone(event.input));
     });
     await ctx.tool.hook("execute.after", (event) => {
@@ -168,7 +191,7 @@ const plugin: Plugin.Plugin = {
     for (const kind of ["context", "generate", "compaction"] as const) {
       await ctx.session.hook(kind, (event) => {
         vault.shieldAll(event.sessionID, event.messages);
-        for (const name of Object.keys(event.tools)) if (!usable(event.sessionID, name)) delete event.tools[name];
+        for (const name of Object.keys(event.tools)) if (!usable(name)) delete event.tools[name];
         scrubSystem(event.system as Array<{ text: string }>, opts.tmpDir);
         for (const [name, tool] of Object.entries(event.tools)) event.tools[name] = { description: hide(tool.description), input: scrubDeep(tool.input) };
       });

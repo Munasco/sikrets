@@ -1,18 +1,18 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { COMMANDS, MODEL, OPENCODE, SKILLS } from "./constants.ts";
+import { COMMANDS, MODEL, OPENCODE, PROXY, SKILLS } from "./constants.ts";
 import { createGateway } from "./gateway.ts";
-import { Owners } from "./proxy.ts";
 import { start, type Server } from "./opencode.ts";
+import { Pool } from "./pool.ts";
 import { sha256 } from "./patterns.ts";
 import { TOOLS } from "./tools.ts";
 
 // End to end through the gateway and the real opencode binary, with a local stand-in for the model
 // that records every request it gets. A fake key pasted in a message must never reach the model,
 // the event stream, message reads, or any file opencode writes; the tool must still see the real
-// key. The proxy must keep callers to their own sessions and answer everything off the allowlist
+// key. Each caller gets its own instance (src/pool.ts); the proxy must answer everything off the allowlist
 // without touching opencode. Skills, slash commands and a tiny local MCP server (src/testing/
 // mcp-server.ts) must work through the same gateway without loosening any of that.
 
@@ -75,8 +75,13 @@ const SHIPPED = readdirSync(path.join(import.meta.dir, "..", SKILLS.dir)).sort()
 cpSync(path.join(import.meta.dir, "..", SKILLS.dir), skillsDir, { recursive: true });
 mkdirSync(path.join(skillsDir, "fixture-skill"));
 writeFileSync(path.join(skillsDir, "fixture-skill", SKILLS.file), `---\nname: Fixture\ndescription: A skill for the tests.\n---\nUse the token ${SKILL_KEY} for the demo.\n`);
+// Readable (and the log writable) for instances running as their own uids (Linux, as root).
+chmodSync(skillsDir, 0o755);
+chmodSync(path.dirname(mcpLog), 0o777);
 const stub = [process.execPath, path.join(import.meta.dir, "testing", "mcp-server.ts"), mcpLog];
-let oc: Server;
+let pool: Pool;
+/** The basic-auth caller's own instance. */
+const oc = () => pool.running(PROXY.basicOwner)!;
 let gateway: ReturnType<typeof createGateway>;
 /** Calls the gateway made to opencode, by path. */
 const upstream: string[] = [];
@@ -122,25 +127,32 @@ async function events(as: Record<string, string>, until: (ev: { type: string; da
 
 beforeAll(async () => {
   process.env.STAND_IN_API_KEY = "not-a-real-key";
-  const real = await start({
-    home,
-    port: 4197,
-    model: { ...MODEL, provider: "standin", id: "stand-in", name: "Stand-in", package: "@opencode/ai/providers/openai-compatible", keyEnv: "STAND_IN_API_KEY", settings: { baseURL: `http://127.0.0.1:${model.port}/v1` } },
-    skillsDir,
-    mcp: {
-      stub: { type: "local", command: stub, environment: { STUB_TOKEN: SERVER_TOKEN }, description: "Stub advisories" },
-      spare: { type: "local", command: stub, enabled: false, tools: ["echo"] },
+  pool = new Pool({
+    root: home,
+    quiet: true,
+    // The stub MCP server runs on Bun and logs to a file outside the instance's home.
+    readOnly: [path.dirname(process.execPath)],
+    shared: [path.dirname(mcpLog)],
+    base: {
+      model: { ...MODEL, provider: "standin", id: "stand-in", name: "Stand-in", package: "@opencode/ai/providers/openai-compatible", keyEnv: "STAND_IN_API_KEY", settings: { baseURL: `http://127.0.0.1:${model.port}/v1` } },
+      skillsDir,
+      mcp: {
+        stub: { type: "local", command: stub, environment: { STUB_TOKEN: SERVER_TOKEN }, description: "Stub advisories" },
+        spare: { type: "local", command: stub, enabled: false, tools: ["echo"] },
+      },
+    },
+    launch: async (opts) => {
+      const real = await start(opts);
+      return { ...real, fetch: (p, init) => (upstream.push(p), real.fetch(p, init)) } satisfies Server;
     },
   });
-  oc = { ...real, fetch: (p, init) => (upstream.push(p), real.fetch(p, init)) };
-  gateway = createGateway(oc, { accessCode: CODE });
+  gateway = createGateway(pool, { accessCode: CODE });
   const login = await call("/api/login", { method: "POST", body: JSON.stringify({ code: CODE }) }, {});
   cookie = login.headers.get("set-cookie")!.split(";")[0]!;
 }, 60_000);
 
 afterAll(() => {
   gateway?.stop();
-  oc?.stop();
   model.stop(true);
 });
 
@@ -167,7 +179,7 @@ describe("the gateway's proxy, end to end", () => {
     session = ((await created.json()) as { data: { id: string; agent: string } }).data.id;
     const info = (await (await call(`/api/session/${session}`)).json()) as { data: { agent: string; location: { directory: string } } };
     expect(info.data.agent).toBe("guard");
-    expect(info.data.location.directory).toBe(oc.directory);
+    expect(info.data.location.directory).toBe(oc().directory);
 
     const seen = await events(basic, terminal(session), () =>
       call(`/api/session/${session}/prompt`, { method: "POST", body: JSON.stringify({ text: `is this leaked?\nSTRIPE_SECRET_KEY=${FAKE}`, files: [{ uri: "file:///etc/passwd" }] }) }),
@@ -264,9 +276,15 @@ describe("the gateway's proxy, end to end", () => {
     expect((await call(`/api/session/${session}`, {}, web)).status).toBe(404);
     expect((await call(`/api/session/${session}/message`, {}, web)).status).toBe(404);
     expect((await call(`/api/session/${session}/prompt`, { method: "POST", body: JSON.stringify({ text: "hi" }) }, web)).status).toBe(404);
-    // Creating a session with someone else's id yields a new session, not theirs.
+    // The web caller has an instance of its own, in a home of its own.
+    expect(pool.running(PROXY.basicOwner)).not.toBe(pool.owners().filter((o) => o !== PROXY.basicOwner).map((o) => pool.running(o))[0]);
+    expect(new Set(pool.owners().map((o) => pool.running(o)!.directory)).size).toBe(pool.owners().length);
+    // Creating a session with someone else's id yields a session in the caller's own instance:
+    // empty, not theirs.
     const claimed = (await (await call("/api/session", { method: "POST", body: JSON.stringify({ id: session }) }, web)).json()) as { data: { id: string } };
-    expect(claimed.data.id).not.toBe(session);
+    expect(((await (await call(`/api/session/${claimed.data.id}/message`, {}, web)).json()) as { data: unknown[] }).data).toEqual([]);
+    expect(((await (await call(`/api/session/${session}/message`)).json()) as { data: unknown[] }).data.length).toBeGreaterThan(0);
+    await call(`/api/session/${claimed.data.id}`, { method: "DELETE" }, web);
     const list = (await (await call("/api/session", {}, web)).json()) as { data: Array<{ id: string }> };
     expect(list.data.map((s) => s.id)).not.toContain(session);
     expect(((await (await call("/api/session")).json()) as { data: Array<{ id: string }> }).data.map((s) => s.id)).toContain(session);
@@ -491,15 +509,5 @@ describe("skills, commands and MCP servers, end to end", () => {
       const b = readFileSync(f);
       for (const k of [FAKE, MCP_KEY, SKILL_KEY]) expect([f, b.includes(k)]).toEqual([f, false]);
     }
-  });
-});
-
-describe("owners", () => {
-  test("survive a gateway restart when saved to a file", () => {
-    const file = path.join(mkdtempSync(path.join(os.tmpdir(), "sikrets-owners-")), "owners.json");
-    new Owners(file).own("ses_abcdefghijk", "web:1");
-    const again = new Owners(file);
-    expect(again.owns("ses_abcdefghijk", "web:1")).toBe(true);
-    expect(again.owns("ses_abcdefghijk", "web:2")).toBe(false);
   });
 });

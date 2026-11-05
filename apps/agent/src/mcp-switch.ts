@@ -2,12 +2,12 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { MCP } from "./constants.ts";
 import type { McpServers } from "./capabilities.ts";
 import type { Server } from "./opencode.ts";
-import type { Owner, Owners } from "./proxy.ts";
+import type { Owner } from "./pool.ts";
 
-// Each login's MCP switches. opencode's own connect/disconnect is server-wide, so the gateway keeps
-// the switches per owner instead and tells the plugin which servers each of that owner's sessions
-// may use (over the plugin's RPC, which only the gateway can call). Stock opencode clients toggle
-// with the same connect/disconnect calls; the proxy answers those here.
+// Each login's MCP switches. The gateway keeps them per owner and tells the owner's instance which
+// servers it may use (over the plugin's RPC, which only the gateway can call), when the instance
+// starts and on every change. Stock opencode clients toggle with the same connect/disconnect
+// calls; the proxy answers those here.
 
 export class McpSwitches {
   private choices = new Map<Owner, Record<string, boolean>>();
@@ -31,21 +31,12 @@ export class McpSwitches {
     this.choices.set(owner, { ...this.choices.get(owner), [server]: on });
     if (this.file) writeFileSync(this.file, JSON.stringify(Object.fromEntries(this.choices)), { mode: 0o600 });
   }
-  /** Owners who changed a switch from its default. */
-  owners() {
-    return [...this.choices.keys()];
-  }
 }
 
-/** Tells the plugin which servers a session may use. */
-export async function syncSession(oc: Server, switches: McpSwitches, session: string, owner: Owner) {
+/** Tells the owner's instance which servers it may use. */
+export async function sync(oc: Server, switches: McpSwitches, owner: Owner) {
   if (!Object.keys(oc.capabilities.mcp).length) return;
   await oc
-    .fetch(`/api/rpc/${encodeURIComponent(MCP.rpc.id)}/${encodeURIComponent(MCP.rpc.method)}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ input: { sessionID: session, off: switches.off(owner) } }) })
+    .fetch(`/api/rpc/${encodeURIComponent(MCP.rpc.id)}/${encodeURIComponent(MCP.rpc.method)}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ input: { off: switches.off(owner) } }) })
     .catch(() => {});
-}
-
-/** After a restart: the plugin starts from each server's default, so re-send every changed owner's sessions. */
-export async function syncAll(oc: Server, switches: McpSwitches, owners: Owners) {
-  for (const owner of switches.owners()) for (const s of owners.sessionsOf(owner)) await syncSession(oc, switches, s, owner);
 }

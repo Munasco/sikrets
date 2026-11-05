@@ -19,37 +19,69 @@ export const MODEL = {
   maxSteps: 50,
 };
 
-/** opencode, run as a private server behind the gateway. */
+/** opencode, run as private servers behind the gateway: one per owner (login), each in its own
+ * sandbox (src/pool.ts, src/sandbox.ts). */
 export const OPENCODE = {
   /** Pinned in package.json too; the gateway refuses to start a different build. */
   version: "2.2.5",
   host: "127.0.0.1",
-  port: Number(Bun.env.AGENT_RUNTIME_PORT ?? 4097),
   /** The agent every session runs as. It has every tool; built-ins ask first. */
   agent: "guard",
-  /** Where opencode keeps its database, logs and config: a private directory, never the user's own.
+  /** The gateway's own state, and one directory per owner under `owners/` (each instance's
+   * database, logs, config and working directory). A private directory, never the user's own.
    * Named for Sikrets: the agent sees paths under it, and must never learn what it runs on. */
   home: Bun.env.AGENT_HOME ?? `${Bun.env.TMPDIR ?? "/tmp"}/sikrets-agent`,
-  /** The agent's working directory and its scratch directory, under home. The scratch directory is
-   * inside the working directory, so using it needs no access outside it; shells get it as TMPDIR. */
+  ownersDir: "owners",
+  /** The agent's working directory and its scratch directory, under an owner's home. The scratch
+   * directory is inside the working directory, so using it needs no access outside it; shells get
+   * it as TMPDIR. */
   workDir: "work",
   tmpDir: "work/.tmp",
   /** Env var the host-delivered model key arrives in; the gateway hands it to opencode as MODEL.keyEnv. */
   keyEnv: "MODEL_API_KEY",
-  /** opencode's own tools the guard also gets, one per job, each asking first (Full access answers).
-   * Left out: execute (the shell covers it), subagent (there are none), question (the chat answers
-   * in text), patch (edit covers it), the MCP resource tools (MCP servers' tools cover them) and the
-   * session/worktree/model tools (the server manages those). The skill tool is SKILLS.tool. */
-  builtins: ["shell", "read", "write", "edit", "glob", "grep", "webfetch", "websearch"],
+  /** opencode's built-in tools. Every one is offered and asks first (Full access answers). Only
+   * opencode's own namespace (session, worktree and model management, MCP resources) is removed:
+   * those manage the server itself, which the gateway owns, and would tell the model what it runs on. */
+  builtins: ["shell", "read", "write", "edit", "glob", "grep", "webfetch", "websearch", "question", "subagent", "execute"],
+  /** opencode's tool namespace for managing itself, removed by the plugin. */
+  ownNamespace: "opencode",
+  /** opencode's subagents, kept for the subagent tool, with the guard's prompt and permissions. */
+  subagents: ["general", "explore"],
   /** The provider API's base path, which the loopback model relay keeps (Gemini's REST version). */
   relayPath: "v1beta",
   startupMs: 30_000,
 };
 
+/** The per-owner instances (src/pool.ts). */
+export const POOL = {
+  /** An instance nobody has used for this long, with no chat running, is stopped. */
+  idleMs: Number(Bun.env.AGENT_IDLE_MINUTES ?? 30) * 60_000,
+  /** How often idle instances are looked for. */
+  sweepMs: 60_000,
+  /** Instances running at once, at most; past it, the longest-idle one is stopped, or a new owner waits. */
+  max: Number(Bun.env.AGENT_MAX_INSTANCES ?? 8),
+  /** Each owner gets the next uid from here when the gateway runs as root (Linux). */
+  uidBase: 200_000,
+  /** Where the gateway remembers which uid belongs to which owner, under OPENCODE.home. */
+  uidsFile: "uids.json",
+};
+
+/** How each instance is confined on Linux (src/sandbox.ts). macOS has no namespaces: there the
+ * instances are only separate processes with separate directories, and the gateway says so. */
+export const SANDBOX = {
+  /** System paths every sandbox sees read-only (missing ones are skipped). Everything else of the
+   * host's filesystem is absent, including other owners' homes and the gateway's own state. */
+  readOnly: ["/usr", "/etc", "/bin", "/sbin", "/lib", "/lib64"],
+  /** The parts of the app (relative to apps/agent) an instance needs: the opencode binary, the
+   * plugin and what it imports, the skills and the service catalog. Not mcp.json (servers' keys)
+   * or the gateway's state. */
+  app: ["package.json", "node_modules", "plugin", "src", "skills", "data"],
+  /** Set to "off" to run without a sandbox on Linux too (never in production). */
+  mode: Bun.env.AGENT_SANDBOX,
+};
+
 /** The gateway's filtered view of opencode's API (src/proxy.ts). */
 export const PROXY = {
-  /** Sessions whose owners the gateway remembers; older ones become unreachable. */
-  sessions: 2000,
   promptChars: 60_000,
   bodyBytes: 256_000,
   /** Tools that ask before they run: a permission prompt the client answers. */
@@ -100,7 +132,7 @@ export const MCP = {
   envName: /^[A-Za-z_][A-Za-z0-9_]{0,63}$/,
   /** Variables a server may never set: they'd change how its launcher or the loader behaves. */
   envReserved: ["PATH", "HOME", "LD_PRELOAD", "LD_LIBRARY_PATH", "DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH", "NODE_OPTIONS", "BUN_OPTIONS"],
-  /** Each local server's own home and working directory, under OPENCODE.home. */
+  /** Each local server's own home and working directory, under its owner's home. */
   homeDir: "mcp",
   /** The plugin's RPC: the gateway says which servers each session may use (`method`), and asks
    * which MCP tools opencode has registered (`tools`) before it reports ready. */

@@ -1,25 +1,23 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import path from "node:path";
 import { MODEL, PROXY, SERVER } from "./constants.ts";
-import type { Server } from "./opencode.ts";
 import { autoApprove, FullAccess } from "./full-access.ts";
-import { Owners, proxy, type Owner } from "./proxy.ts";
-import { McpSwitches, syncAll } from "./mcp-switch.ts";
+import { proxy } from "./proxy.ts";
+import { McpSwitches, sync } from "./mcp-switch.ts";
+import type { Owner, Pool } from "./pool.ts";
 
 // The gateway in front of opencode: the chat page, the access code, rate limits, the attestation
 // document, and a filtered proxy for opencode's own API (src/proxy.ts), so the stock opencode
-// clients work too. opencode listens on loopback only.
+// clients work too. Each owner gets their own sandboxed instance (src/pool.ts), on loopback only.
 //
 // Two ways in, both checked against the access code:
 // - browsers log in once and get a signed cookie;
 // - opencode's TUI and desktop app send it as a basic-auth password (OPENCODE_PASSWORD).
-// Each cookie is its own owner of sessions; basic-auth clients share one.
+// Each cookie is its own owner, with its own instance; basic-auth clients share one.
 
 export interface Options {
   accessCode?: string;
   attestationFile?: string;
-  /** Where to keep the session-to-owner map across restarts. */
-  ownersFile?: string;
   /** Where to keep who turned on full access (src/full-access.ts). */
   fullAccessFile?: string;
   /** Where to keep each login's MCP switches (src/mcp-switch.ts). */
@@ -50,13 +48,17 @@ function window(ms: number, max: number) {
   };
 }
 
-export function createGateway(oc: Server, opts: Options = {}) {
+export function createGateway(pool: Pool, opts: Options = {}) {
   const code = opts.accessCode;
   const key = code ? createHmac("sha256", "sikrets-agent").update(code).digest() : undefined;
-  const api = proxy(oc, new Owners(opts.ownersFile), new McpSwitches(oc.capabilities.mcp, opts.mcpFile));
-  void syncAll(oc, api.switches, api.owners);
+  const api = proxy(pool, new McpSwitches(pool.capabilities.mcp, opts.mcpFile));
   const access = new FullAccess(opts.fullAccessFile);
-  const approver = autoApprove(oc, api.owners, access);
+  const approver = autoApprove(access);
+  // Each instance, as it starts: its owner's MCP switches, and Full access watching it.
+  pool.use(async (owner, oc) => {
+    await sync(oc, api.switches, owner);
+    return approver.attach(owner, oc);
+  });
 
   const sign = (payload: string) => `${payload}.${createHmac("sha256", key!).update(payload).digest("base64url")}`;
   const same = (a: string, b: string) => {
@@ -126,7 +128,8 @@ export function createGateway(oc: Server, opts: Options = {}) {
       const { on } = (await req.json().catch(() => ({}))) as { on?: unknown };
       if (typeof on !== "boolean") return json({ error: "Send { on: true | false }." }, 400);
       access.set(who, on);
-      if (on) await approver.pending(who);
+      const running = pool.running(who);
+      if (on && running) await approver.pending(running);
       return json({ fullAccess: on });
     }
 
@@ -172,5 +175,5 @@ export function createGateway(oc: Server, opts: Options = {}) {
     return new Response(file, { headers: { ...SECURITY_HEADERS, "cache-control": asset ? "public, max-age=31536000, immutable" : "no-cache" } });
   }
 
-  return { fetch, owners: api.owners, stop: approver.stop };
+  return { fetch, stop: () => pool.stop() };
 }
