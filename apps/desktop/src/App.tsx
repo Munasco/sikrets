@@ -18,7 +18,7 @@ const NAV: { id: Route; label: string; icon: ReactNode }[] = [
   { id: "agents", label: "Agents", icon: <Bot className="size-4" /> },
   { id: "logins", label: "Logins", icon: <Globe className="size-4" /> },
   { id: "import", label: "Import", icon: <Download className="size-4" /> },
-  { id: "agent", label: "Agent", icon: <MessageSquare className="size-4" /> },
+  { id: "agent", label: "Guard", icon: <MessageSquare className="size-4" /> },
   { id: "settings", label: "Settings", icon: <SettingsIcon className="size-4" /> },
 ];
 
