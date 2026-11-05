@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, readdirSync, readFileSync, statSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { MODEL } from "./constants.ts";
+import { MODEL, OPENCODE } from "./constants.ts";
 import { createGateway } from "./gateway.ts";
 import { Owners } from "./proxy.ts";
 import { start, type Server } from "./opencode.ts";
@@ -18,6 +18,8 @@ import { TOOLS } from "./tools.ts";
 const FAKE = "sk" + "_live_" + "51Hx9fakeFAKEfake0123456789abcdef";
 const CODE = "test-access-code";
 const requests: string[] = [];
+/** The key each model request carried. */
+const keys: string[] = [];
 
 // An OpenAI-compatible model. Asked to scan a repo, it calls scan_github_repo (which asks for
 // permission first); otherwise it calls scan_text with what the user sent. Then it answers.
@@ -27,6 +29,7 @@ const model = Bun.serve({
   async fetch(req) {
     const raw = await req.text();
     requests.push(raw);
+    keys.push(req.headers.get("authorization") ?? "");
     const body = JSON.parse(raw) as { messages: Array<{ role: string; content: unknown }> };
     const last = body.messages.at(-1)!;
     const text = typeof last.content === "string" ? last.content : JSON.stringify(last.content);
@@ -37,7 +40,9 @@ const model = Bun.serve({
         ? chunk({ role: "assistant", content: "Found one Stripe key; rotate it." }) + chunk({}, "stop")
         : text.includes("scan the repo")
           ? call("scan_github_repo", { repo: "octocat/Hello-World" })
-          : call("scan_text", { text });
+          : text.includes("print the environment")
+            ? call("shell", { command: "env; cat /proc/$PPID/environ 2>/dev/null | tr '\\0' '\\n'", description: "Print the environment" })
+            : call("scan_text", { text });
     return new Response(out + "data: [DONE]\n\n", { headers: { "content-type": "text/event-stream" } });
   },
 });
@@ -138,7 +143,7 @@ describe("the gateway's proxy, end to end", () => {
       expect(r).not.toContain(FAKE);
       expect(r).toContain("[[secret sk_live_…cdef #");
       const tools = (JSON.parse(r) as { tools?: Array<{ function: { name: string } }> }).tools?.map((t) => t.function.name).sort();
-      expect(tools).toEqual(Object.keys(TOOLS).sort());
+      expect(tools).toEqual([...Object.keys(TOOLS), ...OPENCODE.builtins].sort());
     }
 
     // The tool got the real key back: its finding's hash is the real key's hash.
@@ -184,6 +189,20 @@ describe("the gateway's proxy, end to end", () => {
     expect(replied?.data).toMatchObject({ requestID: asked!.data.id, reply: "always" });
     expect(seen.at(-1)?.type).toMatch(/^session\.execution\./);
     expect((await call("/api/full-access", { method: "PUT", body: JSON.stringify({ on: false }) })).status).toBe(200);
+  }, 60_000);
+
+  test("the model provider gets the real key; opencode and its shell never hold it", async () => {
+    expect(keys.length).toBeGreaterThan(0);
+    expect(new Set(keys)).toEqual(new Set(["Bearer not-a-real-key"]));
+
+    expect((await call("/api/full-access", { method: "PUT", body: JSON.stringify({ on: true }) })).status).toBe(200);
+    await events(basic, terminal(session), () => call(`/api/session/${session}/prompt`, { method: "POST", body: JSON.stringify({ text: "print the environment" }) }));
+    expect((await call("/api/full-access", { method: "PUT", body: JSON.stringify({ on: false }) })).status).toBe(200);
+    const output = requests.at(-1)!;
+    expect(output).toContain("PATH=");
+    expect(output).not.toContain("not-a-real-key");
+    expect(output).not.toContain("OPENCODE_SERVER_PASSWORD");
+    expect(output).not.toContain("OPENCODE_CONFIG_CONTENT");
   }, 60_000);
 
   test("callers see only their own sessions", async () => {

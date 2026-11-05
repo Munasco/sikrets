@@ -15,8 +15,8 @@ export const MODEL = {
   host: "generativelanguage.googleapis.com",
   context: 1_048_576,
   maxTokens: 8192,
-  /** Tool-call rounds per message before the agent must answer. */
-  maxSteps: 6,
+  /** Tool-call rounds per message before the agent must answer: room for a full audit. */
+  maxSteps: 50,
 };
 
 /** opencode, run as a private server behind the gateway. */
@@ -25,12 +25,18 @@ export const OPENCODE = {
   version: "2.2.5",
   host: "127.0.0.1",
   port: Number(Bun.env.OPENCODE_PORT ?? 4097),
-  /** The agent every session runs as. It can use only the Sikrets tools. */
+  /** The agent every session runs as. It has every tool; built-ins ask first. */
   agent: "guard",
   /** Where opencode keeps its database, logs and config: a private directory, never the user's own. */
   home: Bun.env.OPENCODE_HOME ?? `${Bun.env.TMPDIR ?? "/tmp"}/sikrets-opencode`,
   /** Env var the host-delivered model key arrives in; the gateway hands it to opencode as MODEL.keyEnv. */
   keyEnv: "MODEL_API_KEY",
+  /** opencode's own tools the guard also gets, one per job, each asking first (Full access answers).
+   * Left out: execute (the shell covers it), subagent and skill (there are none), question (the
+   * chat answers in text). */
+  builtins: ["shell", "read", "write", "edit", "glob", "grep", "webfetch", "websearch"],
+  /** The provider API's base path, which the loopback model relay keeps (Gemini's REST version). */
+  relayPath: "v1beta",
   startupMs: 30_000,
 };
 
@@ -47,6 +53,9 @@ export const PROXY = {
   /** Basic-auth username stock opencode clients send with `OPENCODE_PASSWORD`; any is accepted. */
   basicOwner: "opencode-client",
 };
+
+/** The only environment variables a shell command the agent runs gets (HOME is its working directory). */
+export const SHELL_ENV = ["PATH", "LANG", "LC_ALL", "TERM", "TMPDIR", "TZ"];
 
 /** gitleaks' default rules (MIT), vendored and compiled into src/gitleaks.ts by `bun run build:rules`. */
 export const GITLEAKS = {
