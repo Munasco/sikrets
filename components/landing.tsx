@@ -90,11 +90,11 @@ export function Check() {
 export function MediaCard({ media, label, title, body, wide, className }: { media: ReactNode; label?: string; title: string; body?: string; wide?: boolean; className?: string }) {
   return (
     <div className={cn("flex h-full flex-col rounded-2xl bg-cream p-2.5", className)}>
-      <div className={cn("relative overflow-hidden rounded-xl bg-sand", wide ? "aspect-[16/9] min-h-[210px] md:aspect-[4/3]" : "aspect-[4/3]")}>{media}</div>
+      <div className={cn("relative overflow-hidden rounded-xl bg-sand", wide ? "aspect-[16/9] min-h-[230px] md:aspect-[4/3]" : "aspect-[4/3]")}>{media}</div>
       <div className="px-3.5 pb-4 pt-5 md:px-4 md:pb-5">
         {label && <p className="font-mono text-[12px] uppercase tracking-[0.08em] text-muted">{label}</p>}
-        <h3 className={cn("display text-balance text-[1.9rem] text-forest md:min-h-[2lh] md:text-[2rem]", label && "mt-2")}>{title}</h3>
-        {body && <p className="mt-2 text-[15px] leading-relaxed text-ink-soft">{body}</p>}
+        <h3 className={cn("display text-balance text-[1.9rem] text-forest md:text-[2rem]", !body && "md:min-h-[2lh]", label && "mt-2")}>{title}</h3>
+        {body && <p className="mt-2 text-pretty text-[15px] leading-relaxed text-ink-soft">{body}</p>}
       </div>
     </div>
   )
@@ -111,7 +111,7 @@ export function GuardCard({ className }: { className?: string }) {
     { what: "Upstash key rotated", when: "2m" },
   ]
   return (
-    <div className={cn("w-full max-w-sm rounded-2xl border border-white/80 bg-white/85 p-5 text-left text-forest shadow-[0_20px_60px_rgba(40,50,45,0.15)] backdrop-blur-xl md:w-[21rem]", className)}>
+    <div className={cn("w-full max-w-sm rounded-2xl border border-forest/10 bg-white p-5 text-left md:border-white/80 md:bg-white/85 text-forest shadow-[0_20px_60px_rgba(40,50,45,0.15)] backdrop-blur-xl md:w-[21rem]", className)}>
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-2.5 font-mono text-[12px] uppercase tracking-[0.08em] text-ink-soft">
           <span className="relative flex size-2.5">
@@ -145,7 +145,7 @@ export function GuardCard({ className }: { className?: string }) {
 function Panel({ children }: { children: ReactNode }) {
   return (
     <div className="absolute inset-0 grid place-items-center bg-[linear-gradient(180deg,#e9edee_0%,#f3ebe4_100%)] p-4">
-      <div className="w-full max-w-[18rem] rounded-xl border border-black/[0.04] bg-white p-4 shadow-[0_8px_30px_rgba(40,50,45,0.08)]">{children}</div>
+      <div className="w-full max-w-[20rem] rounded-xl border border-black/[0.04] bg-white p-3.5 shadow-[0_8px_30px_rgba(40,50,45,0.08)]">{children}</div>
     </div>
   )
 }
@@ -160,8 +160,8 @@ const Lock = () => (
 export function VaultArt() {
   return (
     <Panel>
-      <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted">Vault</p>
-      <ul className="mt-3 space-y-2.5 font-mono text-[12px] text-ink-soft">
+      <p className="font-mono text-[12px] uppercase tracking-[0.08em] text-muted">Vault</p>
+      <ul className="mt-3 space-y-2.5 font-mono text-[13px] lg:text-[14px] text-ink-soft">
         {["UPSTASH_TOKEN", "ANTHROPIC_KEY", "AWS_SECRET"].map((k) => (
           <li key={k} className="flex items-center justify-between gap-3 rounded-lg bg-cream px-3 py-2">
             <span className="truncate">{k}</span>
@@ -176,11 +176,11 @@ export function VaultArt() {
 export function StandInArt() {
   return (
     <Panel>
-      <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted">.env</p>
-      <ul className="mt-3 space-y-2.5 font-mono text-[12px] text-ink-soft">
+      <p className="font-mono text-[12px] uppercase tracking-[0.08em] text-muted">.env</p>
+      <ul className="mt-3 space-y-2.5 font-mono text-[13px] lg:text-[14px] text-ink-soft">
         {["UPSTASH_TOKEN", "ANTHROPIC_KEY"].map((k) => (
-          <li key={k} className="rounded-lg bg-cream px-3 py-2 [overflow-wrap:anywhere]">
-            {k}=<span className="text-pine">standin_••••</span>
+          <li key={k} className="rounded-lg bg-cream px-3 py-2">
+            {k}=<span className="inline-block text-pine">standin_••••</span>
           </li>
         ))}
       </ul>
@@ -191,17 +191,17 @@ export function StandInArt() {
 export function RotateArt() {
   return (
     <Panel>
-      <div className="flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.08em] text-muted">
+      <div className="flex items-center justify-between gap-3 font-mono text-[12px] uppercase tracking-[0.08em] text-muted">
         <span>Rotation</span>
-        <span>Every 30d</span>
+        <span className="whitespace-nowrap">Every 30d</span>
       </div>
-      <p className="mt-3 truncate rounded-lg bg-cream px-3 py-2 font-mono text-[12px] text-ink-soft">UPSTASH_TOKEN</p>
+      <p className="mt-3 truncate rounded-lg bg-cream px-3 py-2 font-mono text-[13px] lg:text-[14px] text-ink-soft">UPSTASH_TOKEN</p>
       <div className="mt-3 flex items-center gap-1.5">
         {[1, 1, 1, 0.35, 0.35, 0.35].map((o, i) => (
           <span key={i} className="h-2 flex-1 rounded-full bg-pine" style={{ opacity: o }} />
         ))}
       </div>
-      <p className="mt-3 font-mono text-[11px] text-muted">Next in 14d · no redeploy</p>
+      <p className="mt-3 font-mono text-[12px] text-muted">Next in 14d · no redeploy</p>
     </Panel>
   )
 }

@@ -62,7 +62,7 @@ export default function LandingPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
       <header className="sticky top-0 z-40 bg-paper/95 backdrop-blur">
-        <Container className="flex h-[72px] items-center justify-between">
+        <Container className="flex h-[72px] items-center justify-between lg:grid lg:grid-cols-[1fr_auto_1fr]">
           <a href="/" className="flex items-center gap-2.5">
             <SikretsMark size={20} />
             <span className="font-serif text-[1.65rem] leading-none tracking-tight text-forest">Sikrets</span>
@@ -74,7 +74,7 @@ export default function LandingPage() {
               </a>
             ))}
           </nav>
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 lg:justify-self-end">
             <a href={demoUrl} className="hidden h-10 items-center rounded-full border border-line bg-white px-4 text-[14px] font-medium leading-none text-forest transition-colors hover:bg-cream sm:inline-flex">
               Book a demo
             </a>
@@ -89,7 +89,7 @@ export default function LandingPage() {
         {/* Hero: a tall pastel photo in a rounded card, headline centred over the sky. */}
         <section className="px-3 pt-1 sm:px-5 md:px-9">
           <div className="relative overflow-hidden rounded-2xl bg-sand md:rounded-[20px]">
-            <Image src="/landing/hero.jpg" alt="A lighthouse on a misty headland under a pale dawn sky" fill priority sizes="100vw" className="object-cover object-[48%_center]" />
+            <Image src="/landing/hero.jpg" alt="A lighthouse on a misty headland under a pale dawn sky" fill priority sizes="(max-width: 767px) 1300px, 100vw" className="object-cover object-[48%_center]" />
             <div className="relative flex min-h-[620px] flex-col items-center px-5 pb-6 pt-16 text-center sm:min-h-[720px] md:min-h-[max(760px,calc(100svh-96px))] md:pb-10 md:pt-32">
               <h1 className="display text-balance text-[3.3rem] text-forest sm:text-7xl md:text-[5.6rem]">Your virtual security guard.</h1>
               <p className="mt-6 max-w-xl text-balance text-[17px] leading-snug text-ink-soft md:text-[19px]">
@@ -170,7 +170,7 @@ export default function LandingPage() {
             <Reveal className="mt-8 md:mt-10" delay={80}>
               <ul className="grid grid-cols-1 divide-y divide-forest/10 rounded-2xl bg-cream sm:grid-cols-2 sm:gap-4 sm:divide-y-0 sm:bg-transparent md:grid-cols-4">
                 {security.map((s) => (
-                  <li key={s} className="flex items-center gap-4 px-5 py-4 text-[17px] leading-snug text-forest sm:rounded-2xl sm:bg-cream sm:p-6 md:flex-col md:items-start md:gap-5">
+                  <li key={s} className="flex items-center gap-4 px-5 py-4 text-pretty text-[17px] leading-snug text-forest sm:rounded-2xl sm:bg-cream sm:p-6 md:flex-col md:items-start md:gap-5">
                     <span className="grid size-8 shrink-0 place-items-center rounded-full bg-pine/10">
                       <Check />
                     </span>
@@ -193,14 +193,14 @@ export default function LandingPage() {
             <div className="mt-8 grid grid-cols-1 gap-4 md:mt-10 md:grid-cols-3">
               {plans.map((p, i) => (
                 <Reveal key={p.name} delay={i * 80}>
-                  <div className={p.featured ? "flex h-full flex-col rounded-2xl border border-line bg-white p-6 shadow-[0_20px_60px_rgba(40,50,45,0.08)] md:p-8" : "flex h-full flex-col rounded-2xl bg-cream p-6 md:p-8"}>
+                  <div className={p.featured ? "flex h-full flex-col rounded-2xl bg-[linear-gradient(180deg,#eef1f1,#f6eee8)] p-6 shadow-[0_20px_60px_rgba(40,50,45,0.08)] ring-1 ring-pine/20 md:p-8" : "flex h-full flex-col rounded-2xl bg-cream p-6 md:p-8"}>
                     <p className="font-mono text-[12px] uppercase tracking-[0.08em] text-muted">{p.who}</p>
                     <h3 className="display mt-3 text-[2rem] text-forest">{p.name}</h3>
                     <p className="mt-4 flex items-baseline gap-1.5">
                       <span className="display text-5xl text-forest">{p.price}</span>
                       {p.per && <span className="text-[15px] text-ink-soft">{p.per}</span>}
                     </p>
-                    <p className="mt-3 mb-8 text-[15px] text-ink-soft">{p.note}</p>
+                    <p className="mt-3 mb-8 text-pretty text-[15px] text-ink-soft">{p.note}</p>
                     <Pill href={p.href} variant={p.featured ? "primary" : "outline"} className="mt-auto w-full sm:w-auto sm:self-start">
                       {p.cta}
                     </Pill>
@@ -228,7 +228,7 @@ export default function LandingPage() {
         {/* Closing: the road photo in a rounded card, headline centred over the sky like the hero. */}
         <section className="px-3 pb-3 pt-8 sm:px-5 md:px-9 md:pb-9">
           <div className="relative overflow-hidden rounded-2xl bg-sand md:rounded-[20px]">
-            <Image src="/landing/road.jpg" alt="A road winding through an autumn forest with fog in the valleys" fill sizes="100vw" className="object-cover object-[60%_center]" />
+            <Image src="/landing/road.jpg" alt="A road winding through an autumn forest with fog in the valleys" fill sizes="(max-width: 767px) 1300px, 100vw" className="object-cover object-[60%_center]" />
             <Reveal className="relative flex min-h-[560px] flex-col items-center px-5 pt-16 text-center md:min-h-[680px] md:pt-24">
               <h2 className="display mx-auto max-w-3xl text-balance text-[2.6rem] text-forest sm:text-5xl md:text-[4rem]">Secure your first key in minutes.</h2>
               <div className="mt-8">
@@ -240,8 +240,8 @@ export default function LandingPage() {
       </main>
 
       <footer className="bg-forest text-white">
-        <Container className="grid grid-cols-2 gap-8 py-14 md:grid-cols-[1.4fr_1fr_1fr_1fr] md:gap-12 md:py-16">
-          <div className="col-span-2 flex items-center gap-2.5 self-start md:col-span-1">
+        <Container className="grid grid-cols-3 gap-6 py-14 md:grid-cols-[1.4fr_1fr_1fr_1fr] md:gap-12 md:py-16">
+          <div className="col-span-3 flex items-center gap-2.5 self-start md:col-span-1">
             <SikretsMark size={20} />
             <span className="font-serif text-[1.65rem] leading-none tracking-tight">Sikrets</span>
           </div>
