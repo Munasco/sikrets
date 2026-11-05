@@ -39,7 +39,7 @@ Wants=network-online.target
 User=sikrets
 WorkingDirectory=/opt/sikrets-agent/src/apps/agent
 ExecStartPre=+/usr/local/bin/sikrets-agent-env
-Environment=HOST=0.0.0.0 PORT=8787 OPENCODE_HOME=/tmp/sikrets-opencode
+Environment=HOST=0.0.0.0 PORT=8787 AGENT_HOME=/tmp/sikrets-agent
 ExecStart=/bin/bash -c 'set -a; . /run/sikrets-agent.env; exec /opt/sikrets-agent/.bun/bin/bun src/server.ts'
 Restart=always
 RestartSec=2

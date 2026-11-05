@@ -20,6 +20,10 @@ It runs on [opencode](https://github.com/anomalyco/opencode) (MIT; `@opencode/cl
 
 Keys in a message are swapped for placeholders like `[[secret sk_live_…cdef #52968a57]]` by the plugin's `prompt` hook, when opencode admits the message and before it stores it or emits it as an event. The real values stay in the plugin's memory, per session. The model passes placeholders to tools; the tools swap them back on the server and return only redacted findings (prefix…last4 and a SHA-256). Two more checks run on every model request: the `context` hook redacts anything that still looks like a key, and the `http.request` hook refuses to send a request that holds a known secret. What counts as a key: our 26 patterns (`src/patterns.ts`), [gitleaks](https://github.com/gitleaks/gitleaks)' 218 rules, the generic `name = value` rule, and, in chat only, any long high-entropy token. gitleaks' config is vendored with its MIT license in `vendor/gitleaks/` and compiled into `src/gitleaks.ts` by `bun run build:rules`, converting its Go regex syntax to JavaScript (none needed skipping; the conversion matches Go's results on a 150,000-line corpus). Four rules are left out: `generic-api-key` (ours covers it), `pkcs12-file` (file names only), and the two `curl` rules, which backtrack for hundreds of milliseconds on a crafted message in JavaScript. A rule runs only if one of its keywords is in the text, so a typical message takes about 15 µs and a 60 KB one under 1 ms (`bun run bench`). `src/redaction.test.ts` runs the real opencode binary against a stand-in model and checks that a pasted key never appears in the model requests, the event stream, the stored session or any file opencode writes, and that the tool still gets the real key.
 
+### What the agent says it is
+
+The agent is Sikrets' security agent and never names what it runs on. opencode adds its own system text to every request (an `<env>` block with its paths and temp directory, and a note about its own session tools); the plugin's `context`, `generate` and `compaction` hooks rewrite it before the request leaves: the env block is rebuilt with the working directory, a scratch directory inside it (also the shell's `$TMPDIR`) and the platform, notes about opencode's own tools are dropped, and any other mention, in a system part or a tool description, is renamed (`BRAND` in `src/constants.ts`). The system prompt tells the model not to name its runtime, framework or model host. Paths are Sikrets-named too: `AGENT_HOME` (`/run/sikrets` in the enclave), its `work` directory and `work/.tmp`. A test checks that no request's system prompt or tool list contains "opencode".
+
 ### Skills, slash commands and MCP servers
 
 Modelled on [t3code](https://github.com/pingdotgg/t3code)'s composer (MIT; behaviour only, no code copied), on top of opencode's own support (`src/capabilities.ts`):
@@ -59,7 +63,7 @@ cd ui && GATEWAY=http://127.0.0.1:8787 bun run dev   # the page with hot reload
 | `GEMINI_API_KEY` | The model key (`MODEL.keyEnv`). In the enclave, `bootstrap.py` decrypts it and passes it as `MODEL_API_KEY`. |
 | `ACCESS_CODE` | unset: open. Set: the page asks for it. |
 | `PORT` / `HOST` | `8787` / `127.0.0.1` |
-| `OPENCODE_PORT` / `OPENCODE_HOME` | `4097` / `$TMPDIR/sikrets-opencode` |
+| `AGENT_RUNTIME_PORT` / `AGENT_HOME` | `4097` / `$TMPDIR/sikrets-agent` |
 | `AGENT_MCP_FILE` | `mcp.json` next to this README; missing means no MCP servers. |
 | `GATEWAY_LOG` | `1` logs each API call's method, path and status (never queries or bodies). |
 

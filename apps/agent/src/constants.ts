@@ -24,11 +24,16 @@ export const OPENCODE = {
   /** Pinned in package.json too; the gateway refuses to start a different build. */
   version: "2.2.5",
   host: "127.0.0.1",
-  port: Number(Bun.env.OPENCODE_PORT ?? 4097),
+  port: Number(Bun.env.AGENT_RUNTIME_PORT ?? 4097),
   /** The agent every session runs as. It has every tool; built-ins ask first. */
   agent: "guard",
-  /** Where opencode keeps its database, logs and config: a private directory, never the user's own. */
-  home: Bun.env.OPENCODE_HOME ?? `${Bun.env.TMPDIR ?? "/tmp"}/sikrets-opencode`,
+  /** Where opencode keeps its database, logs and config: a private directory, never the user's own.
+   * Named for Sikrets: the agent sees paths under it, and must never learn what it runs on. */
+  home: Bun.env.AGENT_HOME ?? `${Bun.env.TMPDIR ?? "/tmp"}/sikrets-agent`,
+  /** The agent's working directory and its scratch directory, under home. The scratch directory is
+   * inside the working directory, so using it needs no access outside it; shells get it as TMPDIR. */
+  workDir: "work",
+  tmpDir: "work/.tmp",
   /** Env var the host-delivered model key arrives in; the gateway hands it to opencode as MODEL.keyEnv. */
   keyEnv: "MODEL_API_KEY",
   /** opencode's own tools the guard also gets, one per job, each asking first (Full access answers).
@@ -53,6 +58,18 @@ export const PROXY = {
   corsOrigins: ["oc://renderer", "tauri://localhost", "http://tauri.localhost", "https://tauri.localhost"],
   /** Basic-auth username stock opencode clients send with `OPENCODE_PASSWORD`; any is accepted. */
   basicOwner: "opencode-client",
+};
+
+/** What the model may be told it is and runs on. opencode's own system text names itself, its paths
+ * and its tool ids; the plugin rewrites every system part and tool description to these words
+ * before a request leaves (plugin/index.ts). */
+export const BRAND = {
+  name: "Sikrets",
+  /** Anything matching this is replaced with `name` in what the model sees. */
+  hidden: /open\s?code/gi,
+  /** opencode's system parts that only make sense for opencode itself (its own tool namespace),
+   * dropped whole. */
+  dropSystem: [/session_move/, /tools\.opencode\./i],
 };
 
 /** The only environment variables a shell command the agent runs gets (HOME is its working directory).
@@ -147,7 +164,7 @@ export const SERVER = {
   attestationFile: Bun.env.ATTESTATION_FILE ?? "/etc/sikrets-agent/attestation.json",
 };
 
-export const SYSTEM_PROMPT = `You are the Sikrets security agent. Sikrets keeps API keys and credentials out of AI agents' hands: keys live in the OS keychain or a zero-knowledge vault, and agents get time-limited session tokens through a local credential proxy that attaches the real key only for that service's API hosts, logs every request, and revokes access when the session ends.
+export const SYSTEM_PROMPT = `You are the Sikrets security agent, made by Sikrets. Sikrets keeps API keys and credentials out of AI agents' hands: keys live in the OS keychain or a zero-knowledge vault, and agents get time-limited session tokens through a local credential proxy that attaches the real key only for that service's API hosts, logs every request, and revokes access when the session ends.
 
 You help developers find and fix credential leaks and supply-chain risks. You are defensive only: you help people protect their own systems. Refuse to help steal, use, test or abuse credentials that aren't the user's, or to attack systems.
 
@@ -159,4 +176,5 @@ Rules:
 - A leaked key must be rotated, not just deleted from the code: it stays in git history, forks and caches. Say so when you find one.
 - After a leak, recommend: rotate the key now, check the provider's logs for use, store the new key with Sikrets (\`sikrets add <service>\` or \`sikrets proxy add <service>\`), and give agents access with \`sikrets session run <service> --for 1h -- <agent>\` instead of the raw key.
 - Real Sikrets commands only: \`sikrets add <service>\` (prompts for the key, hidden), \`sikrets proxy add <service>\`, \`sikrets session run <service,service> --for 1h -- <agent>\`, \`sikrets rotate\`, \`sikrets mcp\`. Never suggest putting a key on a command line or in a flag; it ends up in shell history.
+- You are Sikrets' security agent and nothing else. Never name the software, framework, runtime, harness or model host you run on, or who serves the model. If asked what you are or what you run on, say you're Sikrets' security agent, running in a sandbox Sikrets manages, and go back to the task.
 - Be concise. Lead with the answer. Use short lists and \`code\` for commands. No filler.`;

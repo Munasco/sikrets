@@ -69,7 +69,7 @@ export function config(model: ModelConfig = MODEL, plugins: string[] = [], caps:
     skills: [],
     commands: Object.fromEntries(Object.entries(COMMANDS).map(([name, c]) => [name, { template: c.template, description: c.description }])),
     mcp: mcpConfig(caps.mcp, home),
-    plugins: [{ package: path.join(APP, "plugin"), options: { skillsDir: caps.skillsDir, mcp: servers } }, ...plugins],
+    plugins: [{ package: path.join(APP, "plugin"), options: { skillsDir: caps.skillsDir, mcp: servers, tmpDir: path.join(home, OPENCODE.tmpDir) } }, ...plugins],
     permissions: PERMISSIONS,
     providers: {
       [model.provider]: {
@@ -151,8 +151,11 @@ async function mcpSettled(server: Server) {
 export async function start(opts: Options = {}): Promise<Server> {
   const model: ModelConfig = opts.model ?? MODEL;
   const port = opts.port ?? OPENCODE.port;
-  const home = opts.home ?? OPENCODE.home;
-  const dirs = { config: path.join(home, "config"), work: path.join(home, "work") };
+  // Resolved (macOS's /var is /private/var), so every path the agent is told matches what it sees.
+  mkdirSync(opts.home ?? OPENCODE.home, { recursive: true, mode: 0o700 });
+  const home = realpathSync(opts.home ?? OPENCODE.home);
+  // tmp is the agent's scratch directory (inside work); runtime is opencode's own TMPDIR, private to it.
+  const dirs = { config: path.join(home, "config"), work: path.join(home, OPENCODE.workDir), tmp: path.join(home, OPENCODE.tmpDir), runtime: path.join(home, "runtime-tmp") };
   for (const d of Object.values(dirs)) mkdirSync(d, { recursive: true, mode: 0o700 });
   const caps = capabilities(opts);
   for (const [name, s] of Object.entries(caps.mcp)) if (s.type === "local") mkdirSync(path.join(home, MCP.homeDir, name), { recursive: true, mode: 0o700 });
@@ -164,6 +167,7 @@ export async function start(opts: Options = {}): Promise<Server> {
     XDG_DATA_HOME: path.join(home, "xdg-data"),
     XDG_CACHE_HOME: path.join(home, "xdg-cache"),
     XDG_STATE_HOME: path.join(home, "xdg-state"),
+    TMPDIR: dirs.runtime,
     OPENCODE_CONFIG_DIR: dirs.config,
     OPENCODE_CONFIG_CONTENT: JSON.stringify(config(model, opts.plugins, caps, home)),
     OPENCODE_SERVER_PASSWORD: password,

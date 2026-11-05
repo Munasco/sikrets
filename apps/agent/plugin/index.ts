@@ -1,7 +1,7 @@
 import type { Plugin } from "@opencode/plugin";
 import { runTool, TOOLS } from "../src/tools.ts";
 import { Vault } from "../src/redact.ts";
-import { MCP, OPENCODE, PROXY, SHELL_ENV, SKILLS } from "../src/constants.ts";
+import { BRAND, MCP, OPENCODE, PROXY, SHELL_ENV, SKILLS } from "../src/constants.ts";
 import { loadSkills, mcpTool } from "../src/capabilities.ts";
 
 // The Sikrets opencode plugin: the guard agent's five tools, its skills, and the hooks that keep
@@ -16,10 +16,13 @@ import { loadSkills, mcpTool } from "../src/capabilities.ts";
 // 3. context: every outgoing model request is scanned again, and any tool outside the Sikrets tools,
 //    OPENCODE.builtins, the skill tool and the session's switched-on MCP servers is dropped,
 //    whatever the config says.
-// 4. shell: commands the agent runs get a bare environment (PATH and a few basics), so the
+// 4. identity: opencode's own system text (its <env> block, notes about its own tools) and tool
+//    descriptions name opencode, its paths and its tool ids. Every system part and tool the model
+//    gets is rewritten under Sikrets names first, so the agent can't say what it runs on.
+// 5. shell: commands the agent runs get a bare environment (PATH and a few basics), so the
 //    server's own settings and passwords aren't there to read. (MCP servers get the same, from
 //    their launcher: src/capabilities.ts.)
-// 5. http.request: the last check before bytes leave. A request that still holds a known secret is
+// 6. http.request: the last check before bytes leave. A request that still holds a known secret is
 //    refused, so a missed path fails closed instead of leaking.
 //
 // Tools in PROXY.ask (downloading someone's repo) ask first: opencode holds the call and the client
@@ -29,6 +32,45 @@ interface Options {
   skillsDir?: string;
   /** Each MCP server's default switch and tool allowlist (src/opencode.ts). */
   mcp?: Record<string, { enabled: boolean; tools?: string[] }>;
+  /** The agent's scratch directory, inside its working directory; shells get it as TMPDIR. */
+  tmpDir?: string;
+}
+
+const hide = (text: string) => text.replace(BRAND.hidden, BRAND.name);
+
+/** opencode's <env> block, rebuilt with what's useful and nothing that names opencode. */
+function environment(block: string, tmpDir: string | undefined) {
+  const dir = /Working directory:\s*(.*)/.exec(block)?.[1]?.trim();
+  return [
+    "<env>",
+    ...(dir ? [`  Working directory: ${dir}`] : []),
+    ...(tmpDir ? [`  Scratch directory: ${tmpDir} (inside the working directory; use it instead of /tmp, it is also $TMPDIR)`] : []),
+    `  Platform: ${process.platform}`,
+    "</env>",
+  ].join("\n");
+}
+
+/** Rewrites the system parts in place: drops the lines that are notes about opencode's own tools,
+ * rebuilds the env block, and renames anything left. */
+function scrubSystem(system: Array<{ text: string }>, tmpDir?: string) {
+  for (let i = system.length - 1; i >= 0; i--) {
+    const part = system[i]!;
+    const text = part.text
+      .split("\n")
+      .filter((line) => !BRAND.dropSystem.some((re) => re.test(line)))
+      .join("\n")
+      .replace(/<env>[\s\S]*?<\/env>/g, (block) => environment(block, tmpDir));
+    if (text.trim()) part.text = hide(text);
+    else system.splice(i, 1);
+  }
+}
+
+/** Every string in a tool's description and input schema, renamed. */
+function scrubDeep<T>(v: T): T {
+  if (typeof v === "string") return hide(v) as T;
+  if (Array.isArray(v)) return v.map(scrubDeep) as T;
+  if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, scrubDeep(x)])) as T;
+  return v;
 }
 
 const vault = new Vault();
@@ -127,13 +169,15 @@ const plugin: Plugin.Plugin = {
       await ctx.session.hook(kind, (event) => {
         vault.shieldAll(event.sessionID, event.messages);
         for (const name of Object.keys(event.tools)) if (!usable(event.sessionID, name)) delete event.tools[name];
+        scrubSystem(event.system as Array<{ text: string }>, opts.tmpDir);
+        for (const [name, tool] of Object.entries(event.tools)) event.tools[name] = { description: hide(tool.description), input: scrubDeep(tool.input) };
       });
     }
 
     await ctx.shell.hook("create.before", (event) => {
       const keep = Object.fromEntries(SHELL_ENV.map((k) => [k, event.env[k]]).filter(([, v]) => v !== undefined));
       for (const k of Object.keys(event.env)) delete event.env[k];
-      Object.assign(event.env, keep, { HOME: event.cwd });
+      Object.assign(event.env, keep, { HOME: event.cwd }, opts.tmpDir ? { TMPDIR: opts.tmpDir } : {});
     });
 
     // Titles are fixed rather than generated: one less model call per chat, and nothing to leak.

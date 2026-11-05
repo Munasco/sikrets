@@ -152,7 +152,7 @@ def supervise(state: dict) -> None:
                 "HOME": "/tmp",
                 "HOST": "127.0.0.1",
                 "PORT": "8787",
-                "OPENCODE_HOME": "/run/opencode",
+                "AGENT_HOME": "/run/sikrets",
                 "ATTESTATION_FILE": ATTESTATION,
                 "ACCESS_CODE": wanted[0],
                 "MODEL_API_KEY": wanted[1],

@@ -198,6 +198,19 @@ describe("the gateway's proxy, end to end", () => {
     for (const f of files(home)) expect(readFileSync(f).includes(FAKE)).toBe(false);
   }, 60_000);
 
+  test("the model never hears the word opencode: not in the system prompt, not in a tool", () => {
+    expect(requests.length).toBeGreaterThan(0);
+    for (const r of requests) {
+      const body = JSON.parse(r) as { messages: Array<{ role: string; content: unknown }>; tools?: unknown[] };
+      const system = JSON.stringify(body.messages.filter((m) => m.role === "system"));
+      expect(system).toContain("Sikrets security agent");
+      expect(system).toContain("Working directory: ");
+      expect(system).toContain("Scratch directory: ");
+      expect(system).not.toMatch(/open\s?code/i);
+      expect(JSON.stringify(body.tools ?? [])).not.toMatch(/open\s?code/i);
+    }
+  });
+
   test("a repo download waits for permission, and the reply goes through", async () => {
     const seen = await events(basic, (ev) => ev.type === "permission.asked" || terminal(session)(ev), () =>
       call(`/api/session/${session}/prompt`, { method: "POST", body: JSON.stringify({ text: "please scan the repo" }) }),
