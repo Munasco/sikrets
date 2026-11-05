@@ -52,7 +52,7 @@ export function IconButton({ label, shortcut, children, className, side, busy, d
 export function Button({ variant = "quiet", busy, children, className, disabled, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "quiet" | "danger"; busy?: boolean }) {
   const look = {
     primary: "bg-forest text-cream hover:bg-pine border-forest",
-    quiet: "bg-white text-ink hover:bg-cream border-line",
+    quiet: "bg-lift text-ink hover:bg-lift-hover border-line",
     danger: "bg-white text-rust hover:bg-rust/5 border-rust/30",
   }[variant];
   return (
@@ -105,12 +105,55 @@ export function CopyButton({ text, label = "Copy", className, side }: { text: st
   );
 }
 
-/** A command or snippet with a copy button. */
+/** A command or snippet with a copy button. Long paths wrap instead of scrolling. */
 export function Snippet({ text, label }: { text: string; label?: string }) {
   return (
-    <div className="group flex items-start gap-2 rounded-md border border-line bg-cream/60 py-1.5 pr-1 pl-2.5">
-      <pre className="selectable scroll-thin min-w-0 flex-1 overflow-x-auto py-0.5 font-mono text-[11.5px] leading-relaxed whitespace-pre text-ink-soft">{text}</pre>
+    <div className="group flex items-start gap-2 rounded-md bg-well py-1 pr-1 pl-3 ring-1 ring-line/60 ring-inset">
+      <pre className="selectable min-w-0 flex-1 py-[5px] font-mono text-[11.5px] leading-[18px] whitespace-pre-wrap text-ink [overflow-wrap:break-word]">{text}</pre>
       <CopyButton text={text} label={label ?? "Copy"} />
+    </div>
+  );
+}
+
+/** A row of mutually exclusive choices: tabs or a radio group, with arrow-key movement. */
+export function Segmented<T extends string>({ value, options, onChange, role = "radiogroup", label }: { value: T; options: readonly (readonly [T, string])[]; onChange: (v: T) => void; role?: "tablist" | "radiogroup"; label: string }) {
+  const item = role === "tablist" ? "tab" : "radio";
+  const ref = useRef<HTMLDivElement>(null);
+  const move = (by: number) => {
+    const i = (options.findIndex(([id]) => id === value) + by + options.length) % options.length;
+    onChange(options[i]![0]);
+    ref.current?.querySelectorAll<HTMLButtonElement>("button")[i]?.focus();
+  };
+  return (
+    <div
+      ref={ref}
+      role={role}
+      aria-label={label}
+      onKeyDown={(e) => {
+        const by = ({ ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 } as Record<string, number>)[e.key];
+        if (by) {
+          e.preventDefault();
+          move(by);
+        }
+      }}
+      className="inline-grid h-7 auto-cols-fr grid-flow-col gap-0.5 self-start rounded-md bg-well p-0.5 text-[12px] ring-1 ring-line ring-inset"
+    >
+      {options.map(([id, text]) => {
+        const on = value === id;
+        return (
+          <button
+            key={id}
+            type="button"
+            role={item}
+            tabIndex={on ? 0 : -1}
+            {...(item === "tab" ? { "aria-selected": on } : { "aria-checked": on })}
+            onClick={() => onChange(id)}
+            className={cn("rounded px-3 font-medium whitespace-nowrap transition-colors", on ? "seg-on bg-lift text-ink" : "text-ink-soft hover:text-ink")}
+          >
+            {text}
+          </button>
+        );
+      })}
     </div>
   );
 }

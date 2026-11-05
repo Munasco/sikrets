@@ -22,6 +22,9 @@
 
   --color-paper: #fbfaf7;
   --color-white: #ffffff;
+  --color-lift: #ffffff;
+  --color-well: #f4f3f1;
+  --color-lift-hover: #f4f3f1;
   --color-cream: #f4f3f1;
   --color-sand: #eceae6;
   --color-line: #e7e4df;
@@ -43,6 +46,9 @@
     color-scheme: dark;
     --color-paper: #121513;
     --color-white: #1a1e1b;
+    --color-lift: #2f3631;
+    --color-lift-hover: #3a423d;
+    --color-well: #141715;
     --color-cream: #1f2420;
     --color-sand: #272d29;
     --color-line: #2d3430;
@@ -60,6 +66,9 @@
   color-scheme: dark;
   --color-paper: #121513;
   --color-white: #1a1e1b;
+  --color-lift: #2f3631;
+  --color-lift-hover: #3a423d;
+  --color-well: #141715;
   --color-cream: #1f2420;
   --color-sand: #272d29;
   --color-line: #2d3430;
@@ -117,6 +126,19 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--color-dim);
+}
+
+/* The chosen segment: a soft lift in light, a pine-edged lift in dark. */
+.seg-on {
+  box-shadow: 0 0 0 1px var(--color-line), 0 1px 2px rgb(0 0 0 / 0.08);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .seg-on {
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-pine) 30%, transparent);
+  }
+}
+:root[data-theme="dark"] .seg-on {
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-pine) 30%, transparent);
 }
 
 .drag {

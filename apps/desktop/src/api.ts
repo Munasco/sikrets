@@ -109,7 +109,11 @@ export async function sikrets<T>(args: string[], stdin?: string): Promise<T> {
 }
 
 export async function info(): Promise<Info> {
-  if (!inTauri) return { cliPath: "/Applications/Sikrets.app/Contents/MacOS/sikrets", project: "~/code/shop", initialized: true, version: "0.1.0" };
+  if (!inTauri) {
+    // ?empty previews a fresh install: no project, and a long bundle path.
+    const empty = location.search.includes("empty");
+    return { cliPath: empty ? "/Users/you/Applications/Sikrets.app/Contents/Resources/bin/sikrets-aarch64-apple-darwin" : "/Applications/Sikrets.app/Contents/MacOS/sikrets", project: empty ? null : "~/code/shop", initialized: true, version: "0.1.0" };
+  }
   return invoke<Info>("info");
 }
 
