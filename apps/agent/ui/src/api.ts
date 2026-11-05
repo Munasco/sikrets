@@ -31,6 +31,29 @@ export interface PermissionRequest {
   metadata?: { reason?: string };
 }
 
+/** A skill the server ships: picked in the composer with `$id`. */
+export interface Skill {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+/** A slash command the server defines (`/name args`). */
+export interface Command {
+  name: string;
+  description?: string;
+  hint?: string;
+}
+
+/** An MCP server the gateway configured, with this login's switch. */
+export interface McpServer {
+  name: string;
+  title?: string;
+  description?: string;
+  enabled: boolean;
+  status: { status: "connected" | "pending" | "disabled" | "failed" | "needs_auth"; error?: string };
+}
+
 export interface Me {
   authed: boolean;
   gated: boolean;
@@ -74,7 +97,14 @@ export const api = {
   remove: (id: string) => call<void>(`/api/session/${id}`, { method: "DELETE" }),
   /** Oldest first. */
   messages: async (id: string) => (await call<{ data: Message[] }>(`/api/session/${id}/message?limit=200`)).data.slice().reverse(),
-  prompt: (id: string, text: string) => post<unknown>(`/api/session/${id}/prompt`, { text }),
+  prompt: (id: string, text: string, skills: string[] = []) => post<unknown>(`/api/session/${id}/prompt`, { text, ...(skills.length ? { skills: skills.map((s) => ({ id: s })) } : {}) }),
+  command: (id: string, name: string, text: string, skills: string[] = []) => post<void>(`/api/session/${id}/command`, { name, text, ...(skills.length ? { skills: skills.map((s) => ({ id: s })) } : {}) }),
+  compact: (id: string) => post<unknown>(`/api/session/${id}/compact`),
+  skills: async () => (await call<{ data: Skill[] }>("/api/skill")).data,
+  commands: async () => (await call<{ data: Command[] }>("/api/command")).data,
+  mcp: async () => (await call<{ data: McpServer[] }>("/api/mcp")).data,
+  /** opencode's own connect/disconnect calls; the gateway keeps them per login. */
+  mcpSwitch: (name: string, on: boolean) => post<void>(`/api/experimental/mcp/${encodeURIComponent(name)}/${on ? "connect" : "disconnect"}`),
   interrupt: (id: string) => post<unknown>(`/api/session/${id}/interrupt`),
   permissions: async (id: string) => (await call<{ data: PermissionRequest[] }>(`/api/session/${id}/permission`)).data,
   fullAccess: (on: boolean) => call<{ fullAccess: boolean }>("/api/full-access", { method: "PUT", body: JSON.stringify({ on }) }),

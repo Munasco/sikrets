@@ -4,6 +4,7 @@ import { MODEL, PROXY, SERVER } from "./constants.ts";
 import type { Server } from "./opencode.ts";
 import { autoApprove, FullAccess } from "./full-access.ts";
 import { Owners, proxy, type Owner } from "./proxy.ts";
+import { McpSwitches, syncAll } from "./mcp-switch.ts";
 
 // The gateway in front of opencode: the chat page, the access code, rate limits, the attestation
 // document, and a filtered proxy for opencode's own API (src/proxy.ts), so the stock opencode
@@ -21,6 +22,8 @@ export interface Options {
   ownersFile?: string;
   /** Where to keep who turned on full access (src/full-access.ts). */
   fullAccessFile?: string;
+  /** Where to keep each login's MCP switches (src/mcp-switch.ts). */
+  mcpFile?: string;
 }
 
 const UI = path.join(import.meta.dir, "..", SERVER.uiDir);
@@ -50,7 +53,8 @@ function window(ms: number, max: number) {
 export function createGateway(oc: Server, opts: Options = {}) {
   const code = opts.accessCode;
   const key = code ? createHmac("sha256", "sikrets-agent").update(code).digest() : undefined;
-  const api = proxy(oc, new Owners(opts.ownersFile));
+  const api = proxy(oc, new Owners(opts.ownersFile), new McpSwitches(oc.capabilities.mcp, opts.mcpFile));
+  void syncAll(oc, api.switches, api.owners);
   const access = new FullAccess(opts.fullAccessFile);
   const approver = autoApprove(oc, api.owners, access);
 

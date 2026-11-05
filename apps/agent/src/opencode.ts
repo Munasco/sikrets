@@ -1,23 +1,31 @@
 import { mkdirSync, realpathSync } from "node:fs";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import path from "node:path";
-import { MODEL, OPENCODE, PROXY, SYSTEM_PROMPT } from "./constants.ts";
+import { COMMANDS, MCP, MODEL, OPENCODE, PROXY, SKILLS, SYSTEM_PROMPT } from "./constants.ts";
 import { TOOLS } from "./tools.ts";
+import { loadMcp, loadSkills, mcpConfig, mcpPermissions, type McpServers, type Skill } from "./capabilities.ts";
 
 // Runs opencode as a private server for the gateway: bound to loopback, behind a random password,
 // with its own home directory and no project or user config. The guard agent has the Sikrets tools,
 // which run freely, and opencode's shell, file and web tools, which ask first; the owner's Full
 // access switch answers those automatically (src/full-access.ts). Its API also has file and shell endpoints, so it is never exposed directly.
+// It also has the skills shipped in SKILLS.dir and the MCP servers in MCP.file (src/capabilities.ts):
+// skills load without asking, and every MCP tool asks first, like the built-ins.
 
 const APP = path.join(import.meta.dir, "..");
 
-/** The Sikrets tools run freely; opencode's built-ins (OPENCODE.builtins) ask first; nothing else. */
-const PERMISSIONS = [
-  { action: "*", resource: "*", effect: "deny" },
-  ...Object.keys(TOOLS).map((action) => ({ action, resource: "*", effect: "allow" })),
-  ...OPENCODE.builtins.map((action) => ({ action, resource: "*", effect: "ask" })),
-  ...PROXY.ask.map((action) => ({ action, resource: "*", effect: "ask" })),
-];
+/** The Sikrets tools run freely; opencode's built-ins (OPENCODE.builtins) and MCP tools ask first;
+ * only our own skills can be loaded; nothing else. */
+function permissions(skills: Skill[], mcp: McpServers) {
+  return [
+    { action: "*", resource: "*", effect: "deny" },
+    ...Object.keys(TOOLS).map((action) => ({ action, resource: "*", effect: "allow" })),
+    ...OPENCODE.builtins.map((action) => ({ action, resource: "*", effect: "ask" })),
+    ...PROXY.ask.map((action) => ({ action, resource: "*", effect: "ask" })),
+    ...skills.map((s) => ({ action: SKILLS.tool, resource: s.id, effect: "allow" })),
+    ...mcpPermissions(mcp),
+  ];
+}
 
 /** The model settings opencode runs with; tests swap in a local stand-in. */
 export type ModelConfig = typeof MODEL & { settings?: Record<string, unknown> };
@@ -28,9 +36,28 @@ export interface Options {
   plugins?: string[];
   home?: string;
   port?: number;
+  /** MCP servers; by default, the ones in MCP.file. */
+  mcp?: McpServers;
+  /** Where the skills are; by default SKILLS.dir. */
+  skillsDir?: string;
 }
 
-export function config(model: ModelConfig = MODEL, plugins: string[] = []) {
+/** What the guard has beyond its own tools, as the gateway and plugin see it. */
+export interface Capabilities {
+  skills: Skill[];
+  mcp: McpServers;
+  skillsDir: string;
+}
+
+export function capabilities(opts: Pick<Options, "mcp" | "skillsDir"> = {}): Capabilities {
+  const skillsDir = opts.skillsDir ?? path.join(APP, SKILLS.dir);
+  return { skills: loadSkills(skillsDir), mcp: opts.mcp ?? loadMcp(path.resolve(APP, MCP.file)), skillsDir };
+}
+
+export function config(model: ModelConfig = MODEL, plugins: string[] = [], caps: Capabilities = capabilities(), home: string = OPENCODE.home) {
+  const PERMISSIONS = permissions(caps.skills, caps.mcp);
+  // The plugin learns the skills' folder and each server's switch and tool list from its options.
+  const servers = Object.fromEntries(Object.entries(caps.mcp).map(([name, s]) => [name, { enabled: s.enabled !== false, ...(s.tools ? { tools: s.tools } : {}) }]));
   return {
     $schema: "https://opencode.ai/config.json",
     model: `${model.provider}/${model.id}`,
@@ -39,7 +66,10 @@ export function config(model: ModelConfig = MODEL, plugins: string[] = []) {
     update: "disable",
     snapshots: false,
     instructions: [],
-    plugins: [path.join(APP, "plugin"), ...plugins],
+    skills: [],
+    commands: Object.fromEntries(Object.entries(COMMANDS).map(([name, c]) => [name, { template: c.template, description: c.description }])),
+    mcp: mcpConfig(caps.mcp, home),
+    plugins: [{ package: path.join(APP, "plugin"), options: { skillsDir: caps.skillsDir, mcp: servers } }, ...plugins],
     permissions: PERMISSIONS,
     providers: {
       [model.provider]: {
@@ -99,11 +129,23 @@ export function binary(): string {
 
 export interface Server {
   url: string;
+  capabilities: Capabilities;
   /** opencode's private working directory, where every session runs. */
   directory: string;
   /** Calls opencode's API with the server password. */
   fetch(pathname: string, init?: RequestInit): Promise<Response>;
   stop(): void;
+}
+
+/** True once every MCP server has failed, or connected and had its tools registered. */
+async function mcpSettled(server: Server) {
+  if (!Object.keys(server.capabilities.mcp).length) return true;
+  const read = async <T>(p: string, init?: RequestInit) => ((await (await server.fetch(p, init).catch(() => undefined))?.json().catch(() => undefined)) as T | undefined);
+  const list = (await read<{ data?: Array<{ name: string; status: { status: string } }> }>("/api/mcp"))?.data;
+  if (!list || list.some((m) => m.status.status === "pending")) return false;
+  const rpc = `/api/rpc/${encodeURIComponent(MCP.rpc.id)}/${encodeURIComponent(MCP.rpc.tools)}`;
+  const tools = (await read<{ output?: { tools?: string[] } }>(rpc, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ input: {} }) }))?.output?.tools ?? [];
+  return list.filter((m) => m.status.status === "connected").every((m) => tools.some((t) => t.startsWith(`${m.name}_`)));
 }
 
 export async function start(opts: Options = {}): Promise<Server> {
@@ -112,6 +154,8 @@ export async function start(opts: Options = {}): Promise<Server> {
   const home = opts.home ?? OPENCODE.home;
   const dirs = { config: path.join(home, "config"), work: path.join(home, "work") };
   for (const d of Object.values(dirs)) mkdirSync(d, { recursive: true, mode: 0o700 });
+  const caps = capabilities(opts);
+  for (const [name, s] of Object.entries(caps.mcp)) if (s.type === "local") mkdirSync(path.join(home, MCP.homeDir, name), { recursive: true, mode: 0o700 });
   const password = randomBytes(32).toString("base64url");
   const env: Record<string, string> = {
     PATH: Bun.env.PATH ?? "/usr/bin:/bin",
@@ -121,7 +165,7 @@ export async function start(opts: Options = {}): Promise<Server> {
     XDG_CACHE_HOME: path.join(home, "xdg-cache"),
     XDG_STATE_HOME: path.join(home, "xdg-state"),
     OPENCODE_CONFIG_DIR: dirs.config,
-    OPENCODE_CONFIG_CONTENT: JSON.stringify(config(model, opts.plugins)),
+    OPENCODE_CONFIG_CONTENT: JSON.stringify(config(model, opts.plugins, caps, home)),
     OPENCODE_SERVER_PASSWORD: password,
     OPENCODE_DISABLE_PROJECT_CONFIG: "1",
     OPENCODE_DISABLE_CLAUDE_CODE: "1",
@@ -138,7 +182,7 @@ export async function start(opts: Options = {}): Promise<Server> {
   const relay = key ? modelRelay(model, key) : undefined;
   if (relay) {
     env[model.keyEnv] = relay.token;
-    env.OPENCODE_CONFIG_CONTENT = JSON.stringify(config({ ...model, settings: { ...model.settings, baseURL: relay.baseURL } }, opts.plugins));
+    env.OPENCODE_CONFIG_CONTENT = JSON.stringify(config({ ...model, settings: { ...model.settings, baseURL: relay.baseURL } }, opts.plugins, caps, home));
   }
 
   const bin = binary();
@@ -153,10 +197,14 @@ export async function start(opts: Options = {}): Promise<Server> {
   });
   const url = `http://${OPENCODE.host}:${port}`;
   const auth = `Basic ${Buffer.from(`opencode:${password}`).toString("base64")}`;
+  // Sessions run at the resolved path (macOS's /var is /private/var); every call names the same one,
+  // so opencode keeps one instance of the plugin and the MCP servers rather than one per spelling.
+  const directory = realpathSync(dirs.work);
   const server: Server = {
     url,
-    directory: realpathSync(dirs.work),
-    fetch: (pathname, init = {}) => fetch(url + pathname, { ...init, headers: { ...init.headers, authorization: auth, "x-opencode-directory": dirs.work } }),
+    capabilities: caps,
+    directory,
+    fetch: (pathname, init = {}) => fetch(url + pathname, { ...init, headers: { ...init.headers, authorization: auth, "x-opencode-directory": directory } }),
     stop: () => {
       proc.kill();
       relay?.stop();
@@ -167,7 +215,8 @@ export async function start(opts: Options = {}): Promise<Server> {
   while (Date.now() < deadline) {
     if (proc.exitCode !== null) throw new Error(`opencode exited (${proc.exitCode})`);
     const ok = await server.fetch("/api/agent").then((r) => r.ok, () => false);
-    if (ok) return server;
+    // Ready once every MCP server has connected or failed, so the first chat has their tools.
+    if (ok && (await mcpSettled(server))) return server;
     await Bun.sleep(250);
   }
   proc.kill();

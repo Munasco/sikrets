@@ -10,8 +10,8 @@ Chat with an agent that finds leaked keys and walks you through fixing them.
 
 It runs on [opencode](https://github.com/anomalyco/opencode) (MIT; `@opencode/cli`, pinned in `package.json`), as a custom harness:
 
-- **`plugin/`** is an opencode plugin: the five tools, and the hooks that keep secrets out (below).
-- **`src/opencode.ts`** runs `opencode serve` on loopback with a random password, a private home directory, no project or user config, sharing and updates off, and one agent, `guard`. Every built-in tool (shell, read, edit, write, webfetch, …) is denied; only the five tools are allowed.
+- **`plugin/`** is an opencode plugin: the five tools, the skills, and the hooks that keep secrets out (below).
+- **`src/opencode.ts`** runs `opencode serve` on loopback with a random password, a private home directory, no project or user config, sharing and updates off, and one agent, `guard`. The five tools run freely; opencode's shell, read, write, edit, glob, grep, webfetch and websearch, and every MCP tool, ask first (the per-login Full access switch answers for you); our skills load without asking; everything else is denied.
 - **`src/gateway.ts`** is the gateway in front of it: the chat page, the access code, rate limits, `/attestation`, and a filtered proxy for opencode's own API (`src/proxy.ts`), so opencode's TUI and desktop app can connect too.
 - **`ui/`** is the chat page: Vite, React and Tailwind, built to static files the gateway serves. Its layout and interaction model follow [t3code](https://github.com/pingdotgg/t3code) (MIT; ideas only, no code copied), in the Sikrets theme.
 - **Model:** Gemini 4 Argon through opencode's Google provider. Provider, model and key env var are set in `MODEL` in `src/constants.ts` and nowhere else.
@@ -20,15 +20,25 @@ It runs on [opencode](https://github.com/anomalyco/opencode) (MIT; `@opencode/cl
 
 Keys in a message are swapped for placeholders like `[[secret sk_live_…cdef #52968a57]]` by the plugin's `prompt` hook, when opencode admits the message and before it stores it or emits it as an event. The real values stay in the plugin's memory, per session. The model passes placeholders to tools; the tools swap them back on the server and return only redacted findings (prefix…last4 and a SHA-256). Two more checks run on every model request: the `context` hook redacts anything that still looks like a key, and the `http.request` hook refuses to send a request that holds a known secret. What counts as a key: our 26 patterns (`src/patterns.ts`), [gitleaks](https://github.com/gitleaks/gitleaks)' 218 rules, the generic `name = value` rule, and, in chat only, any long high-entropy token. gitleaks' config is vendored with its MIT license in `vendor/gitleaks/` and compiled into `src/gitleaks.ts` by `bun run build:rules`, converting its Go regex syntax to JavaScript (none needed skipping; the conversion matches Go's results on a 150,000-line corpus). Four rules are left out: `generic-api-key` (ours covers it), `pkcs12-file` (file names only), and the two `curl` rules, which backtrack for hundreds of milliseconds on a crafted message in JavaScript. A rule runs only if one of its keywords is in the text, so a typical message takes about 15 µs and a 60 KB one under 1 ms (`bun run bench`). `src/redaction.test.ts` runs the real opencode binary against a stand-in model and checks that a pasted key never appears in the model requests, the event stream, the stored session or any file opencode writes, and that the tool still gets the real key.
 
+### Skills, slash commands and MCP servers
+
+Modelled on [t3code](https://github.com/pingdotgg/t3code)'s composer (MIT; behaviour only, no code copied), on top of opencode's own support (`src/capabilities.ts`):
+
+- **Skills** are the folders in `skills/`, one `SKILL.md` each (YAML `name` and `description`, then the playbook): `supply-chain-audit`, `leaked-key-response`, `agent-key-hygiene`. They are the only skills: opencode's built-in ones are removed and denied. The model loads one with the `skill` tool when a task matches, or you pick one in the chat by typing `$`; the mention stays in your message as a chip and the skill goes along as an attachment. Skill text is redacted like a pasted message when it's loaded.
+- **Slash commands:** type `/` at the start of a message. `/scan-repo`, `/rotate` and `/check-package` are one-line shortcuts to a single tool (`COMMANDS` in `src/constants.ts`), expanded by opencode and redacted like any message; `/new` and `/compact` run in the page. opencode's own `/init`, `/review` and `/goal` need a project checkout and are hidden.
+- **MCP servers** are configured on the server only, in `mcp.json` (or `AGENT_MCP_FILE`; see `mcp.example.json`): opencode's `local` (`command`, `environment`) and `remote` (`url`, `headers`) fields, plus `description`, `enabled` (the default for each login) and `tools` (an allowlist, to keep out tools that repeat one the guard has). The **MCP** menu in the composer lists them with their status and a switch per login; opencode's own connect/disconnect calls do the same for its TUI and desktop app. A server that's off for you is gone from your chats' tools. Its tools are `<server>_<tool>`; names that would clash with a tool the guard has are refused.
+- **MCP and secrets:** a local server starts through `sh` with a fresh environment (`PATH`, a few basics, its own `HOME`, and the variables its config names), never the model key's stand-in, the server password or opencode's config. MCP tools never get a pasted key: the placeholders stay placeholders, their input is redacted again on the way out and their output on the way back, before opencode stores or streams it. The config read strips the MCP section, so environment values and headers don't reach clients.
+
 ### The proxy
 
 opencode's API also has file, shell, git and config endpoints, so the gateway passes on only what chat clients need:
 
-- **Forwarded:** server, agent, model, provider and config reads; sessions, messages, prompts, interrupts, permission replies; the event stream.
-- **Answered empty, without calling opencode:** files and find, git, shells, worktrees, MCP, references, plugins, integrations, skills, commands, plugin RPC.
+- **Forwarded:** server, agent, model, provider and config reads; sessions, messages, prompts, our slash commands, compaction, interrupts, permission replies; the event stream; skill, command and MCP lists, filtered to what the gateway configured.
+- **Answered by the gateway:** MCP connect/disconnect (per login, as above).
+- **Answered empty, without calling opencode:** files and find, git, shells, worktrees, MCP resources, references, plugins, integrations, plugin RPC.
 - **Everything else:** 404.
 
-Every request runs in opencode's private directory, whatever location a client sends. Creating a session can't choose its agent, model, permissions or an existing id. Prompts carry text only. Each caller sees only the sessions it created, in lists and in the event stream: each browser login is one caller, and all basic-auth clients share one. `scan_github_repo` asks before downloading, so clients show a permission prompt; "always allow" is saved for the whole server.
+Every request runs in opencode's private directory, whatever location a client sends. Creating a session can't choose its agent, model, permissions or an existing id. Prompts carry text and our skills' ids only. Each caller sees only the sessions it created, in lists and in the event stream: each browser login is one caller, and all basic-auth clients share one. `scan_github_repo` asks before downloading, so clients show a permission prompt; "always allow" is saved for the whole server.
 
 ### Clients
 
@@ -50,6 +60,7 @@ cd ui && GATEWAY=http://127.0.0.1:8787 bun run dev   # the page with hot reload
 | `ACCESS_CODE` | unset: open. Set: the page asks for it. |
 | `PORT` / `HOST` | `8787` / `127.0.0.1` |
 | `OPENCODE_PORT` / `OPENCODE_HOME` | `4097` / `$TMPDIR/sikrets-opencode` |
+| `AGENT_MCP_FILE` | `mcp.json` next to this README; missing means no MCP servers. |
 | `GATEWAY_LOG` | `1` logs each API call's method, path and status (never queries or bodies). |
 
 ## Hosting

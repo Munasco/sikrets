@@ -4,8 +4,8 @@ import type { Owner, Owners } from "./proxy.ts";
 
 // Full access: an owner who turns it on gets every permission request in their sessions approved
 // ("always") by the gateway itself, so the agent never stops to wait, even with no chat open.
-// Off by default, per owner. It only skips the prompts: the agent's tools stay the Sikrets tools,
-// and every built-in (shell, files, web) stays denied.
+// Off by default, per owner. It only skips the prompts: the agent's tools stay what they are (the
+// Sikrets tools, opencode's shell, file and web tools, and the MCP servers this owner left on).
 
 export class FullAccess {
   private on = new Set<Owner>();

@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { MODEL, OPENCODE } from "./constants.ts";
+import { COMMANDS, MODEL, OPENCODE, SKILLS } from "./constants.ts";
 import { createGateway } from "./gateway.ts";
 import { Owners } from "./proxy.ts";
 import { start, type Server } from "./opencode.ts";
@@ -13,11 +13,18 @@ import { TOOLS } from "./tools.ts";
 // that records every request it gets. A fake key pasted in a message must never reach the model,
 // the event stream, message reads, or any file opencode writes; the tool must still see the real
 // key. The proxy must keep callers to their own sessions and answer everything off the allowlist
-// without touching opencode.
+// without touching opencode. Skills, slash commands and a tiny local MCP server (src/testing/
+// mcp-server.ts) must work through the same gateway without loosening any of that.
 
 const FAKE = "sk" + "_live_" + "51Hx9fakeFAKEfake0123456789abcdef";
 const CODE = "test-access-code";
 const requests: string[] = [];
+/** A key the MCP server's config hands it, which nothing else may see. */
+const SERVER_TOKEN = "mcp-" + "server-token-0123456789";
+/** A key the stub MCP server returns in its own output (src/testing/mcp-server.ts). */
+const MCP_KEY = "AKIA" + "Z7QW3RTY5UIOPASD";
+/** A key inside a skill file. */
+const SKILL_KEY = "ghp_" + "Y7kQ2mN4pR7sT1vX3yB5cD6fG9hJ0kL2mN4q";
 /** The key each model request carried. */
 const keys: string[] = [];
 
@@ -36,18 +43,39 @@ const model = Bun.serve({
     const chunk = (delta: unknown, finish: string | null = null) => `data: ${JSON.stringify({ id: "c", object: "chat.completion.chunk", created: 0, model: "stand-in", choices: [{ index: 0, delta, finish_reason: finish }] })}\n\n`;
     const call = (name: string, args: unknown) => chunk({ role: "assistant", tool_calls: [{ index: 0, id: `call_${requests.length}`, type: "function", function: { name, arguments: JSON.stringify(args) } }] }) + chunk({}, "tool_calls");
     const out =
-      last.role === "tool"
+      last.role === "tool" || !(body as { tools?: unknown[] }).tools?.length
         ? chunk({ role: "assistant", content: "Found one Stripe key; rotate it." }) + chunk({}, "stop")
         : text.includes("scan the repo")
           ? call("scan_github_repo", { repo: "octocat/Hello-World" })
           : text.includes("print the environment")
             ? call("shell", { command: "env; cat /proc/$PPID/environ 2>/dev/null | tr '\\0' '\\n'", description: "Print the environment" })
-            : call("scan_text", { text });
+            : text.includes("load the audit skill")
+              ? call("skill", { id: "supply-chain-audit" })
+              : text.includes("load the browser skill")
+                ? call("skill", { id: "browser" })
+                : text.includes("echo it")
+                  ? call("stub_echo", { text })
+                  : text.includes("ask the advisories")
+                    ? call("stub_advisory", { name: "left-pad" })
+                    : text.includes("list the server env")
+                      ? call("stub_env_names", {})
+                      : text.includes("use the spare")
+                        ? call("spare_echo", { text: "hi" })
+                        : call("scan_text", { text });
     return new Response(out + "data: [DONE]\n\n", { headers: { "content-type": "text/event-stream" } });
   },
 });
 
 const home = mkdtempSync(path.join(os.tmpdir(), "sikrets-oc-test-"));
+/** What the stub MCP servers received, one JSON line per call. */
+const mcpLog = path.join(mkdtempSync(path.join(os.tmpdir(), "sikrets-mcp-test-")), "calls.jsonl");
+/** The shipped skills, plus one holding a key, to check skill content is redacted. */
+const skillsDir = mkdtempSync(path.join(os.tmpdir(), "sikrets-skills-test-"));
+const SHIPPED = readdirSync(path.join(import.meta.dir, "..", SKILLS.dir)).sort();
+cpSync(path.join(import.meta.dir, "..", SKILLS.dir), skillsDir, { recursive: true });
+mkdirSync(path.join(skillsDir, "fixture-skill"));
+writeFileSync(path.join(skillsDir, "fixture-skill", SKILLS.file), `---\nname: Fixture\ndescription: A skill for the tests.\n---\nUse the token ${SKILL_KEY} for the demo.\n`);
+const stub = [process.execPath, path.join(import.meta.dir, "testing", "mcp-server.ts"), mcpLog];
 let oc: Server;
 let gateway: ReturnType<typeof createGateway>;
 /** Calls the gateway made to opencode, by path. */
@@ -56,9 +84,12 @@ const upstream: string[] = [];
 const basic = { authorization: `Basic ${Buffer.from(`opencode:${CODE}`).toString("base64")}` };
 let cookie = "";
 
-async function call(pathname: string, init: RequestInit = {}, as: Record<string, string> = basic): Promise<Response> {
-  return gateway.fetch(new Request(`http://gateway${pathname}`, { ...init, headers: { "content-type": "application/json", ...as, ...(init.headers as Record<string, string>) } }), "test-client");
+async function call(pathname: string, init: RequestInit = {}, as: Record<string, string> = basic, client = "test-client"): Promise<Response> {
+  return gateway.fetch(new Request(`http://gateway${pathname}`, { ...init, headers: { "content-type": "application/json", ...as, ...(init.headers as Record<string, string>) } }), client);
 }
+/** The gateway allows a client SERVER.perMinute messages a minute; the longer runs below each come from their own. */
+let clients = 0;
+const fresh = () => `test-client-${++clients}`;
 
 /** Reads the gateway's event stream until `until` matches an event, or the time runs out. */
 async function events(as: Record<string, string>, until: (ev: { type: string; data: Record<string, unknown> }) => boolean, act: () => Promise<unknown>, ms = 30_000) {
@@ -95,6 +126,11 @@ beforeAll(async () => {
     home,
     port: 4197,
     model: { ...MODEL, provider: "standin", id: "stand-in", name: "Stand-in", package: "@opencode/ai/providers/openai-compatible", keyEnv: "STAND_IN_API_KEY", settings: { baseURL: `http://127.0.0.1:${model.port}/v1` } },
+    skillsDir,
+    mcp: {
+      stub: { type: "local", command: stub, environment: { STUB_TOKEN: SERVER_TOKEN }, description: "Stub advisories" },
+      spare: { type: "local", command: stub, enabled: false, tools: ["echo"] },
+    },
   });
   oc = { ...real, fetch: (p, init) => (upstream.push(p), real.fetch(p, init)) };
   gateway = createGateway(oc, { accessCode: CODE });
@@ -114,6 +150,11 @@ function files(dir: string): string[] {
     return statSync(p).isDirectory() ? files(p) : [p];
   });
 }
+
+const toolsOf = (request: string) => (JSON.parse(request) as { tools?: Array<{ function: { name: string } }> }).tools?.map((t) => t.function.name).sort() ?? [];
+const mcpCalls = () => (existsSync(mcpLog) ? readFileSync(mcpLog, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l) as { name: string; args: Record<string, unknown> }) : []);
+const prompt = (session: string, body: Record<string, unknown>, as = basic) => call(`/api/session/${session}/prompt`, { method: "POST", body: JSON.stringify(body) }, as, fresh());
+const access = async (on: boolean, as = basic) => expect((await call("/api/full-access", { method: "PUT", body: JSON.stringify({ on }) }, as)).status).toBe(200);
 
 const terminal = (session: string) => (ev: { type: string; data: Record<string, unknown> }) => ev.data?.sessionID === session && /^session\.execution\.(succeeded|failed|interrupted)$/.test(ev.type);
 
@@ -137,13 +178,13 @@ describe("the gateway's proxy, end to end", () => {
     expect(stream).not.toContain(FAKE);
     expect(stream).not.toContain("/etc/passwd");
 
-    // The model saw only the placeholder, and only the five Sikrets tools.
+    // The model saw only the placeholder, and only the Sikrets tools, the built-ins, the skill tool
+    // and the tools of the MCP server that's on by default (the spare one is off).
     expect(requests.length).toBe(2);
     for (const r of requests) {
       expect(r).not.toContain(FAKE);
       expect(r).toContain("[[secret sk_live_…cdef #");
-      const tools = (JSON.parse(r) as { tools?: Array<{ function: { name: string } }> }).tools?.map((t) => t.function.name).sort();
-      expect(tools).toEqual([...Object.keys(TOOLS), ...OPENCODE.builtins].sort());
+      expect(toolsOf(r)).toEqual([...Object.keys(TOOLS), ...OPENCODE.builtins, SKILLS.tool, "stub_advisory", "stub_echo", "stub_env_names"].sort());
     }
 
     // The tool got the real key back: its finding's hash is the real key's hash.
@@ -237,13 +278,10 @@ describe("the gateway's proxy, end to end", () => {
       ["GET", "/api/config/shell"],
       ["GET", "/api/worktree?projectID=x"],
       ["POST", "/api/worktree/refresh"],
-      ["GET", "/api/mcp"],
       ["GET", "/api/mcp/resource"],
       ["GET", "/api/reference"],
       ["GET", "/api/plugin"],
       ["GET", "/api/integration"],
-      ["GET", "/api/skill"],
-      ["GET", "/api/command"],
       ["GET", "/api/permission/saved"],
       ["GET", `/api/experimental/session/${session}/terminal`],
       ["POST", "/api/rpc/opencode.goal/get"],
@@ -259,6 +297,10 @@ describe("the gateway's proxy, end to end", () => {
       ["GET", "/api/fs/read?path=/etc/passwd"],
       ["POST", `/api/session/${session}/shell`],
       ["POST", `/api/session/${session}/command`],
+      ["POST", "/api/experimental/mcp/nope/connect"],
+      ["PUT", "/api/experimental/mcp/stub"],
+      ["DELETE", "/api/experimental/mcp/stub"],
+      ["POST", `/api/experimental/session/${session}/skill`],
       ["POST", `/api/session/${session}/fork`],
       ["POST", `/api/session/${session}/permission`],
       ["GET", `/api/experimental/session/${session}/export`],
@@ -279,6 +321,163 @@ describe("the gateway's proxy, end to end", () => {
       expect([p, res.status]).toEqual([p, 404]);
     }
     expect(upstream.slice(before)).toEqual([]);
+  });
+});
+
+describe("skills, commands and MCP servers, end to end", () => {
+  let session = "";
+  const asked = (seen: Array<{ type: string; data: Record<string, unknown> }>) => seen.filter((e) => e.type === "permission.asked").map((e) => e.data as { id: string; action: string });
+
+  beforeAll(async () => {
+    session = ((await (await call("/api/session", { method: "POST", body: "{}" })).json()) as { data: { id: string } }).data.id;
+  });
+
+  test("the lists hold only what the gateway configured", async () => {
+    const skills = (await (await call("/api/skill")).json()) as { data: Array<Record<string, unknown>> };
+    // Ours only (opencode's built-in skills are about opencode), and no file paths or bodies.
+    expect(skills.data.map((s) => s.id).sort()).toEqual([...SHIPPED, "fixture-skill"].sort());
+    for (const s of skills.data) expect(Object.keys(s).sort()).toEqual(["description", "id", "name"]);
+
+    const commands = (await (await call("/api/command")).json()) as { data: Array<{ name: string; hint?: string }> };
+    expect(commands.data.map((c) => c.name).sort()).toEqual(Object.keys(COMMANDS).sort());
+    expect(commands.data.every((c) => c.hint)).toBe(true);
+
+    const mcp = (await (await call("/api/mcp")).json()) as { data: Array<{ name: string; status: { status: string }; enabled: boolean; description?: string }> };
+    expect(mcp.data.map((m) => [m.name, m.status.status, m.enabled])).toEqual(expect.arrayContaining([["stub", "connected", true], ["spare", "disabled", false]]));
+    expect(mcp.data.find((m) => m.name === "stub")?.description).toBe("Stub advisories");
+
+    // The config read leaves out the servers' environment (and the plugin options that mirror it).
+    expect(await (await call("/api/config")).text()).not.toContain(SERVER_TOKEN);
+
+    for (const p of ["/api/skill", "/api/command", "/api/mcp"]) expect((await call(p, {}, {})).status).toBe(401);
+    expect((await call("/api/experimental/mcp/spare/connect", { method: "POST", body: "{}" }, {})).status).toBe(401);
+  });
+
+  test("a skill picked in the chat is loaded, redacted, and only if it's ours", async () => {
+    const before = requests.length;
+    const seen = await events(basic, terminal(session), () => prompt(session, { text: "check this $supply-chain-audit $fixture-skill $browser", skills: [{ id: "supply-chain-audit" }, { id: "fixture-skill" }, { id: "browser" }, { id: "opencode" }] }));
+    expect(seen.at(-1)?.type).toBe("session.execution.succeeded");
+    const sent = requests.slice(before).join("\n");
+    expect(sent).toContain('<skill_content name=\\"Supply-chain audit\\">');
+    expect(sent).toContain("Never install or build");
+    // The fixture skill's key reached the model as a placeholder; opencode's own skills never did.
+    expect(sent).toContain('<skill_content name=\\"Fixture\\">');
+    expect(sent).toContain("[[secret ghp_…");
+    expect(sent).not.toContain(SKILL_KEY);
+    expect(sent).not.toContain("Skill: Browser");
+    expect(sent).not.toContain("Skill: OpenCode");
+    expect(JSON.stringify(seen)).not.toContain(SKILL_KEY);
+    expect(await (await call(`/api/session/${session}/message`)).text()).not.toContain(SKILL_KEY);
+  }, 60_000);
+
+  test("the model can load our skills itself, and nothing else", async () => {
+    let before = requests.length;
+    await events(basic, terminal(session), () => prompt(session, { text: "load the audit skill" }));
+    expect(requests.slice(before).at(-1)).toContain("Never install or build");
+    before = requests.length;
+    await events(basic, terminal(session), () => prompt(session, { text: "load the browser skill" }));
+    expect(requests.slice(before).at(-1)).not.toContain("In-app browser");
+  }, 60_000);
+
+  test("an MCP tool asks first, and the server sees placeholders, never the pasted key", async () => {
+    const seen = await events(basic, (ev) => ev.type === "permission.asked", () => prompt(session, { text: `echo it STRIPE_SECRET_KEY=${FAKE}` }));
+    const [ask] = asked(seen);
+    expect(ask?.action).toBe("stub_echo");
+    const done = await events(basic, terminal(session), () => call(`/api/session/${session}/permission/${ask!.id}/reply`, { method: "POST", body: JSON.stringify({ decision: "once" }) }));
+    expect(done.at(-1)?.type).toBe("session.execution.succeeded");
+    const echo = mcpCalls().filter((c) => c.name === "echo").at(-1)!;
+    expect(String(echo.args.text)).toContain("[[secret sk_live_…cdef #");
+    expect(JSON.stringify(mcpCalls())).not.toContain(FAKE);
+    expect(JSON.stringify([...seen, ...done])).not.toContain(FAKE);
+    expect(requests.at(-1)).toContain("echo: ");
+  }, 60_000);
+
+  test("full access approves MCP tools too, and what they return is redacted", async () => {
+    await access(true);
+    const before = requests.length;
+    const seen = await events(basic, terminal(session), () => prompt(session, { text: "ask the advisories" }));
+    await access(false);
+    expect(asked(seen).map((a) => a.action)).toEqual(["stub_advisory"]);
+    expect(seen.find((e) => e.type === "permission.replied")?.data).toMatchObject({ reply: "always" });
+    expect(seen.at(-1)?.type).toBe("session.execution.succeeded");
+    // The server's own key: a placeholder for the model, the event stream and the message store.
+    const sent = requests.slice(before).join("\n");
+    expect(sent).toContain("No advisories for left-pad");
+    expect(sent).toContain("[[secret AKIA");
+    expect(sent).not.toContain(MCP_KEY);
+    expect(JSON.stringify(seen)).not.toContain(MCP_KEY);
+    expect(await (await call(`/api/session/${session}/message`)).text()).not.toContain(MCP_KEY);
+  }, 60_000);
+
+  test("MCP servers start with a bare environment", async () => {
+    await access(true);
+    await events(basic, terminal(session), () => prompt(session, { text: "list the server env" }));
+    await access(false);
+    const names = (JSON.parse(requests.at(-1)!) as { messages: Array<{ role: string; content: unknown }> }).messages.filter((m) => m.role === "tool").map((m) => String(m.content)).at(-1)!.split("\n");
+    expect(names).toEqual(expect.arrayContaining(["PATH", "HOME", "STUB_TOKEN"]));
+    for (const n of names) expect(["PATH", "HOME", "STUB_TOKEN", "LANG", "LC_ALL", "TERM", "TMPDIR", "TZ", "PWD", "SHLVL", "_", "__CF_USER_TEXT_ENCODING"]).toContain(n);
+    // And the tool output named nothing it shouldn't have (values never leave the server anyway).
+    expect(requests.at(-1)).not.toContain("OPENCODE_SERVER_PASSWORD");
+    expect(requests.at(-1)).not.toContain("STAND_IN_API_KEY");
+    expect(requests.at(-1)).not.toContain(SERVER_TOKEN);
+  }, 60_000);
+
+  test("MCP switches are per login, and an off server's tools are gone", async () => {
+    const web = { cookie };
+    // Off by default: the spare server's tool isn't offered, and calling it fails.
+    let before = requests.length;
+    let seen = await events(basic, terminal(session), () => prompt(session, { text: "use the spare" }));
+    expect(toolsOf(requests[before]!)).not.toContain("spare_echo");
+    expect(JSON.stringify(seen)).toMatch(/not available|No tool named|isn't switched on/);
+
+    // This login switches it on (opencode's own connect call); the other login still has it off.
+    expect((await call("/api/experimental/mcp/spare/connect", { method: "POST", body: "{}" })).status).toBe(204);
+    const mine = (await (await call("/api/mcp")).json()) as { data: Array<{ name: string; enabled: boolean }> };
+    const theirs = (await (await call("/api/mcp", {}, web)).json()) as { data: Array<{ name: string; enabled: boolean }> };
+    expect(mine.data.find((m) => m.name === "spare")?.enabled).toBe(true);
+    expect(theirs.data.find((m) => m.name === "spare")?.enabled).toBe(false);
+
+    before = requests.length;
+    seen = await events(basic, (ev) => ev.type === "permission.asked" || terminal(session)(ev), () => prompt(session, { text: "use the spare" }));
+    // Only the allowlisted tool of the spare server is offered.
+    expect(toolsOf(requests[before]!)).toEqual(expect.arrayContaining(["spare_echo", "stub_echo"]));
+    expect(toolsOf(requests[before]!).filter((t) => t.startsWith("spare_"))).toEqual(["spare_echo"]);
+    const [ask] = asked(seen);
+    expect(ask?.action).toBe("spare_echo");
+    await events(basic, terminal(session), () => call(`/api/session/${session}/permission/${ask!.id}/reply`, { method: "POST", body: JSON.stringify({ decision: "reject" }) }));
+
+    // Switching the stub server off takes its tools away from this login's chats.
+    expect((await call("/api/experimental/mcp/stub/disconnect", { method: "POST", body: "{}" })).status).toBe(204);
+    before = requests.length;
+    await events(basic, terminal(session), () => prompt(session, { text: "hello again" }));
+    expect(toolsOf(requests[before]!).filter((t) => t.startsWith("stub_"))).toEqual([]);
+    expect((await call("/api/experimental/mcp/stub/connect", { method: "POST", body: "{}" })).status).toBe(204);
+    expect((await call("/api/experimental/mcp/spare/disconnect", { method: "POST", body: "{}" })).status).toBe(204);
+  }, 90_000);
+
+  test("slash commands expand on the server, redacted like any message; unknown ones never reach opencode", async () => {
+    const before = requests.length;
+    const seen = await events(basic, terminal(session), () => call(`/api/session/${session}/command`, { method: "POST", body: JSON.stringify({ name: "rotate", text: `stripe ${FAKE}` }) }, basic, fresh()));
+    expect(seen.at(-1)?.type).toBe("session.execution.succeeded");
+    const sent = requests.slice(before).join("\n");
+    expect(sent).toContain("How do I rotate a leaked stripe [[secret sk_live_…cdef #");
+    expect(sent).not.toContain(FAKE);
+    const count = upstream.length;
+    for (const name of ["init", "review", "goal", "nope"]) expect((await call(`/api/session/${session}/command`, { method: "POST", body: JSON.stringify({ name }) }, basic, fresh())).status).toBe(404);
+    expect(upstream.length).toBe(count);
+  }, 60_000);
+
+  test("compaction runs through the gateway", async () => {
+    const seen = await events(basic, (ev) => ev.data?.sessionID === session && /compact/.test(ev.type) && /(ended|completed|succeeded|failed)/.test(ev.type), () => call(`/api/session/${session}/compact`, { method: "POST", body: "{}" }, basic, fresh()), 15_000);
+    expect(seen.some((e) => /compact/.test(e.type))).toBe(true);
+    expect(JSON.stringify(seen)).not.toContain(FAKE);
+  }, 30_000);
+
+  test("no key, pasted, in a skill or from an MCP server, is in any file opencode wrote", () => {
+    for (const f of files(home)) {
+      const b = readFileSync(f);
+      for (const k of [FAKE, MCP_KEY, SKILL_KEY]) expect([f, b.includes(k)]).toEqual([f, false]);
+    }
   });
 });
 

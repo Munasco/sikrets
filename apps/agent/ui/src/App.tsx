@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import { ArrowUp, ChevronRight, KeyRound, Zap, PanelLeft, Search, ShieldCheck, ShieldQuestion, Sparkles, Square, SquarePen } from "lucide-react";
-import { api, ApiError, subscribe, type AssistantPart, type Attestation, type Me, type Message, type OcEvent, type PermissionRequest, type SessionInfo, type ToolPart } from "./api.ts";
+import { ArrowUp, BookOpen, ChevronRight, KeyRound, Zap, PanelLeft, Search, ShieldCheck, ShieldQuestion, Sparkles, Square, SquarePen } from "lucide-react";
+import { api, ApiError, subscribe, type AssistantPart, type Attestation, type Command, type McpServer, type Me, type Message, type OcEvent, type PermissionRequest, type SessionInfo, type Skill, type ToolPart } from "./api.ts";
+import { items as menuItems, mentioned, Menu, trigger, withSkills, type Item } from "./composer-menu.tsx";
+import { McpMenu } from "./mcp.tsx";
 import { Markdown, withSecrets } from "./markdown.tsx";
 import { ToolRow } from "./tools.tsx";
 import { cn, IconButton, Kbd, Logo, Tip } from "./ui.tsx";
@@ -80,6 +82,9 @@ function Workspace({ model, fullAccess: initialAccess }: { model: string; fullAc
   const [live, setLive] = useState(true);
   const [sending, setSending] = useState<string>();
   const [attestation, setAttestation] = useState<Attestation>();
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const [commands, setCommands] = useState<Command[]>([]);
+  const [mcp, setMcp] = useState<McpServer[]>([]);
   const currentRef = useRef(current);
   currentRef.current = current;
   const composer = useRef<HTMLTextAreaElement>(null);
@@ -107,6 +112,9 @@ function Workspace({ model, fullAccess: initialAccess }: { model: string; fullAc
   useEffect(() => {
     void refreshSessions();
     void api.attestation().then(setAttestation, () => {});
+    void api.skills().then(setSkills, () => {});
+    void api.commands().then(setCommands, () => {});
+    void api.mcp().then(setMcp, () => {});
     const onHash = () => setCurrent(routeSession());
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
@@ -158,8 +166,18 @@ function Workspace({ model, fullAccess: initialAccess }: { model: string; fullAc
     [load, refreshSessions],
   );
 
+  /** A message: `/new` and `/compact` run here, `/command args` runs a server command, anything
+   * else is a prompt; `$skill` mentions go along as skill attachments either way. */
   const send = async (text: string) => {
     setError("");
+    const cmd = /^\/([a-z0-9-]+)(?:\s+([\s\S]*))?$/i.exec(text);
+    if (cmd?.[1] === "new") return open();
+    if (cmd?.[1] === "compact") {
+      if (current) await api.compact(current).catch((e) => setError(e instanceof Error ? e.message : String(e)));
+      return;
+    }
+    const command = cmd ? commands.find((c) => c.name === cmd[1]) : undefined;
+    const attached = mentioned(text, skills);
     let id = current;
     try {
       if (!id) {
@@ -170,7 +188,12 @@ function Workspace({ model, fullAccess: initialAccess }: { model: string; fullAc
         void refreshSessions();
       }
       setSending(text);
-      const admitted = (await api.prompt(id, text)) as { data?: { id: string; payload?: { text?: string } } };
+      if (command) {
+        // The expanded prompt arrives as a user message on the event stream.
+        await api.command(id, command.name, cmd?.[2] ?? "", attached);
+        return;
+      }
+      const admitted = (await api.prompt(id, text, attached)) as { data?: { id: string; payload?: { text?: string } } };
       // Show what the agent got: the server's copy, with keys already swapped for placeholders.
       const msg = admitted?.data;
       if (msg?.payload?.text !== undefined) setMessages((m) => (m.some((x) => x.id === msg.id) ? m : [...m, { id: msg.id, type: "user", text: msg.payload!.text!, time: { created: Date.now() } }]));
@@ -182,6 +205,16 @@ function Workspace({ model, fullAccess: initialAccess }: { model: string; fullAc
   };
 
   const stop = () => current && void api.interrupt(current);
+
+  const switchMcp = async (name: string, on: boolean) => {
+    setMcp((list) => list.map((s) => (s.name === name ? { ...s, enabled: on } : s)));
+    try {
+      await api.mcpSwitch(name, on);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+    setMcp(await api.mcp().catch(() => mcp));
+  };
 
   const toggleAccess = async () => {
     try {
@@ -230,11 +263,11 @@ function Workspace({ model, fullAccess: initialAccess }: { model: string; fullAc
           <EnclaveBadge attestation={attestation} />
         </header>
 
-        <Timeline messages={messages} pending={pending} session={current} running={running} sending={sending} error={error} empty={empty} />
+        <Timeline messages={messages} pending={pending} session={current} running={running} sending={sending} error={error} empty={empty} skills={skills} />
 
         <div className={cn("pointer-events-none absolute inset-x-0 z-20 px-3 sm:px-12", empty ? "inset-y-0 flex flex-col items-center justify-center" : "bottom-0 pb-3 pt-2")}>
           {empty && <Hero />}
-          <Composer ref={composer} model={model} running={Boolean(running)} awaiting={pending.length > 0} fullAccess={fullAccess} onToggleAccess={toggleAccess} onSend={send} onStop={stop} />
+          <Composer ref={composer} model={model} running={Boolean(running)} awaiting={pending.length > 0} fullAccess={fullAccess} onToggleAccess={toggleAccess} onSend={send} onStop={stop} skills={skills} commands={commands} mcp={mcp} onSwitchMcp={switchMcp} />
         </div>
       </section>
     </div>
@@ -345,12 +378,48 @@ interface ComposerProps {
   onToggleAccess: () => void;
   onSend: (text: string) => Promise<void>;
   onStop: () => void;
+  skills: Skill[];
+  commands: Command[];
+  mcp: McpServer[];
+  onSwitchMcp: (name: string, on: boolean) => void;
   ref: React.Ref<HTMLTextAreaElement>;
 }
 
-function Composer({ model, running, awaiting, fullAccess, onToggleAccess, onSend, onStop, ref }: ComposerProps) {
+function Composer({ model, running, awaiting, fullAccess, onToggleAccess, onSend, onStop, skills, commands, mcp, onSwitchMcp, ref }: ComposerProps) {
   const [text, setText] = useState("");
   const area = useRef<HTMLTextAreaElement | null>(null);
+  // The `$skill` / `/command` picker: open while the caret is in such a token, until Esc.
+  const [caret, setCaret] = useState(0);
+  const [active, setActive] = useState(0);
+  const [dismissed, setDismissed] = useState<number>();
+  const t = trigger(text, caret);
+  const menu = t && dismissed !== t.start && (t.kind === "skill" ? skills.length : true) ? menuItems(t, skills, commands) : undefined;
+  useEffect(() => setActive(0), [t?.kind, t?.query]);
+  const place = (next: string, at: number) => {
+    setText(next);
+    setCaret(at);
+    requestAnimationFrame(() => {
+      area.current?.focus();
+      area.current?.setSelectionRange(at, at);
+    });
+  };
+  const pick = (item: Item) => {
+    if (!t) return;
+    if (item.kind === "builtin") {
+      setText("");
+      void onSend(`/${item.name}`);
+      return;
+    }
+    const insert = item.kind === "skill" ? `$${item.skill.id} ` : `/${item.command.name} `;
+    place(text.slice(0, t.start) + insert + text.slice(t.end), t.start + insert.length);
+  };
+  const openSkills = () => {
+    const el = area.current;
+    const at = el?.selectionStart ?? text.length;
+    const pad = at > 0 && !/\s/.test(text[at - 1]!) ? " " : "";
+    setDismissed(undefined);
+    place(text.slice(0, at) + pad + "$" + text.slice(at), at + pad.length + 1);
+  };
   const resize = () => {
     const el = area.current;
     if (!el) return;
@@ -365,6 +434,13 @@ function Composer({ model, running, awaiting, fullAccess, onToggleAccess, onSend
     void onSend(t);
   };
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (menu && t && !e.nativeEvent.isComposing) {
+      const n = menu.length;
+      if (e.key === "ArrowDown" && n) return e.preventDefault(), setActive((a) => (a + 1) % n);
+      if (e.key === "ArrowUp" && n) return e.preventDefault(), setActive((a) => (a - 1 + n) % n);
+      if ((e.key === "Enter" || e.key === "Tab") && !e.shiftKey && n) return e.preventDefault(), pick(menu[Math.min(active, n - 1)]!);
+      if (e.key === "Escape") return e.preventDefault(), e.stopPropagation(), setDismissed(t.start);
+    }
     if (e.key === "Enter" && !e.shiftKey && !e.altKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       submit();
@@ -372,7 +448,8 @@ function Composer({ model, running, awaiting, fullAccess, onToggleAccess, onSend
   };
   const placeholder = awaiting ? "Reply to decline and redirect the agent" : "Paste code, a repo, or a leak notice…";
   return (
-    <div className="pointer-events-auto mx-auto w-full max-w-[46rem]">
+    <div className="pointer-events-auto relative mx-auto w-full max-w-[46rem]">
+      {menu && t && <Menu items={menu} active={active} kind={t.kind} onPick={pick} onHover={setActive} />}
       <form
         onSubmit={(e) => (e.preventDefault(), submit())}
         className="rounded-2xl border border-line bg-white/90 shadow-[0_1px_2px_rgb(0_0_0/5%),0_8px_24px_-12px_rgb(20_30_25/18%)] backdrop-blur focus-within:border-pine/30"
@@ -387,8 +464,14 @@ function Composer({ model, running, awaiting, fullAccess, onToggleAccess, onSend
           }}
           rows={2}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => (setText(e.target.value), setCaret(e.target.selectionStart))}
+          onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
           onKeyDown={onKey}
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={Boolean(menu)}
+          aria-controls={menu ? "composer-menu" : undefined}
+          aria-activedescendant={menu?.length ? `composer-item-${active}` : undefined}
           placeholder={placeholder}
           className="block max-h-52 w-full resize-none bg-transparent px-4 pb-1 pt-3.5 text-[14px] leading-relaxed outline-none placeholder:text-faint"
         />
@@ -405,6 +488,15 @@ function Composer({ model, running, awaiting, fullAccess, onToggleAccess, onSend
               <span className="max-sm:hidden">Full access</span>
             </button>
           </Tip>
+          {skills.length > 0 && (
+            <Tip label={<>Skills: playbooks for whole jobs. Type <Kbd className="mx-0.5 border-white/20 bg-white/10 text-white/80">$</Kbd> to pick one, <Kbd className="mx-0.5 border-white/20 bg-white/10 text-white/80">/</Kbd> for commands.</>}>
+              <button type="button" onClick={openSkills} aria-label="Pick a skill" className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[12px] text-muted transition-colors hover:text-ink">
+                <BookOpen className="size-3.5" aria-hidden />
+                <span className="max-sm:hidden">Skills</span>
+              </button>
+            </Tip>
+          )}
+          <McpMenu servers={mcp} onSwitch={onSwitchMcp} />
           <span className="flex-1" />
           <span className="flex h-7 items-center gap-1 px-2 font-mono text-[11px] text-faint">
             <Sparkles className="size-3.5" aria-hidden />
@@ -445,7 +537,7 @@ function Examples({ onPick, hidden }: { onPick: (text: string) => void; hidden: 
   );
 }
 
-function Timeline({ messages, pending, session, running, sending, error, empty }: { messages: Message[]; pending: PermissionRequest[]; session?: string; running?: number; sending?: string; error: string; empty: boolean }) {
+function Timeline({ messages, pending, session, running, sending, error, empty, skills }: { messages: Message[]; pending: PermissionRequest[]; session?: string; running?: number; sending?: string; error: string; empty: boolean; skills: Skill[] }) {
   const scroller = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   useEffect(() => {
@@ -458,7 +550,7 @@ function Timeline({ messages, pending, session, running, sending, error, empty }
     <div ref={scroller} onScroll={(e) => (stick.current = e.currentTarget.scrollHeight - e.currentTarget.scrollTop - e.currentTarget.clientHeight < 80)} className="flex-1 overflow-y-auto">
       <div className="mx-auto w-full max-w-[46rem] px-3 pb-44 pt-4 sm:px-12 sm:box-content">
         {turns.map((t, i) => (
-          <Turn key={t.user?.id ?? i} turn={t} live={i === turns.length - 1 ? running : undefined} pending={i === turns.length - 1 ? pending : []} session={session} />
+          <Turn key={t.user?.id ?? i} turn={t} live={i === turns.length - 1 ? running : undefined} pending={i === turns.length - 1 ? pending : []} session={session} skills={skills} />
         ))}
         {sending && (
           <div className="flex flex-col items-end pb-4">
@@ -485,7 +577,7 @@ function group(messages: Message[]): TurnData[] {
   return turns;
 }
 
-function Turn({ turn, live, pending, session }: { turn: TurnData; live?: number; pending: PermissionRequest[]; session?: string }) {
+function Turn({ turn, live, pending, session, skills }: { turn: TurnData; live?: number; pending: PermissionRequest[]; session?: string; skills: Skill[] }) {
   const parts: AssistantPart[] = turn.replies.flatMap((r) => r.content);
   const tools = parts.filter((p): p is ToolPart => p.type === "tool");
   const texts = parts.filter((p): p is Extract<AssistantPart, { type: "text" }> => p.type === "text" && Boolean(p.text.trim()));
@@ -498,7 +590,7 @@ function Turn({ turn, live, pending, session }: { turn: TurnData; live?: number;
     <div className="pb-4">
       {turn.user && (
         <div className="flex flex-col items-end gap-1 pb-3">
-          <div className="max-w-[80%] whitespace-pre-wrap break-words rounded-2xl bg-cream px-3.5 py-2.5 text-[14px] leading-relaxed">{withSecrets(turn.user.text)}</div>
+          <div className="max-w-[80%] whitespace-pre-wrap break-words rounded-2xl bg-cream px-3.5 py-2.5 text-[14px] leading-relaxed">{withSkills(turn.user.text, skills, withSecrets)}</div>
         </div>
       )}
       {tools.length > 0 && live === undefined && started && ended && (

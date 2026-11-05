@@ -1,38 +1,86 @@
 import type { Plugin } from "@opencode/plugin";
 import { runTool, TOOLS } from "../src/tools.ts";
 import { Vault } from "../src/redact.ts";
-import { OPENCODE, PROXY, SHELL_ENV } from "../src/constants.ts";
+import { MCP, OPENCODE, PROXY, SHELL_ENV, SKILLS } from "../src/constants.ts";
+import { loadSkills, mcpTool } from "../src/capabilities.ts";
 
-// The Sikrets opencode plugin: the guard agent's five tools, and the hooks that keep pasted
-// secrets from the model, the session store and the logs.
+// The Sikrets opencode plugin: the guard agent's five tools, its skills, and the hooks that keep
+// pasted secrets from the model, the session store, the logs and MCP servers.
 //
 // 1. prompt: secrets in a user message are swapped for placeholders at admission, before opencode
 //    stores the message or emits it as an event. Only this process's memory keeps the real values.
-// 2. tools: the model passes placeholders; each tool swaps them back here, on the server, and returns
-//    redacted findings only.
-// 3. context: every outgoing model request is scanned again, and any tool outside the Sikrets tools
-//    and OPENCODE.builtins is dropped, whatever the config says.
-// 5. shell: commands the agent runs get a bare environment (PATH and a few basics), so the
-//    server's own settings and passwords aren't there to read.
-// 4. http.request: the last check before bytes leave. A request that still holds a known secret is
+//    Attachments and agent mentions are dropped; skill mentions are kept only for our own skills.
+// 2. tools: the model passes placeholders; each Sikrets tool swaps them back here, on the server,
+//    and returns redacted findings only. MCP tools never get the real values: their input is
+//    redacted again on the way out, and their output on the way back, before opencode stores it.
+// 3. context: every outgoing model request is scanned again, and any tool outside the Sikrets tools,
+//    OPENCODE.builtins, the skill tool and the session's switched-on MCP servers is dropped,
+//    whatever the config says.
+// 4. shell: commands the agent runs get a bare environment (PATH and a few basics), so the
+//    server's own settings and passwords aren't there to read. (MCP servers get the same, from
+//    their launcher: src/capabilities.ts.)
+// 5. http.request: the last check before bytes leave. A request that still holds a known secret is
 //    refused, so a missed path fails closed instead of leaking.
 //
 // Tools in PROXY.ask (downloading someone's repo) ask first: opencode holds the call and the client
 // shows a permission prompt.
 
+interface Options {
+  skillsDir?: string;
+  /** Each MCP server's default switch and tool allowlist (src/opencode.ts). */
+  mcp?: Record<string, { enabled: boolean; tools?: string[] }>;
+}
+
 const vault = new Vault();
-const ALLOWED = new Set([...Object.keys(TOOLS), ...OPENCODE.builtins]);
+/** MCP servers each session's owner switched off, as the gateway reports them. Module-wide, like
+ * the vault: opencode may set the plugin up more than once. */
+const off = new Map<string, Set<string>>();
+const ALLOWED = new Set([...Object.keys(TOOLS), ...OPENCODE.builtins, SKILLS.tool]);
 
 const plugin: Plugin.Plugin = {
   id: "sikrets.guard",
   async setup(ctx) {
+    const opts = ctx.options as Options;
+    const servers = opts.mcp ?? {};
+    const skills = opts.skillsDir ? loadSkills(opts.skillsDir) : [];
+    const skillIDs = new Set(skills.map((s) => s.id));
+    const defaultOff = new Set(Object.entries(servers).filter(([, s]) => !s.enabled).map(([name]) => name));
+
+    /** Whether a session may use a tool, by name. */
+    const usable = (sessionID: string, tool: string) => {
+      if (ALLOWED.has(tool)) return true;
+      const m = mcpTool(servers, tool);
+      if (!m || (off.get(sessionID) ?? defaultOff).has(m.server)) return false;
+      const only = servers[m.server]!.tools;
+      return !only || only.includes(m.name);
+    };
+
+    // The gateway (which alone holds the server password) says which servers a session may use.
+    const method = { input: { type: "object" }, output: { type: "object" } };
+    await ctx.rpc.register({ id: MCP.rpc.id, methods: { [MCP.rpc.method]: method, [MCP.rpc.tools]: method }, events: {} } as never, {
+      [MCP.rpc.tools]: async () => ({ tools: (await ctx.tool.list()).map((t) => t.id).filter((id) => mcpTool(servers, id)) }),
+      [MCP.rpc.method]: async (input: unknown) => {
+        const { sessionID, off: names } = (input ?? {}) as { sessionID?: unknown; off?: unknown };
+        if (typeof sessionID !== "string" || !Array.isArray(names)) return { ok: false };
+        off.set(sessionID, new Set(names.filter((n): n is string => typeof n === "string")));
+        return { ok: true };
+      },
+    } as never);
+
+    // Our skills are the only skills: opencode's built-in ones are about opencode itself.
+    await ctx.skill.transform((editor) => {
+      for (const s of editor.list()) editor.remove(s.id);
+      for (const s of skills) editor.add({ id: s.id, name: s.name, ...(s.description ? { description: s.description } : {}), path: s.path, content: s.content } as never);
+    });
+
     await ctx.session.hook("prompt", (event) => {
       event.prompt.text = vault.shield(event.sessionID, event.prompt.text).text;
-      // The gateway sends text only; attachments, skills and agent mentions could carry content
-      // this plugin doesn't scan, so they never get in.
+      // The gateway sends text and skill ids only; attachments and agent mentions could carry
+      // content this plugin doesn't scan, so they never get in. Skills are our own files, redacted
+      // when they're loaded.
       event.prompt.files = [];
-      event.prompt.skills = [];
       event.prompt.agents = [];
+      event.prompt.skills = (event.prompt.skills ?? []).filter((s) => skillIDs.has(s.id)).slice(0, SKILLS.perPrompt).map((s) => ({ id: s.id }) as never);
     });
 
     await ctx.tool.transform((editor) => {
@@ -62,10 +110,23 @@ const plugin: Plugin.Plugin = {
       }
     });
 
+    // MCP tools: a call to a server that's off for this session is refused, whatever the model
+    // tried; inputs and outputs are redacted (placeholders stay placeholders: an MCP server is
+    // someone else's code, so it never gets a pasted key).
+    await ctx.tool.hook("execute.before", (event) => {
+      if (!mcpTool(servers, event.tool)) return;
+      if (!usable(event.sessionID, event.tool)) throw new Error(`${event.tool} isn't switched on for this chat.`);
+      event.input = vault.shieldDeep(event.sessionID, structuredClone(event.input));
+    });
+    await ctx.tool.hook("execute.after", (event) => {
+      if (!mcpTool(servers, event.tool) || event.status !== "completed") return;
+      event.result = vault.shieldDeep(event.sessionID, structuredClone(event.result));
+    });
+
     for (const kind of ["context", "generate", "compaction"] as const) {
       await ctx.session.hook(kind, (event) => {
         vault.shieldAll(event.sessionID, event.messages);
-        for (const name of Object.keys(event.tools)) if (!ALLOWED.has(name)) delete event.tools[name];
+        for (const name of Object.keys(event.tools)) if (!usable(event.sessionID, name)) delete event.tools[name];
       });
     }
 

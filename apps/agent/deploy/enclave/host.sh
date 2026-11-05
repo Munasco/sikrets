@@ -50,7 +50,9 @@ systemctl restart nitro-enclaves-allocator
 # Bun, the entrypoint, and the host list the entrypoint maps to vsock ports.
 runuser -u sikrets -- bash -c "cd '$APP' && '$BUN' run build:ui" >/dev/null
 rm -rf "$BUILD" && mkdir -p "$BUILD/app/ui"
-cp -r "$APP/src" "$APP/plugin" "$APP/data" "$APP/package.json" "$APP/node_modules" "$BUILD/app/"
+cp -r "$APP/src" "$APP/plugin" "$APP/data" "$APP/skills" "$APP/package.json" "$APP/node_modules" "$BUILD/app/"
+# MCP servers, if the operator configured any (src/capabilities.ts).
+if [ -f "$APP/mcp.json" ]; then cp "$APP/mcp.json" "$BUILD/app/"; fi
 cp -r "$APP/ui/dist" "$BUILD/app/ui/"
 rm -rf "$BUILD"/app/node_modules/@opencode/cli-*-musl
 cp "$BUN" "$BUILD/bun"

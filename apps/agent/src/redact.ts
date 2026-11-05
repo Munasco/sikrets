@@ -84,6 +84,12 @@ export class Vault {
     return mapStrings(value, (s) => this.shield(session, s).text, true) as T;
   }
 
+  /** Redacts every string inside a value (in place), whatever its key: an MCP tool's input or
+   * result, which has no fixed shape. */
+  shieldDeep<T>(session: string, value: T): T {
+    return mapStrings(value, (s) => this.shield(session, s).text) as T;
+  }
+
   /** A copy of a tool's input with this session's placeholders swapped back for the real values. */
   reveal<T>(session: string, input: T): T {
     const secrets = this.sessions.get(session)?.secrets;

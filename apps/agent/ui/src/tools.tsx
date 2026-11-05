@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BookKey, Check, ChevronRight, FileSearch, FolderGit2, Hash, Lock, PackageSearch, RotateCcwKey, ShieldAlert, X } from "lucide-react";
+import { BookKey, BookOpen, Check, ChevronRight, FileSearch, FolderGit2, Hash, Lock, PackageSearch, Plug, RotateCcwKey, ShieldAlert, X } from "lucide-react";
 import type { ToolPart } from "./api.ts";
 import { withSecrets } from "./markdown.tsx";
 import { cn, Tip } from "./ui.tsx";
@@ -27,6 +27,8 @@ type Result = {
   results?: Array<{ name: string; rotateAt?: string; envVars?: string[]; sikrets?: string[] }>;
   vulns?: Array<{ id: string; summary?: string; severity?: string; fixedIn?: string[] }>;
   package?: string;
+  /** Plain output: the built-ins', skills' and MCP tools'. */
+  text?: string;
 };
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -35,9 +37,10 @@ function parse(part: ToolPart): Result | undefined {
   const text = part.state.content?.map((c) => c.text ?? "").join("");
   if (!text) return part.state.error ? { error: part.state.error.message } : undefined;
   try {
-    return JSON.parse(text) as Result;
+    const r = JSON.parse(text) as unknown;
+    return r && typeof r === "object" && !Array.isArray(r) ? (r as Result) : { text };
   } catch {
-    return { error: text };
+    return part.state.status === "error" ? { error: text } : { text };
   }
 }
 
@@ -56,8 +59,14 @@ function describe(part: ToolPart, r: Result | undefined) {
       return { icon: RotateCcwKey, live: `Looking up ${String(input.service ?? "")}`, done: `Rotation for ${String(input.service ?? "")}`, result: r?.results ? plural(r.results.length, "service") : undefined };
     case "osv_lookup":
       return { icon: PackageSearch, live: `Checking ${String(input.name ?? "")} on OSV`, done: `${String(input.name ?? "")}${input.version ? `@${String(input.version)}` : ""} on OSV`, result: r?.count !== undefined ? (r.count ? plural(r.count, "known vuln") : "no known vulns") : undefined };
-    default:
+    case "skill":
+      return { icon: BookOpen, live: `Loading ${String(input.id ?? "a skill")}`, done: `Loaded ${String(input.id ?? "a skill")}`, result: undefined };
+    default: {
+      // MCP tools are `<server>_<tool>`; server names have no underscore.
+      const i = part.name.indexOf("_");
+      if (i > 0) return { icon: Plug, live: `${part.name.slice(0, i)} · ${part.name.slice(i + 1)}`, done: `${part.name.slice(0, i)} · ${part.name.slice(i + 1)}`, result: undefined };
       return { icon: BookKey, live: part.name, done: part.name, result: undefined };
+    }
   }
 }
 
@@ -129,7 +138,7 @@ function Details({ result: r }: { result: Result }) {
           ))}
         </ul>
       ) : (
-        <pre className="whitespace-pre-wrap break-all px-3 py-2 font-mono text-[11.5px] text-ink-soft">{withSecrets(JSON.stringify(r, null, 2))}</pre>
+        <pre className="whitespace-pre-wrap break-all px-3 py-2 font-mono text-[11.5px] text-ink-soft">{withSecrets(r.text ?? JSON.stringify(r, null, 2))}</pre>
       )}
     </div>
   );
