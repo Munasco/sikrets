@@ -20,7 +20,7 @@ use tauri::{AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, RunEvent,
 const MAIN: &str = "main";
 const TRAY: &str = "tray";
 const AGENT_LABEL: &str = "agent";
-const AGENT_URL: &str = "https://dan27asb93qem.cloudfront.net";
+const AGENT_URL: &str = "https://agent.sikrets.usetennant.com";
 const SETTINGS_FILE: &str = "settings.json";
 const CLI_NAME: &str = "sikrets";
 const CONFIG_FILE: &str = "sikrets.json";

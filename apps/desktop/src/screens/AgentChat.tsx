@@ -6,7 +6,7 @@ import { Logo } from "../ui.tsx";
 // The security agent's chat runs in its own webview over this area (it refuses to be framed).
 // The Rust side places it at the box's bounds and hides it when another screen opens.
 
-export const AGENT_URL = "https://dan27asb93qem.cloudfront.net";
+export const AGENT_URL = "https://agent.sikrets.usetennant.com";
 
 export function AgentChat() {
   const box = useRef<HTMLDivElement>(null);
