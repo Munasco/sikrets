@@ -42,7 +42,10 @@ export const OPENCODE = {
   /** opencode's built-in tools. Every one is offered and asks first (Full access answers). Only
    * opencode's own namespace (session, worktree and model management, MCP resources) is removed:
    * those manage the server itself, which the gateway owns, and would tell the model what it runs on. */
-  builtins: ["shell", "read", "write", "edit", "glob", "grep", "webfetch", "websearch", "question", "subagent", "execute"],
+  builtins: ["shell", "read", "write", "edit", "glob", "grep", "webfetch", "websearch", "subagent", "execute"],
+  /** Built-in tools that are denied and never offered: the question tool waits on a form the chat
+   * page can't show, so a chat would stall on it. */
+  disabled: ["question"],
   /** opencode's tool namespace for managing itself, removed by the plugin. */
   ownNamespace: "opencode",
   /** opencode's subagents, kept for the subagent tool, with the guard's prompt and permissions. */
@@ -50,6 +53,16 @@ export const OPENCODE = {
   /** The provider API's base path, which the loopback model relay keeps (Gemini's REST version). */
   relayPath: "v1beta",
   startupMs: 30_000,
+};
+
+/** Long tool output: the plugin cuts it down before opencode would, and saves the whole output in
+ * the agent's scratch directory (opencode's own copy would go under a path that names it). Below
+ * opencode's own limits (2000 lines, 50 KiB), so opencode never truncates again. */
+export const TOOL_OUTPUT = {
+  maxLines: 1_800,
+  maxBytes: 45 * 1024,
+  /** Under the scratch directory (OPENCODE.tmpDir). */
+  dir: "tool-output",
 };
 
 /** The per-owner instances (src/pool.ts). */

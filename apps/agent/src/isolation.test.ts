@@ -117,6 +117,10 @@ describe("each owner's instance is their own", () => {
     expect(await run("b", "pwd")).toContain(b.directory);
   }, 60_000);
 
+  test("the gateway says how instances are confined", async () => {
+    expect(((await (await call("/api/me", {}, as.a)).json()) as { sandbox: string }).sandbox).toBe(pool.mode);
+  });
+
   test("B's API sees none of A's sessions", async () => {
     expect((await call(`/api/session/${session.a}`, {}, as.b)).status).toBe(404);
     expect((await call(`/api/session/${session.a}/message`, {}, as.b)).status).toBe(404);

@@ -47,6 +47,8 @@ const model = Bun.serve({
         ? chunk({ role: "assistant", content: "Found one Stripe key; rotate it." }) + chunk({}, "stop")
         : text.includes("scan the repo")
           ? call("scan_github_repo", { repo: "octocat/Hello-World" })
+          : text.includes("print a lot")
+            ? call("shell", { command: "seq 1 60000", description: "Print many lines" })
           : text.includes("print the environment")
             ? call("shell", { command: "env; cat /proc/$PPID/environ 2>/dev/null | tr '\\0' '\\n'", description: "Print the environment" })
             : text.includes("load the audit skill")
@@ -197,6 +199,8 @@ describe("the gateway's proxy, end to end", () => {
       expect(r).not.toContain(FAKE);
       expect(r).toContain("[[secret sk_live_…cdef #");
       expect(toolsOf(r)).toEqual([...Object.keys(TOOLS), ...OPENCODE.builtins, SKILLS.tool, "stub_advisory", "stub_echo", "stub_env_names"].sort());
+      // The question tool would wait on a form the chat page can't show.
+      for (const off of OPENCODE.disabled) expect(toolsOf(r)).not.toContain(off);
     }
 
     // The tool got the real key back: its finding's hash is the real key's hash.
@@ -269,6 +273,21 @@ describe("the gateway's proxy, end to end", () => {
     expect(output).not.toContain("not-a-real-key");
     expect(output).not.toContain("OPENCODE_SERVER_PASSWORD");
     expect(output).not.toContain("OPENCODE_CONFIG_CONTENT");
+  }, 60_000);
+
+  test("long tool output is saved under a Sikrets path, never one that names opencode", async () => {
+    await access(true);
+    const before = requests.length;
+    await events(basic, terminal(session), () => call(`/api/session/${session}/prompt`, { method: "POST", body: JSON.stringify({ text: "print a lot" }) }));
+    await access(false);
+    expect(requests.length).toBeGreaterThan(before);
+    const tool = (JSON.parse(requests.at(-1)!) as { messages: Array<{ role: string; content: unknown }> }).messages.filter((m) => m.role === "tool").at(-1)!;
+    const out = typeof tool.content === "string" ? tool.content : JSON.stringify(tool.content);
+    const saved = /full output saved to (\S+?)\]/.exec(out)?.[1];
+    expect(saved).toBeDefined();
+    expect(saved!.startsWith(oc().directory)).toBe(true);
+    expect(out).not.toMatch(/open\s?code/i);
+    expect(readFileSync(saved!, "utf8")).toContain("\n60000");
   }, 60_000);
 
   test("callers see only their own sessions", async () => {

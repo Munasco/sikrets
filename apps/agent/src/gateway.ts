@@ -119,7 +119,8 @@ export function createGateway(pool: Pool, opts: Options = {}) {
 
     if (url.pathname === "/api/me") {
       const who = owner(req);
-      return json({ authed: Boolean(who), gated: Boolean(key), model: MODEL.name, fullAccess: access.has(who) });
+      // `sandbox`: how each owner's instance is confined (src/sandbox.ts), so a deploy can be checked from outside.
+      return json({ authed: Boolean(who), gated: Boolean(key), model: MODEL.name, fullAccess: access.has(who), sandbox: pool.mode });
     }
 
     if (url.pathname === "/api/full-access" && req.method === "PUT") {

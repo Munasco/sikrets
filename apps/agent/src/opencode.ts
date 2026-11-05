@@ -25,6 +25,7 @@ function permissions(skills: Skill[], mcp: McpServers) {
     ...Object.keys(TOOLS).map((action) => ({ action, resource: "*", effect: "allow" })),
     ...PROXY.ask.map((action) => ({ action, resource: "*", effect: "ask" })),
     { action: SKILLS.tool, resource: "*", effect: "deny" },
+    ...OPENCODE.disabled.map((action) => ({ action, resource: "*", effect: "deny" })),
     ...skills.map((s) => ({ action: SKILLS.tool, resource: s.id, effect: "allow" })),
     ...mcpPermissions(mcp),
   ];

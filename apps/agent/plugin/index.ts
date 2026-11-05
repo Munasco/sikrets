@@ -1,7 +1,10 @@
 import type { Plugin } from "@opencode/plugin";
+import { randomBytes } from "node:crypto";
+import { mkdirSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { runTool, TOOLS } from "../src/tools.ts";
 import { Vault } from "../src/redact.ts";
-import { BRAND, MCP, OPENCODE, PROXY, SHELL_ENV, SKILLS } from "../src/constants.ts";
+import { BRAND, MCP, OPENCODE, PROXY, SHELL_ENV, SKILLS, TOOL_OUTPUT } from "../src/constants.ts";
 import { loadSkills, mcpTool } from "../src/capabilities.ts";
 
 // The Sikrets opencode plugin: the guard agent's five tools, its skills, and the hooks that keep
@@ -65,6 +68,31 @@ function scrubSystem(system: Array<{ text: string }>, tmpDir?: string) {
   }
 }
 
+type Part = { type: string; text?: string };
+
+/** Cuts long text output to TOOL_OUTPUT's limits and saves the whole of it in the scratch directory.
+ * Returns the parts to show, or undefined when nothing needed cutting. */
+function truncate(content: Part[], tmpDir: string): { content: Part[]; file: string } | undefined {
+  const text = content.filter((p) => p.type === "text").map((p) => p.text ?? "").join("\n");
+  const lines = text.split("\n");
+  if (text.endsWith("\n")) lines.pop();
+  if (lines.length <= TOOL_OUTPUT.maxLines && Buffer.byteLength(text) <= TOOL_OUTPUT.maxBytes) return undefined;
+  const dir = path.join(tmpDir, TOOL_OUTPUT.dir);
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const file = path.join(dir, `output_${randomBytes(6).toString("hex")}.txt`);
+  writeFileSync(file, text, { mode: 0o600 });
+  const kept: string[] = [];
+  let bytes = 0;
+  for (const line of lines.slice(0, TOOL_OUTPUT.maxLines)) {
+    const size = Buffer.byteLength(line) + 1;
+    if (bytes + size > TOOL_OUTPUT.maxBytes) break;
+    kept.push(line);
+    bytes += size;
+  }
+  const note = `[showing ${kept.length ? `lines 1-${kept.length}` : "0 lines"} of ${lines.length}; full output saved to ${file}]`;
+  return { content: [...content.filter((p) => p.type !== "text"), { type: "text", text: `${kept.join("\n")}\n${note}` }], file };
+}
+
 /** Every string in a tool's description and input schema, renamed. */
 function scrubDeep<T>(v: T): T {
   if (typeof v === "string") return hide(v) as T;
@@ -105,8 +133,10 @@ const plugin: Plugin.Plugin = {
     const skillIDs = new Set(skills.map((s) => s.id));
     const defaultOff = new Set(Object.entries(servers).filter(([, s]) => !s.enabled).map(([name]) => name));
 
-    /** Whether the owner may use a tool, by name: every tool but the MCP ones they switched off. */
+    /** Whether the owner may use a tool, by name: every tool but the disabled built-ins and the
+     * MCP ones they switched off. */
     const usable = (tool: string) => {
+      if (OPENCODE.disabled.includes(tool)) return false;
       const m = mcpTool(servers, tool);
       if (!m) return true;
       if ((off ?? defaultOff).has(m.server)) return false;
@@ -148,6 +178,7 @@ const plugin: Plugin.Plugin = {
       for (const t of editor.list()) {
         const ns = (t.options as { namespace?: string } | undefined)?.namespace;
         if (ns === OPENCODE.ownNamespace || t.id.startsWith(`${OPENCODE.ownNamespace}.`) || t.id.startsWith(`${OPENCODE.ownNamespace}_`)) editor.remove(t.id);
+        else if (OPENCODE.disabled.includes(t.id)) editor.remove(t.id);
       }
       for (const [name, tool] of Object.entries(TOOLS)) {
         editor.add({
@@ -186,6 +217,13 @@ const plugin: Plugin.Plugin = {
     await ctx.tool.hook("execute.after", (event) => {
       if (!mcpTool(servers, event.tool) || event.status !== "completed") return;
       event.result = vault.shieldDeep(event.sessionID, structuredClone(event.result));
+    });
+    // Long output, from any tool: cut and saved under a Sikrets path before opencode would do it.
+    await ctx.tool.hook("execute.after", (event) => {
+      if (event.status !== "completed" || !opts.tmpDir || !Array.isArray(event.result.content)) return;
+      const cut = truncate(event.result.content as Part[], opts.tmpDir);
+      if (!cut) return;
+      event.result = { ...event.result, content: cut.content as never, metadata: { ...event.result.metadata, truncated: true, outputPath: cut.file } };
     });
 
     for (const kind of ["context", "generate", "compaction"] as const) {
