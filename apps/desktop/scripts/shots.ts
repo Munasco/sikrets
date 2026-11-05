@@ -1,5 +1,6 @@
 // Screenshots of every screen from the dev server's demo data: `bun run dev`, then
-// `bun scripts/shots.ts <out dir>`. Uses the installed Chrome; downloads nothing.
+// `bun scripts/shots.ts <out dir>` (COLOR_SCHEME=dark for dark mode). Uses the installed Chrome;
+// downloads nothing.
 import { chromium } from "playwright-core";
 import { mkdir } from "node:fs/promises";
 
@@ -9,7 +10,7 @@ const routes = ["keys", "approvals", "agents", "logins", "import", "agent", "set
 
 await mkdir(out, { recursive: true });
 const browser = await chromium.launch({ channel: "chrome" });
-const page = await browser.newPage({ viewport: { width: 1080, height: 700 }, deviceScaleFactor: 2 });
+const page = await browser.newPage({ viewport: { width: 1080, height: 700 }, deviceScaleFactor: 2, colorScheme: process.env.COLOR_SCHEME === "dark" ? "dark" : "light" });
 for (const [i, r] of routes.entries()) {
   await page.goto(`${base}/#${r}`);
   await page.reload();

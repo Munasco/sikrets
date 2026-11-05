@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { CheckCircle2, CircleAlert, FolderOpen, Terminal } from "lucide-react";
 import { chooseProject, openTerminal, sikrets, type Info, type Recovery } from "../api.ts";
+import { savedTheme, setTheme, type Theme } from "../theme.ts";
 import { Button, Chip, cn, ErrorLine, message, Panel, Snippet, useLoad, useToast, useRefresh } from "../ui.tsx";
 
 // Project folder, recovery status (setup runs in Terminal: the code is shown once, to a person),
@@ -12,6 +13,7 @@ export function Settings({ info }: { info: Info }) {
   const recovery = useLoad(() => sikrets<Recovery>(["recovery", "status"]));
   const [initBusy, setInitBusy] = useState(false);
   const [client, setClient] = useState<"claude-code" | "claude-desktop" | "chatgpt">("claude-code");
+  const [theme, pickTheme] = useState<Theme>(savedTheme);
 
   const cli = info.cliPath || "sikrets";
   const root = info.project ?? "<project folder>";
@@ -92,6 +94,34 @@ export function Settings({ info }: { info: Info }) {
           <p className="text-[12px] text-dim">
             {client === "claude-desktop" ? "Paste into ~/Library/Application Support/Claude/claude_desktop_config.json, then restart Claude." : client === "chatgpt" ? "Run in Terminal. Codex then runs commands with your keys without seeing them." : "Run in Terminal, in any folder."}
           </p>
+        </div>
+      </Panel>
+
+      <Panel title="Appearance">
+        <div className="p-3">
+          <div className="flex w-64 gap-1 rounded-md border border-line bg-paper p-0.5 text-[12px]" role="radiogroup" aria-label="Appearance">
+            {(
+              [
+                ["system", "System"],
+                ["light", "Light"],
+                ["dark", "Dark"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                role="radio"
+                aria-checked={theme === id}
+                type="button"
+                onClick={() => {
+                  setTheme(id);
+                  pickTheme(id);
+                }}
+                className={cn("h-6 flex-1 rounded", theme === id ? "bg-white text-ink shadow-[0_0_0_1px_var(--color-line)]" : "text-dim hover:text-ink")}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       </Panel>
 
