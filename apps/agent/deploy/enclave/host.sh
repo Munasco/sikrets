@@ -50,7 +50,8 @@ build() {
 # than the host has left beside the enclave's reservation, so a swap file covers it for the build.
 SWAP=/opt/sikrets-agent/build.swap
 if ! swapon --show=NAME --noheadings | grep -q .; then
-  [ -f "$SWAP" ] || { fallocate -l 6G "$SWAP" && chmod 600 "$SWAP" && mkswap -q "$SWAP" >/dev/null; }
+  rm -f "$SWAP"
+  fallocate -l 6G "$SWAP" && chmod 600 "$SWAP" && mkswap "$SWAP" >/dev/null
   swapon "$SWAP"
   trap 'swapoff "$SWAP" 2>/dev/null || true' EXIT
 fi
