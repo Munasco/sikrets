@@ -6,7 +6,8 @@
 # SNS topic. Safe to re-run: existing pieces are reused. Prints IDs and the URL, never a secret.
 #
 #   GEMINI_API_KEY=…    store or replace the model key (encrypted under the KMS key; MODEL.keyEnv)
-#   ENCLAVE_PCR0=…      pin the KMS key to this enclave build (host.sh up prints it)
+#   ENCLAVE_PCR0=…      pin the KMS key to this enclave build (host.sh build prints it); during a
+#                       switch, "<old>,<new>" lets both decrypt, then pin the new one alone
 #   DEPLOY_REF=…        tag or commit SHA a new instance deploys; required to create one
 #   ALERT_EMAIL=…       subscribe this address to the alerts topic (AWS emails a confirmation)
 set -euo pipefail
@@ -67,7 +68,7 @@ key_policy() {
    "kms:ListResourceTags","kms:TagResource","kms:UntagResource","kms:ListGrants","kms:RevokeGrant","kms:CreateAlias","kms:UpdateAlias","kms:DeleteAlias",
    "kms:UpdateKeyDescription","kms:EnableKey","kms:DisableKey","kms:ScheduleKeyDeletion","kms:CancelKeyDeletion","kms:Encrypt"]},
  {"Sid":"EnclaveDecrypt","Effect":"Allow","Principal":{"AWS":"arn:aws:iam::$ACCOUNT:role/$NAME"},"Action":"kms:Decrypt","Resource":"*",
-  "Condition":{"StringEqualsIgnoreCase":{"kms:RecipientAttestation:ImageSha384":"$1"}}}
+  "Condition":{"StringEqualsIgnoreCase":{"kms:RecipientAttestation:ImageSha384":[$(echo "$1" | sed 's/[^,][^,]*/"&"/g')]}}}
 ]}
 EOF
 }
@@ -79,9 +80,9 @@ if [ -z "$KEY" ]; then
   aws kms enable-key-rotation --key-id "$KEY"
 fi
 if [ -n "${ENCLAVE_PCR0:-}" ]; then
-  [[ "$ENCLAVE_PCR0" =~ ^[0-9a-fA-F]{96}$ ]] || { echo "ENCLAVE_PCR0 must be 96 hex characters"; exit 1; }
+  [[ "$ENCLAVE_PCR0" =~ ^[0-9a-fA-F]{96}(,[0-9a-fA-F]{96})?$ ]] || { echo "ENCLAVE_PCR0 must be one or two (comma-separated) 96-hex-character values"; exit 1; }
   aws kms put-key-policy --key-id "$KEY" --policy-name default --policy "$(key_policy "$ENCLAVE_PCR0")"
-  echo "kms key:    pinned to PCR0 ${ENCLAVE_PCR0:0:16}…"
+  echo "kms key:    pinned to PCR0 $(echo "$ENCLAVE_PCR0" | sed -E 's/([0-9a-fA-F]{16})[0-9a-fA-F]{80}/\1…/g')"
 fi
 
 # --- Model API key: encrypted under the KMS key and stored as its ciphertext (a plain String).

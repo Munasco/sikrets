@@ -6,8 +6,12 @@
 # enclave decrypts the key itself through KMS with an attestation document; the key policy only
 # allows that for this image's PCR0, so the host never sees the key. It never sees the conversation
 # in clear text past CloudFront's origin hop, and it can't read the enclave's memory.
-#   host.sh up     build and start (switches traffic from the host service to the enclave)
-#   host.sh down   stop the enclave and serve from the host again
+#   host.sh build     build the new image beside the running one and print its measurements; the
+#                     running enclave keeps serving. Pin the new PCR0 alongside the old one
+#                     (ENCLAVE_PCR0=<old>,<new> deploy/aws.sh) before `up`, so there's no gap.
+#   host.sh up        start the image `build` made (or build one first), keeping the old as .prev
+#   host.sh rollback  start the previous image again
+#   host.sh down      stop the enclave and serve from the host again
 set -euo pipefail
 APP=/opt/sikrets-agent/src/apps/agent
 BUN=/opt/sikrets-agent/.bun/bin/bun
@@ -35,16 +39,21 @@ down() {
 }
 
 if [ "${1:-up}" = "down" ]; then down; exit 0; fi
+MODE=${1:-up}
+case "$MODE" in build|up|rollback) ;; *) echo "usage: host.sh build|up|rollback|down"; exit 1 ;; esac
 
 dnf install -y -q socat docker >/dev/null
 systemctl enable --now docker >/dev/null
 
-# Allocator: reserve the enclave's CPUs and memory (it can't change while an enclave runs). Stop
-# the enclave unit first, or restarting the allocator restarts it with the old image mid-build.
-systemctl stop sikrets-enclave-watch sikrets-enclave 2>/dev/null || true
-nitro-cli terminate-enclave --all >/dev/null 2>&1 || true
-sed -i "s/^cpu_count:.*/cpu_count: $CPUS/; s/^memory_mib:.*/memory_mib: $MEM/" /etc/nitro_enclaves/allocator.yaml
-systemctl restart nitro-enclaves-allocator
+build() {
+# The running enclave keeps serving while the new image builds. Building an EIF takes more memory
+# than the host has left beside the enclave's reservation, so a swap file covers it for the build.
+SWAP=/opt/sikrets-agent/build.swap
+if ! swapon --show=NAME --noheadings | grep -q .; then
+  [ -f "$SWAP" ] || { fallocate -l 6G "$SWAP" && chmod 600 "$SWAP" && mkswap -q "$SWAP" >/dev/null; }
+  swapon "$SWAP"
+  trap 'swapoff "$SWAP" 2>/dev/null || true' EXIT
+fi
 
 # Image: the app (with production dependencies, opencode's glibc build only), the built chat page,
 # Bun, the entrypoint, and the host list the entrypoint maps to vsock ports.
@@ -60,7 +69,31 @@ cp "$APP/deploy/enclave/Dockerfile" "$APP/deploy/enclave/run.sh" "$APP/deploy/en
 : > "$BUILD/hosts"
 for i in "${!HOSTS[@]}"; do echo "127.0.0.$((11 + i)) ${HOSTS[$i]} ${PORTS[$i]}" >> "$BUILD/hosts"; done
 docker build -q -t sikrets-agent-enclave:latest "$BUILD" >/dev/null
-nitro-cli build-enclave --docker-uri sikrets-agent-enclave:latest --output-file "$EIF" > /etc/sikrets-agent/measurements.json
+# Built beside the running image (EIF.new); `up` swaps it in.
+rm -f "$EIF.new"
+nitro-cli build-enclave --docker-uri sikrets-agent-enclave:latest --output-file "$EIF.new" > /etc/sikrets-agent/measurements.new.json
+[ -s "$EIF.new" ] || { rm -f "$EIF.new"; echo "enclave build failed; the running enclave is unchanged"; exit 1; }
+}
+
+if [ "$MODE" = build ]; then build; cat /etc/sikrets-agent/measurements.new.json; exit 0; fi
+if [ "$MODE" = up ]; then
+  [ -s "$EIF.new" ] || build
+  [ -f "$EIF" ] && mv -f "$EIF" "$EIF.prev"
+  [ -f /etc/sikrets-agent/measurements.json ] && mv -f /etc/sikrets-agent/measurements.json /etc/sikrets-agent/measurements.prev.json
+  mv -f "$EIF.new" "$EIF"
+  mv -f /etc/sikrets-agent/measurements.new.json /etc/sikrets-agent/measurements.json
+else
+  [ -s "$EIF.prev" ] || { echo "no previous image to roll back to"; exit 1; }
+  mv -f "$EIF" "$EIF.new" && mv -f "$EIF.prev" "$EIF"
+  mv -f /etc/sikrets-agent/measurements.json /etc/sikrets-agent/measurements.new.json && mv -f /etc/sikrets-agent/measurements.prev.json /etc/sikrets-agent/measurements.json
+fi
+
+# Allocator: reserve the enclave's CPUs and memory (it can't change while an enclave runs). Stop
+# the enclave unit first, or restarting the allocator restarts it with the old image.
+systemctl stop sikrets-enclave-watch sikrets-enclave 2>/dev/null || true
+nitro-cli terminate-enclave --all >/dev/null 2>&1 || true
+sed -i "s/^cpu_count:.*/cpu_count: $CPUS/; s/^memory_mib:.*/memory_mib: $MEM/" /etc/nitro_enclaves/allocator.yaml
+systemctl restart nitro-enclaves-allocator
 
 # Outbound: one vsock-proxy per allowed host.
 {
