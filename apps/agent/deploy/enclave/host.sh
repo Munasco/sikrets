@@ -27,13 +27,15 @@ install -m 755 "$APP/deploy/agent-env.sh" /usr/local/bin/sikrets-agent-env
 # Outbound hosts, one vsock port each. The model host comes from src/constants.ts, so switching
 # models there also switches what the enclave may reach.
 MODEL_HOST=$(cd "$APP" && "$BUN" -e 'import { MODEL } from "./src/constants.ts"; console.log(MODEL.host)')
+# The enclave's own HTTPS hostname, and the ACME server it gets its certificate from (TLS).
+read -r TLS_HOST ACME_HOST < <(cd "$APP" && "$BUN" -e 'import { TLS } from "./src/constants.ts"; console.log(TLS.host, TLS.acmeHost)')
 REGION=us-east-1
-HOSTS=("$MODEL_HOST" codeload.github.com api.osv.dev "kms.$REGION.amazonaws.com")
+HOSTS=("$MODEL_HOST" codeload.github.com api.osv.dev "kms.$REGION.amazonaws.com" "$ACME_HOST")
 PORTS=() PROXIES=()
 for i in "${!HOSTS[@]}"; do PORTS+=($((8001 + i))); PROXIES+=("sikrets-vsock-proxy@$((8001 + i))"); done
 
 down() {
-  systemctl disable --now sikrets-enclave-watch sikrets-enclave sikrets-enclave-feed sikrets-enclave-inbound "${PROXIES[@]}" 2>/dev/null || true
+  systemctl disable --now sikrets-enclave-watch sikrets-enclave sikrets-enclave-feed sikrets-enclave-inbound sikrets-enclave-tcp-443 sikrets-enclave-tcp-80 "${PROXIES[@]}" 2>/dev/null || true
   nitro-cli terminate-enclave --all >/dev/null 2>&1 || true
   systemctl enable --now sikrets-agent
 }
@@ -69,6 +71,8 @@ cp "$BUN" "$BUILD/bun"
 cp "$APP/deploy/enclave/Dockerfile" "$APP/deploy/enclave/run.sh" "$APP/deploy/enclave/bootstrap.py" "$BUILD/"
 : > "$BUILD/hosts"
 for i in "${!HOSTS[@]}"; do echo "127.0.0.$((11 + i)) ${HOSTS[$i]} ${PORTS[$i]}" >> "$BUILD/hosts"; done
+# In the image, so the hostname the enclave gets a certificate for is part of its measurements.
+echo "$TLS_HOST" > "$BUILD/tls-host"
 docker build -q -t sikrets-agent-enclave:latest "$BUILD" >/dev/null
 # Built beside the running image (EIF.new); `up` swaps it in.
 rm -f "$EIF.new"
@@ -119,7 +123,9 @@ ExecStart=/usr/local/bin/sikrets-vsock-proxy %i
 Restart=always
 EOF
 
-# Inbound: CloudFront → host :8787 → enclave vsock 8787.
+# Inbound: CloudFront → host :8787 → enclave vsock 8787 (plain HTTP on CloudFront's origin hop).
+# And the load balancer's TCP passthrough: :443 → vsock 8443, still TLS, ended inside the enclave;
+# :80 → vsock 8080, the certificate's HTTP-01 challenge and a redirect to HTTPS.
 cat > /etc/systemd/system/sikrets-enclave-inbound.service <<EOF
 [Unit]
 Description=Relay chat traffic into the agent enclave
@@ -127,6 +133,15 @@ Description=Relay chat traffic into the agent enclave
 ExecStart=/usr/bin/socat TCP-LISTEN:8787,fork,reuseaddr VSOCK-CONNECT:$CID:8787
 Restart=always
 EOF
+for pair in 443:8443 80:8080; do
+  cat > /etc/systemd/system/sikrets-enclave-tcp-${pair%%:*}.service <<EOF
+[Unit]
+Description=Relay TCP :${pair%%:*} into the agent enclave (vsock ${pair##*:}); the host sees only TLS
+[Service]
+ExecStart=/usr/bin/socat TCP-LISTEN:${pair%%:*},fork,reuseaddr VSOCK-CONNECT:$CID:${pair##*:}
+Restart=always
+EOF
+done
 
 # Secrets: the access code (SSM SecureString), the model key's KMS ciphertext (SSM String) and the
 # instance role's temporary credentials, sent every 15 minutes so a rotated value reaches the
@@ -134,8 +149,10 @@ EOF
 # a failure the feed retries every minute.
 cat > /usr/local/bin/sikrets-enclave-feed <<'EOF'
 #!/usr/bin/env python3
-import json, socket, subprocess, time, urllib.request
+import json, os, socket, subprocess, time, urllib.request
 REGION = "us-east-1"
+# The enclave's sealed TLS key (KMS ciphertext only it can open) and its public certificate.
+TLS_STORE = "/etc/sikrets-agent/tls.json"
 def param(name, decrypt=True):
     return subprocess.check_output(["aws", "ssm", "get-parameter", "--region", REGION, "--name", "/sikrets-agent-demo/" + name] + (["--with-decryption"] if decrypt else []) + ["--query", "Parameter.Value", "--output", "text"]).decode().strip()
 def imds(path, token=None):
@@ -152,7 +169,8 @@ def credentials():
     return {"AccessKeyId": c["AccessKeyId"], "SecretAccessKey": c["SecretAccessKey"], "Token": c["Token"]}
 while True:
     try:
-        msg = json.dumps({"accessCode": param("access-code"), "modelKeyCiphertext": param("model-key-ciphertext", False), "credentials": credentials(), "region": REGION, "now": time.time()}).encode()
+        tls = json.load(open(TLS_STORE)) if os.path.exists(TLS_STORE) else None
+        msg = json.dumps({"accessCode": param("access-code"), "modelKeyCiphertext": param("model-key-ciphertext", False), "credentials": credentials(), "region": REGION, "now": time.time(), "tls": tls}).encode()
         s = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
         s.settimeout(60)
         s.connect((16, 9000))
@@ -164,8 +182,15 @@ while True:
             reply += chunk
         s.close()
         status = json.loads(reply or b"{}")
+        store = status.pop("tlsStore", None)
+        if store:
+            with open(TLS_STORE + ".tmp", "w") as f:
+                json.dump(store, f)
+            os.replace(TLS_STORE + ".tmp", TLS_STORE)
+            status["tlsStore"] = "saved"
         print("enclave:", json.dumps(status), flush=True)
-        time.sleep(900 if status.get("modelKey") == "ok" else 60)
+        # Soon again while the certificate is being issued, or a new one wasn't handed back yet.
+        time.sleep(900 if status.get("modelKey") == "ok" and status.get("tls") == "ok" and not store else 60)
     except Exception as e:
         print("feed failed, retrying:", type(e).__name__, flush=True)
         time.sleep(5)
@@ -223,14 +248,14 @@ ExecStart=/usr/local/bin/sikrets-enclave-watch
 Restart=always
 EOF
 
-for u in sikrets-vsock-proxy@ sikrets-enclave-inbound sikrets-enclave-feed sikrets-enclave-watch; do
+for u in sikrets-vsock-proxy@ sikrets-enclave-inbound sikrets-enclave-tcp-443 sikrets-enclave-tcp-80 sikrets-enclave-feed sikrets-enclave-watch; do
   f=/etc/systemd/system/$u.service
   grep -q '^\[Install\]' $f || printf '[Install]\nWantedBy=multi-user.target\n' >> $f
 done
 
 systemctl daemon-reload
 systemctl disable --now sikrets-agent
-systemctl enable sikrets-enclave "${PROXIES[@]}" sikrets-enclave-feed sikrets-enclave-inbound sikrets-enclave-watch >/dev/null 2>&1
+systemctl enable sikrets-enclave "${PROXIES[@]}" sikrets-enclave-feed sikrets-enclave-inbound sikrets-enclave-tcp-443 sikrets-enclave-tcp-80 sikrets-enclave-watch >/dev/null 2>&1
 systemctl restart sikrets-enclave
-systemctl restart "${PROXIES[@]}" sikrets-enclave-feed sikrets-enclave-inbound sikrets-enclave-watch
+systemctl restart "${PROXIES[@]}" sikrets-enclave-feed sikrets-enclave-inbound sikrets-enclave-tcp-443 sikrets-enclave-tcp-80 sikrets-enclave-watch
 cat /etc/sikrets-agent/measurements.json

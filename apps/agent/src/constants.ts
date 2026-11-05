@@ -189,6 +189,25 @@ export const LIMITS = {
   sessionHours: 12,
 };
 
+/** HTTPS inside the enclave: the load balancer passes TCP through (with a PROXY v2 header), the host
+ * relays the bytes over vsock, and the TLS key exists only in here. The enclave gets its own
+ * certificate from Let's Encrypt (deploy/enclave/bootstrap.py); its key is stored outside only as
+ * KMS ciphertext that only the attested image can decrypt. The certificate files are written by
+ * the bootstrap; the gateway serves HTTPS only when they exist. */
+export const TLS = {
+  /** The public hostname. Baked into the enclave image (host.sh), so it's part of PCR0. */
+  host: "agent.sikrets.usetennant.com",
+  certFile: Bun.env.TLS_CERT_FILE ?? "/run/tls/cert.pem",
+  keyFile: Bun.env.TLS_KEY_FILE ?? "/run/tls/key.pem",
+  /** The PROXY v2 front (src/tls-front.ts), where vsock 8443 lands. */
+  port: 8443,
+  /** The HTTPS server itself, on loopback behind the front. */
+  serverPort: 8444,
+  /** The ACME client and its HTTP-01 responder, where vsock 8080 (the load balancer's port 80) lands. */
+  challengePort: 8080,
+  acmeHost: "acme-v02.api.letsencrypt.org",
+};
+
 export const SERVER = {
   port: Number(Bun.env.PORT ?? 8787),
   host: Bun.env.HOST ?? "127.0.0.1",

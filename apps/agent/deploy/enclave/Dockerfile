@@ -9,6 +9,6 @@ FROM public.ecr.aws/amazonlinux/amazonlinux:2023
 RUN dnf install -y socat iproute python3 python3-pip ca-certificates bubblewrap util-linux && pip3 install --no-cache-dir cbor2==5.6.5 cryptography==44.0.3 asn1crypto==1.5.1 && dnf clean all
 COPY bun /usr/local/bin/bun
 COPY app /app
-COPY run.sh bootstrap.py hosts /enclave/
+COPY run.sh bootstrap.py hosts tls-host /enclave/
 WORKDIR /app
 CMD ["/bin/sh", "/enclave/run.sh"]

@@ -67,7 +67,7 @@ key_policy() {
    "kms:DescribeKey","kms:GetKeyPolicy","kms:PutKeyPolicy","kms:GetKeyRotationStatus","kms:EnableKeyRotation","kms:DisableKeyRotation",
    "kms:ListResourceTags","kms:TagResource","kms:UntagResource","kms:ListGrants","kms:RevokeGrant","kms:CreateAlias","kms:UpdateAlias","kms:DeleteAlias",
    "kms:UpdateKeyDescription","kms:EnableKey","kms:DisableKey","kms:ScheduleKeyDeletion","kms:CancelKeyDeletion","kms:Encrypt"]},
- {"Sid":"EnclaveDecrypt","Effect":"Allow","Principal":{"AWS":"arn:aws:iam::$ACCOUNT:role/$NAME"},"Action":"kms:Decrypt","Resource":"*",
+ {"Sid":"EnclaveDecrypt","Effect":"Allow","Principal":{"AWS":"arn:aws:iam::$ACCOUNT:role/$NAME"},"Action":["kms:Decrypt","kms:GenerateDataKey"],"Resource":"*",
   "Condition":{"StringEqualsIgnoreCase":{"kms:RecipientAttestation:ImageSha384":[$(echo "$1" | sed 's/[^,][^,]*/"&"/g')]}}}
 ]}
 EOF
@@ -118,6 +118,17 @@ if [ "$SG" = "None" ]; then
   aws ec2 authorize-security-group-ingress --group-id $SG --ip-permissions "IpProtocol=tcp,FromPort=8787,ToPort=8787,PrefixListIds=[{PrefixListId=$PL,Description=CloudFront}]" >/dev/null
 fi
 
+# --- HTTPS ended inside the enclave: a network load balancer passes TCP through to the instance:
+# 443 with a PROXY v2 header naming the client (the gateway rate-limits by it), and 80 for the
+# certificate's HTTP-01 challenge. The host relays both over vsock without decrypting anything.
+# Client addresses reach the instance as they are, so these two ports are open to everyone.
+for port in 443 80; do
+  for cidr in "CidrIp=0.0.0.0/0" "CidrIpv6=::/0"; do
+    range=$([ "${cidr%%=*}" = CidrIp ] && echo IpRanges || echo Ipv6Ranges)
+    aws ec2 authorize-security-group-ingress --group-id $SG --ip-permissions "IpProtocol=tcp,FromPort=$port,ToPort=$port,$range=[{$cidr,Description=agent-tls}]" >/dev/null 2>&1 || true
+  done
+done
+
 # --- Instance: Graviton, Nitro Enclaves enabled, IMDSv2 required, encrypted root volume. It deploys
 # DEPLOY_REF, resolved here to a commit SHA that user-data.sh checks the checkout against.
 ID=$(aws ec2 describe-instances --filters Name=tag:Project,Values=$NAME Name=instance-state-name,Values=pending,running,stopping,stopped --query 'Reservations[0].Instances[0].InstanceId' --output text)
@@ -143,6 +154,27 @@ if [ "$ID" = "None" ]; then
   aws ec2 wait instance-running --instance-ids $ID
 fi
 DNS=$(aws ec2 describe-instances --instance-ids $ID --query 'Reservations[0].Instances[0].PublicDnsName' --output text)
+
+# --- The load balancer itself (see the security group above), in the default VPC's subnets.
+NLB=$(aws elbv2 describe-load-balancers --names $NAME --query 'LoadBalancers[0].LoadBalancerArn' --output text 2>/dev/null || true)
+if [ -z "$NLB" ] || [ "$NLB" = None ]; then
+  SUBNETS=$(aws ec2 describe-subnets --filters Name=vpc-id,Values=$VPC Name=default-for-az,Values=true --query 'Subnets[].SubnetId' --output text)
+  NLB=$(aws elbv2 create-load-balancer --name $NAME --type network --scheme internet-facing --subnets $SUBNETS --tags Key=Project,Value=$NAME --query 'LoadBalancers[0].LoadBalancerArn' --output text)
+fi
+for pair in tls:443 http:80; do
+  tg=$NAME-${pair%%:*} port=${pair##*:}
+  TG=$(aws elbv2 describe-target-groups --names $tg --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || true)
+  if [ -z "$TG" ] || [ "$TG" = None ]; then
+    TG=$(aws elbv2 create-target-group --name $tg --protocol TCP --port $port --vpc-id $VPC --target-type instance --health-check-protocol TCP --tags Key=Project,Value=$NAME --query 'TargetGroups[0].TargetGroupArn' --output text)
+  fi
+  [ "$port" = 443 ] && aws elbv2 modify-target-group-attributes --target-group-arn $TG --attributes Key=proxy_protocol_v2.enabled,Value=true >/dev/null
+  aws elbv2 register-targets --target-group-arn $TG --targets Id=$ID,Port=$port
+  if [ "$(aws elbv2 describe-listeners --load-balancer-arn $NLB --query "Listeners[?Port==\`$port\`] | length(@)" --output text)" = 0 ]; then
+    aws elbv2 create-listener --load-balancer-arn $NLB --protocol TCP --port $port --default-actions Type=forward,TargetGroupArn=$TG >/dev/null
+  fi
+done
+NLB_DNS=$(aws elbv2 describe-load-balancers --load-balancer-arns $NLB --query 'LoadBalancers[0].DNSName' --output text)
+TLS_HOST=$(cd "$HERE/.." && bun -e 'import { TLS } from "./src/constants.ts"; console.log(TLS.host)')
 
 # --- CloudFront: HTTPS in front, nothing cached, cookies and the viewer address passed through.
 DIST=$(aws cloudfront list-distributions --query "DistributionList.Items[?Comment=='$NAME'].Id | [0]" --output text)
@@ -207,4 +239,5 @@ echo "sg:         $SG"
 echo "kms key:    $KEY_ALIAS ($KEY)"
 echo "cloudfront: $DIST"
 echo "alerts:     $TOPIC (alarms $NAME-enclave-health, $NAME-gateway-5xx; budget $NAME, \$$BUDGET_USD/month)"
-echo "url:        https://$DOMAIN"
+echo "url:        https://$DOMAIN (CloudFront; TLS ends at CloudFront)"
+echo "tls url:    https://$TLS_HOST (TLS ends in the enclave; DNS: CNAME $TLS_HOST -> $NLB_DNS)"
