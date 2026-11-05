@@ -133,10 +133,10 @@ A new build has a new PCR0, so the key won't decrypt for it until it's pinned (a
 - `sikrets-agent-demo-gateway-5xx`: more than 5% of requests through CloudFront got a 5xx, in 2 of 3 five-minute periods.
 - Budget `sikrets-agent-demo`: costs tagged `Project=sikrets-agent-demo` past $150 a month, actual or forecast.
 
-Live build (commit `cad8556`, deployed 2026-11-05; the KMS key is pinned to this PCR0; sandbox `bwrap`):
+Live build (commit `b13e9a9`, deployed 2026-11-05; the KMS key is pinned to this PCR0; sandbox `bwrap`; HTTPS in the enclave at https://agent.sikrets.usetennant.com):
 
 | PCR | Value |
 |---|---|
-| PCR0 | `1f88b3ab44b439d104739a5c928cd85522797bbd07478587e2b08865b9a110ae9e7f7fe1e292e2bd2b10740925fe0f9d` |
+| PCR0 | `23892dc51cd38361d249c88f4cbc1dd0eeaf94cd797f6fa3d5847629bad1522c6d3fb4b3e693c16c2dcc7055edbf5aa6` |
 | PCR1 | `3b4a7e1b5f13c5a1000b3ed32ef8995ee13e9876329f9bc72650b918329ef9cf4e2e4d1e1e37375dab0ba56ba0974d03` |
-| PCR2 | `0be774db7c6bc1beb71c3be090cf468bdf1b56a694d4ebe0acba3f3b3ed7b9d527945424e0bce75d93817c6cd2484c07` |
+| PCR2 | `cfcd1abd0ce17848bacc6171be38ddb4b16eee7c99e831685cc696b4301800dd94efdd2d78472be9ed50f3eb40d5e2e9` |
