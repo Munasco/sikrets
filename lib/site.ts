@@ -1,9 +1,11 @@
 export const site = {
   name: "Sikrets",
   url: "https://sikrets.usetennant.com",
-  title: "Sikrets — Security for the agent era",
+  tagline: "Your virtual security guard",
+  title: "Sikrets — Your virtual security guard",
   description:
-    "The security platform for the agent era. Create, keep and rotate every credential your apps and agents use, from one open-source CLI. Projects only ever hold stand-ins.",
+    "The AI agent you can paste keys into, for you and your company. It starts with your keys: apps and agents use them without ever holding the real values. Open source, by Tennant.",
+  githubUrl: "https://github.com/Munasco/sikrets",
   tennantUrl: "https://usetennant.com",
   twitter: "@tennantcloud",
   waitlistUrl: "https://usetennant.com/waitlist",
@@ -11,3 +13,8 @@ export const site = {
   /** Waitlist accepts a prefilled email. */
   waitlistWithEmail: (email: string) => `https://usetennant.com/waitlist?email=${encodeURIComponent(email)}`,
 }
+
+/** Origin for absolute metadata URLs. Vercel previews use their own branch URL so Open Graph
+ *  images resolve to the preview's own image, not production's. */
+const previewHost = process.env.VERCEL_ENV === "preview" ? (process.env.VERCEL_BRANCH_URL ?? process.env.VERCEL_URL) : undefined
+export const metadataOrigin = previewHost ? `https://${previewHost}` : site.url
