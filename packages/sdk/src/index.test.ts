@@ -1,6 +1,9 @@
-import { afterEach, describe, expect, mock, spyOn, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
 import { createCipheriv, hkdfSync, randomBytes } from "node:crypto";
-import { DATA_KEY, ENVELOPE } from "./constants.ts";
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { CONFIG_DIR_ENV, DATA_KEY, ENVELOPE } from "./constants.ts";
 import { createSikrets, SikretsError } from "./index.ts";
 
 const STAND_IN = "sk-sikrets-AAAAbbbbCCCCddddEEEEffffGGGGhhhh";
@@ -102,7 +105,17 @@ describe("client-side encryption", () => {
   const keychain = (entries: Record<string, string>) =>
     spyOn(Bun.secrets, "get").mockImplementation(async ({ service, name }) => entries[`${service}/${name}`] ?? null);
 
-  afterEach(() => mock.restore());
+  // An empty config dir, so the device-wrapped key in the real ~/.sikrets is never read.
+  let dir: string;
+  beforeEach(async () => {
+    dir = await mkdtemp(path.join(os.tmpdir(), "sikrets-sdk-"));
+    process.env[CONFIG_DIR_ENV] = dir;
+  });
+  afterEach(async () => {
+    mock.restore();
+    delete process.env[CONFIG_DIR_ENV];
+    await rm(dir, { recursive: true, force: true });
+  });
 
   test("a sealed keychain value is opened with the user's data key", async () => {
     keychain({ [`${DATA_KEY.service}/${DATA_KEY.name}`]: dataKey.toString("base64"), "dev.sikrets.vault.demo/API_KEY": sealed("demo", "API_KEY", REAL) });

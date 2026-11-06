@@ -22,6 +22,12 @@ export const ENV = {
   bw: "SIKRETS_BW",
   /** 1Password CLI command to run instead of `op`. */
   op: "SIKRETS_OP",
+  /** "software" makes a new device identity use software keys even where a Secure Enclave exists. */
+  deviceKeys: "SIKRETS_DEVICE_KEYS",
+  /** Sikrets server that `sikrets login` registers this device with. */
+  server: "SIKRETS_SERVER",
+  /** Set to 1 to run the opt-in Secure Enclave smoke test (silent: no Touch ID, no dialogs). */
+  enclaveSmoke: "SIKRETS_ENCLAVE_SMOKE",
 } as const;
 
 // ── Files and folders ─────────────────────────────────────────────────────
@@ -210,6 +216,67 @@ export const DOORMAN = {
   dialogTimeoutSeconds: 120,
   approveButton: "Approve",
   denyButton: "Deny",
+} as const;
+
+// ── Device identity ───────────────────────────────────────────────────────
+// Two P-256 keys per device: one signs request proofs, one wraps the vault data key. On a Mac with
+// a Secure Enclave both live there (no user presence, so nothing prompts) and only their opaque
+// dataRepresentation blobs are stored; elsewhere they are software keys in 0600 files.
+export const DEVICE = {
+  /** Folder under the user dir holding the key blobs, the wrapped data key and the session. */
+  dir: "device",
+  /** Non-secret: which kind of keys this device has and their public halves. */
+  metaFile: "device.json",
+  signingKey: "signing.key",
+  agreementKey: "agreement.key",
+  /** The data key wrapped to this device's key-agreement key. */
+  dataKeyFile: "datakey.json",
+  /** Device id and certificate from `sikrets login`. */
+  sessionFile: "session.json",
+  /** Compiled Secure Enclave helper (under DOORMAN.binDir), plus a stable link the SDK runs. */
+  helperName: "sikrets-device",
+  forceSoftware: "software",
+  /** Wrapping the data key: ephemeral ECDH, HKDF-SHA256, AES-256-GCM (same values in the SDK). */
+  wrapSalt: "sikrets-datakey-wrap",
+  wrapInfo: "sikrets-datakey-wrap-v1",
+  wrapAad: "sikrets-datakey-v1",
+  ivBytes: 12,
+  /** Hex characters of a key thumbprint shown or stored to tell keys apart. */
+  thumbprintChars: 16,
+} as const;
+
+// Device sign-in and per-request proof of possession, in the style of DPoP (RFC 9449): every
+// request carries a JWS by the device key over method, URL, time, a one-time nonce and the body
+// hash. The hosted server doesn't exist yet; tests run against a local fake (testing/device-server.ts).
+export const DEVICE_AUTH = {
+  /** Where `sikrets login` goes without --server or SIKRETS_SERVER: the local fake server. */
+  defaultServer: "http://127.0.0.1:4873",
+  fakeServerPort: 4873,
+  paths: {
+    authorize: "/v1/devices/authorize",
+    token: "/v1/devices/token",
+    /** Stands in for the browser approval page until the real sign-in flow exists. */
+    approve: "/v1/devices/approve",
+    devices: "/v1/devices",
+    revoke: (id: string) => `/v1/devices/${encodeURIComponent(id)}/revoke`,
+    me: "/v1/me",
+  },
+  proofHeader: "sikrets-device-proof",
+  proofType: "sikrets-device-proof+jwt",
+  certificateType: "sikrets-device-cert+jwt",
+  alg: "ES256",
+  /** How far a proof's timestamp may be from the server's clock either way. */
+  clockSkewSeconds: 60,
+  /** How long a nonce is remembered; longer than the skew window, so a replay is always caught. */
+  nonceTtlSeconds: 300,
+  nonceBytes: 16,
+  /** The token endpoint's answer while the person hasn't approved yet (RFC 8628 wording). */
+  pending: "authorization_pending",
+  pollIntervalMs: 1000,
+  approvalTimeoutMs: 5 * 60_000,
+  userCodeChars: 8,
+  deviceIdPrefix: "dev_",
+  requestIdPrefix: "dar_",
 } as const;
 
 // `sikrets mcp`. Output is scrubbed of secret values before it reaches the agent; values shorter

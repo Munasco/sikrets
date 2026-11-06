@@ -7,8 +7,24 @@ export const STAND_IN_PATTERN = /^sk-sikrets-[A-Za-z0-9]{32}$/;
 export const KEY_PATTERN = /^[A-Z][A-Z0-9_]{0,127}$/;
 export const SSM_PREFIX = "/sikrets";
 export const keychainVaultService = (project: string) => `dev.sikrets.vault.${project}`;
-/** Keychain slot holding the user's data key (written by the CLI). */
+/** Keychain slot where CLIs before device keys kept the raw data key. */
 export const DATA_KEY = { service: "dev.sikrets.datakey", name: "default" } as const;
+/** The per-user folder the CLI writes (packages/cli/src/constants.ts ENV.configDir, USER_DIR). */
+export const CONFIG_DIR_ENV = "SIKRETS_CONFIG_DIR";
+export const USER_DIR = ".sikrets";
+/** Where the CLI keeps the data key wrapped to this device, and how it wraps it (CLI DEVICE). */
+export const DEVICE = {
+  dir: "device",
+  metaFile: "device.json",
+  agreementKey: "agreement.key",
+  dataKeyFile: "datakey.json",
+  /** Stable link to the CLI's compiled Secure Enclave helper, relative to the user folder. */
+  helper: "bin/sikrets-device",
+  wrapSalt: "sikrets-datakey-wrap",
+  wrapInfo: "sikrets-datakey-wrap-v1",
+  wrapAad: "sikrets-datakey-v1",
+  thumbprintChars: 16,
+} as const;
 /** Client-side encryption: the same envelope the CLI writes (packages/cli/src/constants.ts ENVELOPE). */
 export const ENVELOPE = {
   prefix: "sk1:",

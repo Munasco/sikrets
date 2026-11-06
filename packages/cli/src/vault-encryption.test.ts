@@ -5,6 +5,7 @@ import path from "node:path";
 import { readActivity } from "./core/activity.ts";
 import { clipboard } from "./core/clipboard.ts";
 import { ensureDataKey, loadDataKey } from "./core/datakey.ts";
+import { resetDevice } from "./core/device.ts";
 import { native } from "./core/doorman.ts";
 import { envelopeKind, openValue, projectKey, sealValue } from "./core/envelope.ts";
 import { Secret } from "./core/secret.ts";
@@ -165,7 +166,7 @@ describe("sealed vault", () => {
     const vault = await openVault("demo", "keychain");
     await vault.put("API_KEY", Secret.of(REAL));
     expect(await loadDataKey()).toBeDefined();
-    keychain.delete("dev.sikrets.datakey/default");
+    await resetDevice(); // a new device: no device keys, no wrapped data key
     await expect(vault.get("API_KEY")).rejects.toThrow("sikrets recovery restore");
     // Nor does it mint a fresh key next to sealed values it can't open.
     await expect(vault.put("API_KEY", Secret.of(REAL))).rejects.toThrow("sikrets recovery restore");
@@ -174,7 +175,7 @@ describe("sealed vault", () => {
 
   test("ssm: a new device refuses to write while the project holds sealed values", async () => {
     await (await openVault("demo", "ssm", { ssm: fakeSsm })).put("API_KEY", Secret.of(REAL));
-    keychain.delete("dev.sikrets.datakey/default");
+    await resetDevice(); // a new device: no device keys, no wrapped data key
     await expect((await openVault("demo", "ssm", { ssm: fakeSsm })).put("OTHER_KEY", Secret.of(REAL))).rejects.toThrow("sikrets recovery restore");
   });
 

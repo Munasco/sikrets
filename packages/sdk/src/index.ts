@@ -8,11 +8,13 @@
 //   1. The environment already holds the real value (under `sikrets run`, or injected in prod) → use it.
 //   2. It holds a stand-in, or nothing → fetch the real value from the project's vault with the
 //      app's own credentials (an IAM role in production, your AWS profile locally). The CLI seals
-//      values on the client, so opening them also takes the user's data key from the keychain.
+//      values on the client, so opening them also takes the user's data key, which the CLI keeps
+//      wrapped to this device (see datakey.ts).
 // Values are cached briefly so a rotated key is picked up without a restart.
 
 import { createDecipheriv, hkdfSync } from "node:crypto";
-import { DATA_KEY, DEFAULT_TTL_MS, DEFAULT_VAULT, ENV, ENVELOPE, KEY_PATTERN, keychainVaultService, SSM_PREFIX, STAND_IN_PATTERN } from "./constants.ts";
+import { loadDataKey } from "./datakey.ts";
+import { DEFAULT_TTL_MS, DEFAULT_VAULT, ENV, ENVELOPE, KEY_PATTERN, keychainVaultService, SSM_PREFIX, STAND_IN_PATTERN } from "./constants.ts";
 
 export type VaultName = "ssm" | "keychain";
 
@@ -65,15 +67,15 @@ function defaultProject(env: SikretsOptions["env"]): string {
 const bunSecrets = () => (globalThis as { Bun?: { secrets: { get(o: { service: string; name: string }): Promise<string | null> } } }).Bun?.secrets;
 
 /**
- * Opens a value the CLI sealed on the client (`sk1:…`) with the data key from this user's keychain.
+ * Opens a value the CLI sealed on the client (`sk1:…`) with this user's data key on this device.
  * Legacy plaintext passes through. Errors name the key, never the value.
  */
 async function openSealed(project: string, key: string, stored: string | undefined): Promise<string | undefined> {
   if (!stored || !ENVELOPE.versionPattern.test(stored)) return stored;
   if (!stored.startsWith(ENVELOPE.prefix)) throw new Error("written by a newer Sikrets; update @sikrets/sdk");
-  const dataKey = await bunSecrets()?.get(DATA_KEY);
+  const dataKey = await loadDataKey(bunSecrets());
   if (!dataKey) throw new Error("the value is encrypted on the client and this process has no Sikrets data key (run under `sikrets run`, or on a machine where `sikrets recovery restore` has run)");
-  const k = Buffer.from(hkdfSync("sha256", Buffer.from(dataKey, "base64"), ENVELOPE.hkdfSalt, ENVELOPE.hkdfInfo(project), 32));
+  const k = Buffer.from(hkdfSync("sha256", dataKey, ENVELOPE.hkdfSalt, ENVELOPE.hkdfInfo(project), 32));
   const raw = Buffer.from(stored.slice(ENVELOPE.prefix.length), "base64");
   try {
     const decipher = createDecipheriv("aes-256-gcm", k, raw.subarray(0, ENVELOPE.ivBytes)).setAAD(Buffer.from(ENVELOPE.aad(project, key)));

@@ -1,11 +1,13 @@
 import path from "node:path";
-import { ensureDataKey, fingerprint, loadDataKey, saveDataKey } from "../core/datakey.ts";
+import { ensureDataKey, fingerprint, forgetDataKey, loadDataKey, saveDataKey } from "../core/datakey.ts";
+import { DeviceMismatchError, resetDevice, thisDevice } from "../core/device.ts";
 import { isShare, newCode, readRecord, recoveryFile, secretFrom, unwrap, wrap, writeRecord, type RecoveryRecord } from "../core/recovery.ts";
 import { log, promptHidden, promptLine } from "../ui.ts";
 import { RECOVERY } from "../constants.ts";
 
 // sikrets recovery [status|setup|restore|rotate]. The code is shown exactly once, only to a person
 // at a terminal, and never written anywhere by Sikrets; only the wrapped data key is stored.
+// Restoring wraps the data key to this device's own key, so the result only opens here.
 
 export async function run(args: string[], opts: Record<string, unknown>) {
   const action = args[0] ?? "status";
@@ -23,8 +25,11 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   }
 }
 
+/** This device's data key, or undefined when it has none or only one wrapped for another device. */
+const usableDataKey = () => loadDataKey().catch((error) => (error instanceof DeviceMismatchError ? undefined : Promise.reject(error)));
+
 async function status(opts: Record<string, unknown>) {
-  const [record, key] = [await readRecord(), await loadDataKey()];
+  const [record, key] = [await readRecord(), await usableDataKey()];
   const out = {
     setUp: Boolean(record),
     createdAt: record?.createdAt,
@@ -78,10 +83,21 @@ async function restore(opts: Record<string, unknown>, say: (m: string) => void) 
   const secret = secretFrom(await readCodes(opts, record));
   say("Checking the code…");
   const key = await unwrap(record, secret);
-  const current = await loadDataKey();
-  if (current && fingerprint(current) === record.fingerprint) return say("This device already has that data key. Nothing changed.");
-  if (current && !opts.force) throw new Error("This device already has a different data key. Re-run with --force to replace it");
+  const current = await loadDataKey().catch((error) => (error instanceof DeviceMismatchError ? error : Promise.reject(error)));
+  if (current instanceof DeviceMismatchError) {
+    // A wrapped key copied from another device (or wrapped to keys this device has since lost).
+    if (!opts.force) throw new Error("The data key here was wrapped for a different device. Re-run with --force to replace it");
+  } else if (current && fingerprint(current) === record.fingerprint) {
+    return say("This device already has that data key. Nothing changed.");
+  } else if (current && !opts.force) {
+    throw new Error("This device already has a different data key. Re-run with --force to replace it");
+  }
 
+  if (opts.force) {
+    await forgetDataKey();
+    // Device keys copied from another Mac don't work in this one's Secure Enclave: start fresh.
+    if (!(await (await thisDevice()).works())) await resetDevice();
+  }
   await saveDataKey(key);
   if (file !== recoveryFile()) await writeRecord(record);
   if (opts.json) console.log(JSON.stringify({ restored: true, fingerprint: record.fingerprint }));
