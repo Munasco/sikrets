@@ -237,7 +237,7 @@ export const commands: CommandSpec[] = [
   },
   {
     name: "server",
-    description: "Run a Sikrets server on this machine (SQLite in ~/.sikrets): it stores only ciphertext and signs you in automatically",
+    description: "Run a local development server on this machine (SQLite in ~/.sikrets, not for production): it stores only ciphertext and signs you in automatically",
     arguments: [],
     options: [
       { name: "port", type: "string", argument: "PORT", description: `Port on ${SERVER.localHost} (default: ${SERVER.localPort})` },

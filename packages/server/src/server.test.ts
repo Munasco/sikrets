@@ -11,7 +11,7 @@ import { sqliteStore } from "./sqlite.ts";
 import type { Store } from "./store.ts";
 import { envelope, testDevice } from "./testing/client.ts";
 import { fakeDynamo } from "./testing/fake-dynamo.ts";
-import { ENV, PROTOCOL, VALUES } from "./constants.ts";
+import { DEV_ON, ENV, PROTOCOL, VALUES } from "./constants.ts";
 
 // The HTTP API, in-process: sign-in, proofs, devices, sealed values and the audit log. Devices are
 // software keys made per test; values are placeholder envelopes, never real secrets.
@@ -297,21 +297,30 @@ describe("storage adapters behind the API", () => {
 
 describe("config and startup", () => {
   test("auto approval only on loopback; bad settings fail loudly", () => {
-    expect(readConfig({ [ENV.dataDir]: "/tmp/x" })).toMatchObject({ host: "127.0.0.1", port: 4873, store: { kind: "sqlite", dir: "/tmp/x" } });
-    expect(() => readConfig({ [ENV.dataDir]: "/tmp/x", [ENV.host]: "0.0.0.0" })).toThrow("only listens on this machine");
-    expect(readConfig({ [ENV.dataDir]: "/tmp/x", [ENV.host]: "0.0.0.0", [ENV.approval]: "manual" }).approval.mode).toBe("manual");
-    expect(readConfig({ [ENV.store]: "aws", [ENV.table]: "t" }).store).toEqual({ kind: "aws", table: "t", region: "us-east-1" });
-    expect(() => readConfig({})).toThrow(ENV.dataDir);
-    expect(() => readConfig({ [ENV.dataDir]: "/tmp/x", [ENV.store]: "postgres" })).toThrow("sqlite");
-    expect(() => readConfig({ [ENV.dataDir]: "/tmp/x", [ENV.approval]: "yes" })).toThrow("auto");
-    expect(() => readConfig({ [ENV.dataDir]: "/tmp/x", [ENV.port]: "http" })).toThrow("port");
-    expect(() => readConfig({ [ENV.dataDir]: "/tmp/x", [ENV.publicUrl]: "sikrets.example.com" })).toThrow("origin");
+    const dev = { [ENV.store]: "sqlite", [ENV.dataDir]: "/tmp/x" };
+    expect(readConfig(dev)).toMatchObject({ host: "127.0.0.1", port: 4873, store: { kind: "sqlite", dir: "/tmp/x" } });
+    expect(() => readConfig({ [ENV.host]: "0.0.0.0" })).toThrow("only listens on this machine");
+    expect(readConfig({ [ENV.host]: "0.0.0.0", [ENV.approval]: "manual" }).approval.mode).toBe("manual");
+    expect(readConfig({ [ENV.table]: "t" }).store).toEqual({ kind: "aws", table: "t", region: "us-east-1" });
+    expect(() => readConfig({ [ENV.store]: "sqlite" })).toThrow(ENV.dataDir);
+    expect(() => readConfig({ [ENV.store]: "postgres" })).toThrow("aws");
+    expect(() => readConfig({ [ENV.approval]: "yes" })).toThrow("auto");
+    expect(() => readConfig({ [ENV.port]: "http" })).toThrow("port");
+    expect(() => readConfig({ [ENV.publicUrl]: "sikrets.example.com" })).toThrow("origin");
+  });
+
+  test("DynamoDB by default; SQLite is development only and stays on this machine unless the dev flag is set", () => {
+    expect(readConfig({}).store).toEqual({ kind: "aws", table: "sikrets", region: "us-east-1" });
+    const shared = { [ENV.store]: "sqlite", [ENV.dataDir]: "/tmp/x", [ENV.host]: "0.0.0.0", [ENV.approval]: "manual" };
+    expect(() => readConfig(shared)).toThrow(`set ${ENV.dev}=${DEV_ON}`);
+    expect(() => readConfig({ ...shared, [ENV.dev]: "true" })).toThrow(ENV.dev);
+    expect(readConfig({ ...shared, [ENV.dev]: DEV_ON }).store).toEqual({ kind: "sqlite", dir: "/tmp/x" });
   });
 
   test("listens on localhost with SQLite on disk; the certificate key and values survive a restart", async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), "sikrets-server-run-"));
     try {
-      const config = readConfig({ [ENV.dataDir]: dir, [ENV.port]: "0" });
+      const config = readConfig({ [ENV.store]: "sqlite", [ENV.dataDir]: dir, [ENV.port]: "0" });
       const first = await startServer(config);
       const info = await (await fetch(`${first.url}${P.info}`)).json();
       first.stop();

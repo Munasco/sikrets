@@ -4,8 +4,9 @@ import { configDir } from "../store.ts";
 import { log } from "../ui.ts";
 import { SERVER } from "../constants.ts";
 
-// sikrets server: a Sikrets server for one person on this machine, with SQLite in ~/.sikrets.
-// It listens on 127.0.0.1 only and approves sign-ins from this machine automatically, so the CLI
+// sikrets server: a local development server for one person on this machine, with SQLite in
+// ~/.sikrets. SQLite is the dev/test store, not a production option: a deployed server runs on
+// DynamoDB (packages/server, `bun run start`). It listens on 127.0.0.1 only and approves sign-ins from this machine automatically, so the CLI
 // signs in on first use. It still only ever stores ciphertext. Point the CLI at it with
 // `sikrets login --server <url>` (or SIKRETS_SERVER, or "server" in sikrets.json).
 
@@ -27,6 +28,7 @@ export async function run(_args: string[], opts: Record<string, unknown>) {
   if (port !== undefined && (!Number.isInteger(port) || port < 0 || port > 65535)) throw new Error("--port must be a port number");
   const dataDir = typeof opts.data === "string" ? path.resolve(opts.data) : undefined;
   const server = await startLocal({ port, dataDir });
+  log(opts, "Local development server (SQLite). For production, deploy packages/server on DynamoDB.");
   log(opts, `Sikrets server on ${server.url}, data in ${dataDir ?? path.join(configDir(), SERVER.dataDir)}. Sign-ins from this machine are approved automatically.`);
   log(opts, `Use it: sikrets login --server ${server.url}   (Ctrl-C stops it)`);
   await new Promise<void>((resolve) => {

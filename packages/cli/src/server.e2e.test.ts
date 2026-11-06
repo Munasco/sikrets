@@ -138,6 +138,7 @@ describe("sikrets server, end to end", () => {
       }
       reader.releaseLock();
       const url = banner.match(/http:\/\/127\.0\.0\.1:\d+/)![0];
+      expect(banner).toContain("Local development server");
       expect(banner).toContain("approved automatically");
       process.env[ENV.server] = url;
       // No `sikrets login`: a server that approves sign-ins itself is signed in to on first use.

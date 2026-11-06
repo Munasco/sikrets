@@ -10,10 +10,12 @@ export const API_VERSION = 1;
 export const ENV = {
   host: "SIKRETS_SERVER_HOST",
   port: "SIKRETS_SERVER_PORT",
-  /** "sqlite" (default) or "aws" (DynamoDB). */
+  /** "aws" (DynamoDB, the default and the one supported store) or "sqlite" (local development and tests only). */
   store: "SIKRETS_SERVER_STORE",
   /** SQLite: folder for the database file. */
   dataDir: "SIKRETS_SERVER_DATA",
+  /** "1" lets the dev SQLite store listen beyond this machine (a shared dev box). Never in production. */
+  dev: "SIKRETS_SERVER_DEV",
   /** AWS: DynamoDB table and region. Credentials come from the standard AWS chain. */
   table: "SIKRETS_SERVER_TABLE",
   region: "SIKRETS_SERVER_REGION",
@@ -31,7 +33,7 @@ export const ENV = {
 export const DEFAULTS = {
   host: "127.0.0.1",
   port: 4873,
-  store: "sqlite",
+  store: "aws",
   approval: "auto",
   localUser: "you@localhost",
   table: "sikrets",
@@ -41,6 +43,10 @@ export const DEFAULTS = {
 /** Hosts auto approval may listen on: anyone who can reach the server is signed in. */
 export const LOOPBACK_HOSTS = ["127.0.0.1", "localhost", "::1"];
 
+/** The value of ENV.dev that turns it on. */
+export const DEV_ON = "1";
+
+/** Local development and tests only; production runs on DynamoDB. */
 export const SQLITE = {
   file: "sikrets.db",
   /** ":memory:" keeps everything in the process (tests). */

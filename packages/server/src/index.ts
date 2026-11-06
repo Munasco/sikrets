@@ -8,8 +8,10 @@ import type { Store } from "./store.ts";
 export { createApp, envelopeProblem } from "./app.ts";
 export { autoApproval, manualApproval, type ApprovalPolicy } from "./approval.ts";
 export { readConfig, type ServerConfig } from "./config.ts";
+/** Local development and tests only. */
 export { sqliteStore } from "./sqlite.ts";
-export type { Store } from "./store.ts";
+export { byName, type AuditEvent, type DeviceKind, type DeviceRecord, type Scope, type SignIn, type Store, type StoredValue, type ValueInfo } from "./store.ts";
+// The contract suite imports bun:test, so it is its own entry: "@sikrets/server/store-contract".
 
 export interface RunningServer {
   url: string;
@@ -17,7 +19,7 @@ export interface RunningServer {
   stop(): void;
 }
 
-/** Opens the configured store. The AWS SDK is only loaded for the aws store. */
+/** Opens the configured store: DynamoDB, or SQLite for local development. The AWS SDK is only loaded for the aws store. */
 export async function openStore(config: ServerConfig["store"]): Promise<Store> {
   if (config.kind === "sqlite") return sqliteStore(config.dir);
   const [{ DynamoDBClient }, { dynamoStore }] = await Promise.all([import("@aws-sdk/client-dynamodb"), import("./dynamo.ts")]);

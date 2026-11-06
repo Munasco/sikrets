@@ -1,6 +1,8 @@
-// What the server keeps, behind one interface with two adapters: SQLite (sqlite.ts, the default
-// and what `sikrets server` runs) and DynamoDB (dynamo.ts). Values are `sk1:` envelopes sealed on
-// the client; nothing here can open them. Both adapters pass the same contract suite.
+// What the server keeps, behind one interface. The one supported production adapter is DynamoDB
+// (dynamo.ts). SQLite (sqlite.ts) is the local development and test store behind `sikrets server`,
+// not a production option. Other vendors implement Store themselves and prove it with the contract
+// suite (store-contract.ts); see "Writing a storage adapter" in the README. Values are `sk1:`
+// envelopes sealed on the client; nothing here can open them.
 
 export type DeviceKind = "secure-enclave" | "software";
 

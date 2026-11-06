@@ -4,8 +4,9 @@ import path from "node:path";
 import { byName, type AuditEvent, type DeviceRecord, type Scope, type SignIn, type Store, type StoredValue } from "./store.ts";
 import { SQLITE } from "./constants.ts";
 
-// The SQLite adapter: one file in the data folder (owner-only), or in memory for tests. Records
-// that are only ever read whole are kept as JSON next to the columns they are looked up by.
+// The SQLite store, for local development and tests only (`sikrets server`, test suites); production
+// runs on DynamoDB. One file in the data folder (owner-only), or in memory for tests. Records that
+// are only ever read whole are kept as JSON next to the columns they are looked up by.
 
 const SCHEMA = `
   create table if not exists nonces (jti text primary key, expires_at integer not null);

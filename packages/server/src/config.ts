@@ -1,5 +1,5 @@
 import { autoApproval, manualApproval, type ApprovalPolicy } from "./approval.ts";
-import { DEFAULTS, ENV, LOOPBACK_HOSTS, VALUES } from "./constants.ts";
+import { DEFAULTS, DEV_ON, ENV, LOOPBACK_HOSTS, VALUES } from "./constants.ts";
 
 // Server settings from the environment. Strict: a typo fails at start instead of running with a
 // default nobody chose.
@@ -7,7 +7,8 @@ import { DEFAULTS, ENV, LOOPBACK_HOSTS, VALUES } from "./constants.ts";
 export interface ServerConfig {
   host: string;
   port: number;
-  store: { kind: "sqlite"; dir: string } | { kind: "aws"; table: string; region: string };
+  /** DynamoDB in production; SQLite for local development and tests only. */
+  store: { kind: "aws"; table: string; region: string } | { kind: "sqlite"; dir: string };
   approval: ApprovalPolicy;
   publicUrl?: string;
   /** Default: VALUES.maxValueBytes. */
@@ -22,11 +23,14 @@ export function readConfig(env: Record<string, string | undefined> = process.env
   const kind = env[ENV.store] || DEFAULTS.store;
   let store: ServerConfig["store"];
   if (kind === "sqlite") {
+    // SQLite is the local development and test store, not a production option: past this machine
+    // it needs an explicit dev flag.
+    if (!LOOPBACK_HOSTS.includes(host) && env[ENV.dev] !== DEV_ON) throw new Error(`SQLite is for local development only; production uses ${ENV.store}=aws. To serve ${host} with SQLite anyway, set ${ENV.dev}=${DEV_ON}`);
     const dir = env[ENV.dataDir] || defaults.dataDir;
     if (!dir) throw new Error(`Set ${ENV.dataDir} to the folder the SQLite database lives in`);
     store = { kind, dir };
   } else if (kind === "aws") store = { kind, table: env[ENV.table] || DEFAULTS.table, region: env[ENV.region] || env.AWS_REGION || DEFAULTS.region };
-  else throw new Error(`${ENV.store} must be "sqlite" or "aws", not "${kind}"`);
+  else throw new Error(`${ENV.store} must be "aws" or "sqlite" (development only), not "${kind}"`);
 
   const publicUrl = env[ENV.publicUrl] || undefined;
   if (publicUrl && !/^https?:\/\/[^/]+\/?$/.test(publicUrl)) throw new Error(`${ENV.publicUrl} must be an origin like https://sikrets.example.com`);
