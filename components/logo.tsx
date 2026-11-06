@@ -1,10 +1,14 @@
-/** The Sikrets mark, drawn in the current text colour so it works on paper and on dark panels. */
+/** The Sikrets logo: a white arch with a keyhole on a green tile. */
 export function SikretsMark({ size = 20 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" aria-hidden>
-      <rect x="1" y="1" width="18" height="18" stroke="currentColor" strokeOpacity="0.45" strokeWidth="1.5" />
-      <circle cx="8" cy="10" r="3" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M11 10H16M14 10V12.5" stroke="currentColor" strokeWidth="1.5" />
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden>
+      <rect width="24" height="24" rx="6" fill="#1f4a3a" />
+      <path
+        d="M4 22V10.5a8 8 0 0 1 16 0V22zM12 9.2a2.2 2.2 0 0 0-1.1 4.1L10.4 18h3.2l-.5-4.7A2.2 2.2 0 0 0 12 9.2z"
+        fill="#fbfaf7"
+        fillRule="evenodd"
+        transform="translate(3.6 3.4) scale(.7)"
+      />
     </svg>
   )
 }
