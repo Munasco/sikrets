@@ -237,8 +237,9 @@ export const DB_URL = {
   localHost: /^(?:localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|\[?::1\]?|host\.docker\.internal|[a-z0-9_-]+|.*\.(?:test|example|invalid|local|localhost)|(?:.*\.)?example\.(?:com|org|net))$/,
 };
 
-/** A provider-shaped value that says it's a stand-in. */
-export const FAKE_MARKER = /EXAMPLE|FAKE|DUMMY|PLACEHOLDER|XXXXXX|REDACTED/i;
+/** A value that says it's a stand-in, or was typed rather than generated (a keyboard row, the
+ * alphabet, counting up): random keys don't do that. */
+export const FAKE_MARKER = /EXAMPLE|FAKE|DUMMY|PLACEHOLDER|XXXXXX|REDACTED|abcdefgh|bcdefghi|cdefghij|ijklmnop|qrstuvwx|12345678|23456789|qwertyui|asdfghjk|(.)\1{7}/i;
 
 /** The model's second look at generic findings the rules leave unsure (src/review.ts). It goes
  * the way the agent's own model calls go (MODEL.host, the instance's relay), so it needs no key of
@@ -258,6 +259,7 @@ export const REVIEW = {
   lineChars: 160,
   mask: "‹VALUE›",
   other: "‹REDACTED›",
+  withheld: "‹line withheld›",
   /** Provider prefixes the model may be told a value starts with; nothing else of a value is sent. */
   prefixes: ["sk_live_", "sk_test_", "rk_live_", "rk_test_", "pk_live_", "pk_test_", "whsec_", "ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_", "glpat-", "xoxb-", "xoxp-", "xoxa-", "xoxs-", "AKIA", "ASIA", "AIza", "SG.", "hf_", "npm_", "sk-ant-", "sk-proj-", "sk-svcacct-", "sk-", "re_", "eyJ", "dop_v1_", "shpat_", "key-", "AGE-SECRET-KEY-"],
 };

@@ -125,6 +125,9 @@ export function redact(secret: string): string {
 
 export const PLACEHOLDER = /^(?:https?:\/\/|\.{0,2}\/|x{6,}$|\*{4,}|\.{3,}|<[^>]+>|\$\{?[A-Z_]+\}?|your[_-]|example|changeme|placeholder|dummy|test[_-]?(?:key|token)|process\.env|os\.environ|env\()/i;
 
+/** The header line, then (after any `Proc-Type:` style headers) the base64 body. */
+const PEM_BODY = /PRIVATE KEY(?: BLOCK)?-----(?:\\[rn]|\s)+(?:[\w-]+: [^\n]*(?:\\[rn]|\s)+)*[A-Za-z0-9+/=]{20}/;
+
 /** A database URL's password that could be real: not a template, not the user's name or a
  * default, and not for a database on this machine or an example host. */
 function realDbPassword(url: string, password: string): boolean {
@@ -173,7 +176,7 @@ function* matches(text: string, file?: string, redacting = false) {
   }
 }
 
-function allowed(a: Allow, secret: string, m: RegExpMatchArray, text: string, file?: string): boolean {
+export function allowed(a: Allow, secret: string, m: RegExpMatchArray, text: string, file?: string): boolean {
   const at = m.index ?? 0;
   const target = a.target === "secret" ? secret : a.target === "match" ? m[0] : text.slice(text.lastIndexOf("\n", at - 1) + 1, (text.indexOf("\n", at + m[0].length) + 1 || text.length + 1) - 1);
   const hits: boolean[] = [];
@@ -204,6 +207,9 @@ export function extract(text: string, file?: string, opts: { redacting?: boolean
   // Where accepted secrets sit, so a later rule doesn't report part of a key an earlier one found.
   const spans: [number, number][] = [];
   for (const { p, m, value, confidence, detail } of matches(text, file, redacting)) {
+    // A PEM header with no key body after it is code that looks for one (gitleaks' rule spans to
+    // the END line, wherever that is).
+    if (p.id === "private-key" && !PEM_BODY.test(value)) continue;
     if (p.id === "db-url" && (redacting ? PLACEHOLDER.test(m[2] ?? "") : !realDbPassword(m[1]!, m[2] ?? ""))) continue;
     // Provider-shaped, but marked as a fake (AKIA…EXAMPLE, xoxb-test-token-123): a stand-in in a
     // repo's docs and tests. A key someone pasted to ask about is reported whatever it says.

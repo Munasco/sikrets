@@ -1,6 +1,7 @@
 import services from "../data/services.json";
-import { candidates, scan, sha256, redact, type Finding } from "./patterns.ts";
-import { LIMITS } from "./constants.ts";
+import { candidates, extract, sha256, redact, type Finding } from "./patterns.ts";
+import { describe, review, type Review, type ReviewItem, type Reviewer } from "./review.ts";
+import { LIMITS, REVIEW } from "./constants.ts";
 
 // The agent's tools. They run on the server and never hand the model a raw secret: findings are
 // redacted to prefix…last4 plus a SHA-256, which is enough to find the key in a dashboard and
@@ -37,12 +38,65 @@ const ROTATE: Record<string, { url: string; env: string[]; note?: string }> = {
   vercel: { url: "https://vercel.com/account/settings/tokens", env: ["VERCEL_TOKEN"] },
 };
 
+// --- findings ---------------------------------------------------------------------------------
+// Provider findings (a key's own format) come first and are never crowded out. Generic ones
+// (`api_key = "…"`) are listed apart, ranked by confidence; the unsure ones get the model's second
+// look (src/review.ts), which can set aside placeholders and code, or confirm them.
+
+export type Reported = Finding & { review?: Review | "needs review" };
+
+interface Found {
+  provider: Finding[];
+  generic: { finding: Finding; item?: ReviewItem }[];
+}
+
+/** Adds a text's findings; describes the unsure generic ones for review while the value is at hand. */
+function collect(found: Found, text: string, file?: string) {
+  for (const { value, finding, detail } of extract(text, file)) {
+    if (!finding.confidence) found.provider.push(finding);
+    else found.generic.push({ finding, item: finding.confidence === "high" ? undefined : describe(String(found.generic.length), text, value, finding, detail) });
+  }
+}
+
+const RANK = { high: 0, medium: 1, low: 2 };
+
+/** Generic findings ranked and reviewed: high confidence first, then those the model confirmed,
+ * then those still unsure. Those it calls placeholders or code are set aside, with its reason. */
+async function settle(found: Found, reviewer: Reviewer) {
+  const ranked = [...found.generic].sort((a, b) => RANK[a.finding.confidence!] - RANK[b.finding.confidence!]);
+  const items = ranked.flatMap((g) => (g.item ? [g.item] : []));
+  const r = await reviewer(items);
+  const kept: { f: Reported; order: number }[] = [];
+  const dismissed: Reported[] = [];
+  for (const { finding, item } of ranked) {
+    if (finding.confidence === "high") kept.push({ f: finding, order: 0 });
+    else if (!item || !r.reviews.has(item.id)) kept.push({ f: { ...finding, review: "needs review" }, order: 2 });
+    else if (r.reviews.get(item.id)!.verdict === "secret") kept.push({ f: { ...finding, review: r.reviews.get(item.id) }, order: 1 });
+    else dismissed.push({ ...finding, review: r.reviews.get(item.id) });
+  }
+  const generic = kept.sort((a, b) => a.order - b.order).map((k) => k.f);
+  return {
+    generic,
+    dismissed,
+    review: { model: REVIEW.model, asked: items.length, answered: r.reviews.size, failedBatches: r.failed, batchMs: r.latencies, ...(r.skipped ? { skipped: r.skipped } : {}) },
+  };
+}
+
 // --- scan_text --------------------------------------------------------------------------------
 
-export function scanText(input: { text: string }) {
+export async function scanText(input: { text: string }, reviewer: Reviewer = review) {
   const text = String(input.text ?? "").slice(0, LIMITS.textBytes);
-  const findings = scan(text);
-  return { findings, count: findings.length, scannedChars: text.length };
+  const found: Found = { provider: [], generic: [] };
+  collect(found, text);
+  const { generic, dismissed, review: checked } = await settle(found, reviewer);
+  return {
+    findings: found.provider,
+    generic: generic.slice(0, LIMITS.genericFindings),
+    dismissed: dismissed.slice(0, LIMITS.genericFindings),
+    count: found.provider.length + generic.length,
+    scannedChars: text.length,
+    review: checked,
+  };
 }
 
 // --- scan_github_repo -------------------------------------------------------------------------
@@ -83,7 +137,7 @@ export function untar(buf: Uint8Array): TarEntry[] {
   return out;
 }
 
-export async function scanGithubRepo(input: { repo: string; ref?: string }) {
+export async function scanGithubRepo(input: { repo: string; ref?: string }, reviewer: Reviewer = review) {
   const m = /^(?:(?:https?:\/\/)?github\.com\/)?([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/.exec(String(input.repo ?? "").trim());
   if (!m) return { error: "Give the repo as owner/name or a github.com URL." };
   const [, owner, name] = m;
@@ -94,24 +148,32 @@ export async function scanGithubRepo(input: { repo: string; ref?: string }) {
   const gz = new Uint8Array(await res.arrayBuffer());
   if (gz.length > LIMITS.tarballBytes) return { error: `The repo tarball is over ${LIMITS.tarballBytes / 1e6} MB; scan it locally with the Sikrets CLI instead.` };
   const entries = untar(Bun.gunzipSync(gz));
-  const findings: Finding[] = [];
+  const found: Found = { provider: [], generic: [] };
   let files = 0;
   for (const e of entries) {
     const path = e.path.replace(/^[^/]+\//, ""); // drop the "<repo>-<sha>/" root
     if (SKIP_DIR.test(`/${path}`) || SKIP_EXT.test(path) || e.data.length > LIMITS.fileBytes) continue;
     if (e.data.subarray(0, 8000).includes(0)) continue; // binary
     files++;
-    for (const f of scan(new TextDecoder().decode(e.data), path)) {
-      if (findings.length < LIMITS.findings) findings.push(f);
-    }
+    collect(found, new TextDecoder().decode(e.data), path);
   }
+  const { generic, dismissed, review: checked } = await settle(found, reviewer);
+  const link = (f: Reported) => ({ ...f, url: `https://github.com/${owner}/${name}/blob/${ref}/${f.file}#L${f.line}` });
   return {
     repo: `${owner}/${name}`,
     ref,
     filesScanned: files,
-    count: findings.length,
-    truncated: findings.length >= LIMITS.findings,
-    findings: findings.map((f) => ({ ...f, url: `https://github.com/${owner}/${name}/blob/${ref}/${f.file}#L${f.line}` })),
+    count: found.provider.length + generic.length,
+    truncated: found.provider.length > LIMITS.findings || generic.length > LIMITS.genericFindings,
+    /** Keys in a provider's own format: the ones to rotate first. */
+    findings: found.provider.slice(0, LIMITS.findings).map(link),
+    /** `name = value` assignments, most certain first; `review` is the model's second look. */
+    generic: generic.slice(0, LIMITS.genericFindings).map(link),
+    genericCount: generic.length,
+    /** Set aside as placeholders or code by the review, with its reason. */
+    dismissed: dismissed.slice(0, LIMITS.genericFindings).map(link),
+    dismissedCount: dismissed.length,
+    review: checked,
     note: "Only the latest commit was scanned. A key removed in a later commit is still in git history and must be rotated.",
   };
 }
@@ -203,12 +265,12 @@ export async function osvLookup(input: { name: string; version?: string; ecosyst
 
 export const TOOLS = {
   scan_text: {
-    description: "Find leaked credentials (API keys, tokens, private keys, database URLs) in text or code the user pasted. Returns redacted findings with line numbers; never the values.",
+    description: "Find leaked credentials (API keys, tokens, private keys, database URLs) in text or code the user pasted. Returns redacted findings with line numbers, never the values: provider keys in `findings`, `name = value` assignments in `generic` ranked by confidence (with a review verdict when unsure), and what the review set aside in `dismissed`.",
     schema: { type: "object", properties: { text: { type: "string", description: "The text or code to scan." } }, required: ["text"] },
     run: scanText,
   },
   scan_github_repo: {
-    description: "Download a public GitHub repo's latest commit and scan every text file for leaked credentials. Returns redacted findings with file, line and a link.",
+    description: "Download a public GitHub repo's latest commit and scan every text file for leaked credentials. Returns redacted findings with file, line and a link: provider keys in `findings` first, then `name = value` assignments in `generic` ranked by confidence (with a review verdict when unsure), and what the review set aside in `dismissed`.",
     schema: { type: "object", properties: { repo: { type: "string", description: "owner/name or a github.com URL" }, ref: { type: "string", description: "Branch, tag or commit (default: the default branch)." } }, required: ["repo"] },
     run: scanGithubRepo,
   },

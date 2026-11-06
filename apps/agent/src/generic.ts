@@ -1,5 +1,5 @@
 import services from "../data/services.json";
-import { GENERIC } from "./constants.ts";
+import { FAKE_MARKER, GENERIC } from "./constants.ts";
 
 // The generic rule: `api_key = "…"` style assignments with no provider prefix to go on. Names and
 // values in code look like this all the time (`pressed_keys = window.collect_pressed_keys()`,
@@ -97,6 +97,8 @@ export function isWordy(value: string): boolean {
     .replace(/([A-Z])([A-Z][a-z])/g, "$1 $2")
     .split(/[^A-Za-z0-9]+|(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])/)
     .filter(Boolean);
+  // A capitals run inside mixed-case letters (`kZQXRTBVa`) is a random string's, not an acronym's.
+  if (value.split(/[^A-Za-z]+/).some((run) => /[a-z]/.test(run) && /[A-Z]{4,}/.test(run))) return false;
   let letters = 0;
   let count = 0;
   let word = false;
@@ -153,8 +155,8 @@ export function judge(m: RegExpMatchArray, text: string, file: string | undefine
     if (text[(m.index ?? 0) + whole.length + run.length] !== quote) return undefined;
     value = run.replace(GENERIC.authScheme, "");
   } else {
-    // In source code an unquoted value is an expression, never a literal; a plural name
-    // (`keys = …`) holds a collection, not a key.
+    // In source code an unquoted value is an expression, never a literal; and a name that could
+    // be anything's (`keys = …`, a bare `key:`) counts only with a quoted literal.
     if (kind === "code" || strength < 2) return undefined;
     value = /^\S*/.exec(run)![0];
     // `KEY=value # comment` and YAML's `key: value` end at whitespace; trailing commas and
@@ -165,6 +167,8 @@ export function judge(m: RegExpMatchArray, text: string, file: string | undefine
   if (/\s/.test(value) || GENERIC.interpolation.test(value) || GENERIC.quotedCode.test(value)) return undefined;
   if (placeholder.test(value) || GENERIC.notSecret.test(value)) return undefined;
   if (isIdentifier(value)) return undefined;
+  // Says it's a stand-in (`ghp_EXAMPLE…`) in a repo's file; pasted in chat it's still asked about.
+  if (!redacting && file && FAKE_MARKER.test(value)) return undefined;
   const h = entropy(value);
   if (h < GENERIC.entropy) return undefined;
   const inTest = Boolean(file && GENERIC.testPath.test(file));

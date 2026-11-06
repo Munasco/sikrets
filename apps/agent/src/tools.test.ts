@@ -12,9 +12,9 @@ const FAKE = {
 };
 
 describe("scan", () => {
-  test("finds provider keys with their lines and never returns the value", () => {
+  test("finds provider keys with their lines and never returns the value", async () => {
     const text = `const a = 1;\nGITHUB_TOKEN=${FAKE.github}\nstripe.key = "${FAKE.stripe}"\naws_access_key_id = ${FAKE.aws}\nRESEND=${FAKE.resend}`;
-    const { findings } = scanText({ text });
+    const { findings } = await scanText({ text });
     const types = findings.map((f) => f.type);
     expect(types).toEqual(expect.arrayContaining(["github-token", "stripe-key", "aws-access-key", "resend-key"]));
     expect(findings.find((f) => f.type === "github-token")!.line).toBe(2);

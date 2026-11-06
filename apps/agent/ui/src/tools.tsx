@@ -15,12 +15,16 @@ interface Finding {
   line?: number;
   file?: string;
   url?: string;
+  /** Generic findings: how sure the rule is, and the model's second look when it wasn't. */
+  confidence?: "high" | "medium" | "low";
+  review?: { verdict: string; reason: string } | "needs review";
 }
 
 type Result = {
   error?: string;
   count?: number;
   findings?: Finding[];
+  generic?: Finding[];
   filesScanned?: number;
   matched?: number;
   matches?: Array<{ sha256: string; redacted: string; file?: string }>;
@@ -76,7 +80,7 @@ export function ToolRow({ part }: { part: ToolPart }) {
   const d = describe(part, r);
   const live = part.state.status === "pending" || part.state.status === "running";
   const failed = part.state.status === "error" || Boolean(r?.error);
-  const found = (r?.findings?.length ?? 0) + (r?.matched ?? 0) > 0;
+  const found = (r?.findings?.length ?? 0) + (r?.generic?.length ?? 0) + (r?.matched ?? 0) > 0;
   const Icon = d.icon;
   return (
     <div className="text-[13px]">
@@ -96,12 +100,25 @@ export function ToolRow({ part }: { part: ToolPart }) {
   );
 }
 
+/** A generic finding's confidence, with the review's reason on hover. */
+function Sureness({ f }: { f: Finding }) {
+  if (!f.confidence) return null;
+  const label = f.review === "needs review" ? "unreviewed" : f.review ? "confirmed" : f.confidence;
+  const tip = typeof f.review === "object" ? f.review.reason : f.review === "needs review" ? "The second look didn't answer; check it yourself." : `${f.confidence} confidence`;
+  return (
+    <Tip label={tip}>
+      <span tabIndex={0} className="font-mono text-[11px] text-faint">{label}</span>
+    </Tip>
+  );
+}
+
 function Details({ result: r }: { result: Result }) {
+  const findings = [...(r.findings ?? []), ...(r.generic ?? [])];
   return (
     <div className="mb-1 ms-7 mt-0.5 max-h-96 overflow-auto rounded-lg border border-line-soft bg-white text-[12.5px]">
-      {r.findings?.length ? (
+      {findings.length ? (
         <ul className="divide-y divide-line-soft">
-          {r.findings.map((f, i) => (
+          {findings.map((f, i) => (
             <li key={i} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 px-3 py-2">
               <ShieldAlert className="size-3.5 text-rust" aria-hidden />
               <span className="font-medium">{f.name}</span>
@@ -113,6 +130,7 @@ function Details({ result: r }: { result: Result }) {
               <Tip label={`SHA-256 ${f.sha256}`}>
                 <span tabIndex={0} className="font-mono text-[11px] text-faint">#{f.sha256.slice(0, 8)}</span>
               </Tip>
+              <Sureness f={f} />
             </li>
           ))}
         </ul>
