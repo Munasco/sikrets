@@ -178,11 +178,97 @@ export const GITLEAKS = {
   notServices: ["age", "curl"],
 };
 
+/** The generic `name = value` rule (src/generic.ts). */
+export const GENERIC = {
+  /** Source code: there, only a quoted string literal is a value; `key = expr` is code. */
+  code: /\.(?:rs|ts|tsx|mts|cts|js|jsx|mjs|cjs|py|pyi|go|java|kt|kts|scala|swift|m|mm|c|h|cc|cpp|cxx|hpp|cs|fs|vb|rb|php|dart|lua|ex|exs|erl|hs|ml|clj|cljs|groovy|vue|svelte|astro|zig|nim|jl|r|sol|elm|graphql|gql|proto|sql|patch|diff)$/i,
+  /** Config, where `KEY=value` with no quotes is the value itself. Anything else (docs, chat) is
+   * read the same way, minus anything that looks like code. */
+  config: /(?:^|\/)(?:[^/]*\.env(?:\.[\w-]+)?|\.env[\w.-]*|\.envrc|\.npmrc|\.pypirc|\.netrc|\.pgpass|Dockerfile[\w.-]*|Containerfile|Procfile|Makefile)$|\.(?:ini|cfg|conf|properties|ya?ml|toml|json|jsonc|sh|bash|zsh|fish|ps1|tf|tfvars|hcl|xml|plist|gradle|service)$/i,
+  minLength: 16,
+  maxLength: 200,
+  /** Shannon entropy, bits per character, a value must reach. */
+  entropy: 3.5,
+  /** Name words that make it a secret's name on their own. */
+  strong: ["secret", "password", "passwd", "pwd", "passphrase", "credential", "credentials", "authorization"],
+  /** One word, two names: apikey, clientsecret, authtoken. */
+  compound: /^(?:api|access|secret|private|auth|client|refresh|session|bearer|master|signing|encryption|admin|root|db|webhook|service)(?:key|token|secret|password|pass|pwd)$/,
+  /** Need a word before them that names what the credential is for (STRIPE_KEY, authToken). */
+  keyish: ["key", "token", "auth"],
+  /** A collection of them: only a quoted literal counts. */
+  plural: ["keys", "tokens", "secrets", "passwords"],
+  /** Before key/token/auth: what the credential is for (catalog service ids count too). */
+  owners: ["api", "secret", "private", "access", "signing", "sign", "encryption", "encrypt", "master", "client", "app", "application", "service", "license", "auth", "hmac", "jwt", "session", "admin", "root", "aes", "crypto", "cipher", "webhook", "account", "bot", "bearer", "refresh", "id", "oauth", "personal", "deploy", "upload", "write", "read", "gateway", "integration", "server", "db", "database", "smtp", "cookie", "csrf", "xsrf", "basic", "http", "proxy", "registry", "npm", "pypi", "docker", "github", "gitlab", "aws", "gcp", "azure", "openai", "anthropic", "stripe", "supabase", "firebase", "slack", "discord", "telegram", "twilio", "sendgrid", "mailgun", "resend", "vercel", "netlify", "cloudflare", "sentry", "datadog"],
+  /** Before key/token/auth: a key or token that isn't a credential. */
+  notOwners: ["cache", "primary", "foreign", "sort", "partition", "hash", "range", "idempotency", "dedupe", "dedup", "storage", "map", "hot", "lookup", "route", "query", "list", "row", "item", "object", "bucket", "index", "unique", "composite", "shortcut", "keyboard", "pressed", "modifier", "i18n", "translation", "locale", "message", "kms", "feature", "flag", "event", "cursor", "group", "react", "next", "page", "continuation", "pagination", "sync", "cancel", "cancellation", "lock", "dict", "entry", "node", "child", "parent", "sequence", "search", "sentinel", "max", "min", "eos", "bos", "pad", "unk", "sep", "cls", "mask", "thread", "draft", "state", "store", "author", "label", "column", "field", "attr", "attribute", "prop", "property", "param", "header", "form", "menu", "tab", "file", "dir", "folder", "path", "subscription", "public", "ssh", "websocket", "socket", "metadata", "context", "canonical", "unrelated", "own", "other", "endpoint", "preference", "model", "layer", "attachment", "used", "count", "sort", "primary", "idempotency", "debug"],
+  /** A secret's name may end with these after the keyword (API_KEY_PROD, secret_key_base). */
+  qualifiers: ["prod", "production", "live", "test", "dev", "development", "staging", "stage", "local", "value", "val", "str", "string", "raw", "b64", "base64", "hex", "enc", "encrypted", "plain", "primary", "secondary", "old", "new", "current", "next", "base", "pem", "default", "override"],
+  /** isWordy: the longest piece of letters that can be a word. */
+  wordLength: 12,
+  /** isWordy: the longest number a piece of words may end with (counters, timestamps, fakes). */
+  wordyDigits: 24,
+  /** looksRandom: the share of neighbouring characters whose class differs, at least. */
+  randomChanges: 0.3,
+  /** A secret's name that may hold a passphrase made of words. */
+  passwordWords: ["password", "passwd", "pwd", "passphrase"],
+  /** Values here are public by design (NEXT_PUBLIC_…, Stripe's publishable key, Supabase's anon key). */
+  publicWords: ["public", "publishable", "anon"],
+  /** `Authorization: "Bearer …"`: the credential is after the scheme. */
+  authScheme: /^(?:Bearer|Basic|Token|Bot)\s+/,
+  /** Unquoted values that are code: calls, generics, paths, lists, blocks, arrows. */
+  unquotedCode: /[(){}[\]<>;,]|::|->|=>|\.\w+\(|^[&*!@%$#]/,
+  /** Quoted literals that are code or type names anyway. */
+  quotedCode: /::|->|=>|\.\w+\(|^\w+\(.*\)$|\\[(dwsbS.]/,
+  /** Templates and format strings. */
+  interpolation: /\$\{|\{\{|#\{|%\(|%[sdv]\b|\$[A-Za-z_]\w*$/,
+  /** Shapes that aren't credentials: numbers and versions, file names, MIME types, ARNs. */
+  notSecret: /^[\d.:_-]+$|^[~@]|\.(?:pem|key|crt|cer|p12|pfx|json|ya?ml|txt|env|pub)$|^(?:application|text|image)\/|^arn:|^urn:/i,
+  /** Paths whose values are usually fakes: ranked lower, never dropped. */
+  testPath: /(?:^|\/)(?:tests?|__tests__|spec|specs|fixtures?|__fixtures__|mocks?|__mocks__|examples?|samples?|demos?|testdata|e2e|stories)(?:\/|$)|[._-](?:test|spec|mock|fixture|stories|story|example|sample)s?\.\w+$/i,
+  uuid: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+};
+
+/** Database URLs whose password isn't worth reporting (src/patterns.ts). */
+export const DB_URL = {
+  /** A template in the password or the host. */
+  template: /[${}<>]/,
+  defaults: ["postgres", "password", "pass", "passwd", "secret", "root", "admin", "changeme", "example", "test", "mysql", "redis", "guest", "mongo", "rabbitmq"],
+  /** This machine, a container next to it (a one-word host), or a reserved example domain. */
+  localHost: /^(?:localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|\[?::1\]?|host\.docker\.internal|[a-z0-9_-]+|.*\.(?:test|example|invalid|local|localhost)|(?:.*\.)?example\.(?:com|org|net))$/,
+};
+
+/** A provider-shaped value that says it's a stand-in. */
+export const FAKE_MARKER = /EXAMPLE|FAKE|DUMMY|PLACEHOLDER|XXXXXX|REDACTED/i;
+
+/** The model's second look at generic findings the rules leave unsure (src/review.ts). It goes
+ * the way the agent's own model calls go (MODEL.host, the instance's relay), so it needs no key of
+ * its own; the model is the fastest on that provider that answers in the schema. */
+export const REVIEW = {
+  /** Must be MODEL.provider: the check uses the agent model's credential and host. */
+  provider: "google",
+  model: "gemini-3.5-flash-lite",
+  thinking: { thinkingLevel: "minimal" },
+  /** Findings per request, requests at once, findings per scan at most (the rest stay unreviewed). */
+  batch: 20,
+  concurrency: 3,
+  maxItems: 60,
+  timeoutMs: 8_000,
+  /** Lines of context on each side, and characters per line. */
+  contextLines: 2,
+  lineChars: 160,
+  mask: "‹VALUE›",
+  other: "‹REDACTED›",
+  /** Provider prefixes the model may be told a value starts with; nothing else of a value is sent. */
+  prefixes: ["sk_live_", "sk_test_", "rk_live_", "rk_test_", "pk_live_", "pk_test_", "whsec_", "ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_", "glpat-", "xoxb-", "xoxp-", "xoxa-", "xoxs-", "AKIA", "ASIA", "AIza", "SG.", "hf_", "npm_", "sk-ant-", "sk-proj-", "sk-svcacct-", "sk-", "re_", "eyJ", "dop_v1_", "shpat_", "key-", "AGE-SECRET-KEY-"],
+};
+
 export const LIMITS = {
   textBytes: 200_000,
   tarballBytes: 60_000_000,
   fileBytes: 1_000_000,
   findings: 100,
+  /** Generic findings listed, after the provider ones and ranked by confidence. */
+  genericFindings: 50,
   messageChars: 60_000,
   /** Sessions the gateway remembers; older ones are forgotten (and their secrets with them). */
   sessions: 500,

@@ -26,7 +26,7 @@ export function shield(text: string): { text: string; secrets: Map<string, strin
   const secrets = new Map<string, string>();
   let out = text;
   // Longest first, so a key that contains another match is replaced whole.
-  for (const { value, finding } of extract(text).sort((a, b) => b.value.length - a.value.length)) {
+  for (const { value, finding } of extract(text, undefined, { redacting: true }).sort((a, b) => b.value.length - a.value.length)) {
     const tag = tagFor(finding.redacted, finding.sha256);
     secrets.set(tag, value);
     out = out.split(value).join(tag);
