@@ -7,3 +7,15 @@ export const STAND_IN_PATTERN = /^sk-sikrets-[A-Za-z0-9]{32}$/;
 export const KEY_PATTERN = /^[A-Z][A-Z0-9_]{0,127}$/;
 export const SSM_PREFIX = "/sikrets";
 export const keychainVaultService = (project: string) => `dev.sikrets.vault.${project}`;
+/** Keychain slot holding the user's data key (written by the CLI). */
+export const DATA_KEY = { service: "dev.sikrets.datakey", name: "default" } as const;
+/** Client-side encryption: the same envelope the CLI writes (packages/cli/src/constants.ts ENVELOPE). */
+export const ENVELOPE = {
+  prefix: "sk1:",
+  versionPattern: /^sk(\d+):/,
+  hkdfSalt: "sikrets-project-key",
+  hkdfInfo: (project: string) => `sikrets-project-v1|${project}`,
+  aad: (project: string, key: string) => `sikrets-value-v1|${SSM_PREFIX}/${project}/${key}`,
+  ivBytes: 12,
+  tagBytes: 16,
+} as const;

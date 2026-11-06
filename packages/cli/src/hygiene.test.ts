@@ -6,6 +6,10 @@ import path from "node:path";
 import { Secret } from "./core/secret.ts";
 import { state, type Resource } from "./core/state.ts";
 import { openVault } from "./core/vault.ts";
+import { native } from "./core/doorman.ts";
+
+// Vault values are stored sealed, so read them back the way the CLI does rather than off the raw keychain entry.
+const opened = async (project: string, key: string) => (await (await openVault(project, "keychain")).get(key))?.reveal();
 
 // Credential hygiene: usage log, inventory, agent identities, offboarding and short-lived
 // credentials. Providers are faked (fetch is mocked; STS is a local HTTP server), the keychain is
@@ -102,6 +106,7 @@ describe("usage log", () => {
     const env = await command("env");
     await env.run(["pull"], {});
     expect(await readUses()).toHaveLength(0);
+    spyOn(native, "authenticate").mockImplementation(async () => ({ ok: true }));
     await env.run(["pull"], { real: true });
     expect((await readUses()).map((u) => [u.key, u.via, u.app])).toEqual([["ANTHROPIC_API_KEY", "env.pull", ".env"]]);
   });
@@ -245,7 +250,7 @@ describe("offboard", () => {
     await (await command("offboard")).run(["reviewer"], { "dry-run": true, json: true });
     expect(JSON.parse(out.at(-1)!)).toMatchObject({ dryRun: true, agent: true, rotate: ["cache"], keys: ["CACHE_REDIS_REST_URL", "CACHE_REDIS_REST_TOKEN", "OLD_API_KEY"] });
     expect(fetched).toHaveLength(0);
-    expect(keychain.get("dev.sikrets.vault.demo/CACHE_REDIS_REST_TOKEN")).toBe("tok_live_secret_value");
+    expect(await opened("demo", "CACHE_REDIS_REST_TOKEN")).toBe("tok_live_secret_value");
     const { agents } = await import("./core/agents.ts");
     expect((await agents.find(root, "reviewer"))!.revokedAt).toBeUndefined();
   });
@@ -253,8 +258,8 @@ describe("offboard", () => {
   test("revokes the agent and rotates only its keys, through sikrets rotate", async () => {
     await (await command("offboard")).run(["reviewer"], { yes: true, json: true });
     expect(JSON.parse(out.at(-1)!)).toMatchObject({ rotated: ["cache"], failed: [] });
-    expect(keychain.get("dev.sikrets.vault.demo/CACHE_REDIS_REST_TOKEN")).toBe("tok_rotated_value");
-    expect(keychain.get("dev.sikrets.vault.demo/ANTHROPIC_API_KEY")).toBe("sk-ant-api03-secretsecretsecret"); // not the agent's
+    expect(await opened("demo", "CACHE_REDIS_REST_TOKEN")).toBe("tok_rotated_value");
+    expect(await opened("demo", "ANTHROPIC_API_KEY")).toBe("sk-ant-api03-secretsecretsecret"); // not the agent's
     const { agents } = await import("./core/agents.ts");
     expect((await agents.find(root, "reviewer"))!.revokedAt).toBeString();
     const { readActivity } = await import("./core/activity.ts");

@@ -2,6 +2,8 @@
 // help and typo suggestions without loading any implementation. Each command's code is imported
 // only when that command runs, so `sikrets ls` never pays for the browser stack.
 
+import { REVEAL } from "../constants.ts";
+
 export interface OptionSpec {
   name: string;
   type: "string" | "boolean";
@@ -125,12 +127,24 @@ export const commands: CommandSpec[] = [
     load: () => import("./logins.ts"),
   },
   {
+    name: "get",
+    description: "Print a key's stand-in (safe to script and share); --real or --copy reveal the value after Touch ID",
+    arguments: [{ name: "KEY", required: true }],
+    options: [
+      { name: "real", type: "boolean", description: "Print the real value, after you authenticate with Touch ID or your Mac password" },
+      { name: "copy", type: "boolean", description: `Copy the real value to the clipboard after you authenticate; cleared after ${REVEAL.clipboardClearSeconds}s` },
+      jsonOption,
+    ],
+    examples: ["sikrets get ANTHROPIC_API_KEY", "export ANTHROPIC_API_KEY=$(sikrets get ANTHROPIC_API_KEY)", "sikrets get ANTHROPIC_API_KEY --copy"],
+    load: () => import("./get.ts"),
+  },
+  {
     name: "env",
     description: "List which values this project has (names only), or `env pull` them into a git-ignored .env",
     arguments: [{ name: "pull", required: false }],
     options: [
       { name: "file", type: "string", argument: "FILE", description: "Where `env pull` writes (default: .env)" },
-      { name: "real", type: "boolean", short: "r", description: "Write real secrets instead of stand-ins" },
+      { name: "real", type: "boolean", short: "r", description: "Write real secrets instead of stand-ins, after you authenticate with Touch ID or your Mac password" },
       jsonOption,
     ],
     examples: ["sikrets env", "sikrets env pull", "sikrets env pull --real --file .env.local"],

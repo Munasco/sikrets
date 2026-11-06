@@ -5,7 +5,7 @@ import { confirm } from "../ui.ts";
 import { privateDir } from "./fs.ts";
 import { reasonText, type Answer, type ApprovalRequest } from "./approvals.ts";
 import touchIdSource from "../native/touchid.swift" with { type: "text" };
-import { DOORMAN } from "../constants.ts";
+import { DOORMAN, REVEAL } from "../constants.ts";
 
 // How the Doorman asks a person on this machine. On macOS: Touch ID through a tiny Swift
 // LocalAuthentication helper (compiled on first use with swiftc and cached under ~/.sikrets/bin),
@@ -30,10 +30,15 @@ async function touchIdHelper(): Promise<string | undefined> {
   return ok ? bin : undefined;
 }
 
-async function touchId(req: ApprovalRequest): Promise<Answer | undefined> {
+/** The helper's exit code (0 approved, 1 dismissed, 2 failed, 3 unavailable), or undefined when it can't be built. */
+async function touchIdCode(text: string): Promise<number | undefined> {
   const bin = await touchIdHelper();
   if (!bin) return undefined;
-  const code = await Bun.spawn([bin, promptText(req)], { stdout: "ignore", stderr: "ignore" }).exited;
+  return Bun.spawn([bin, text], { stdout: "ignore", stderr: "ignore" }).exited;
+}
+
+async function touchId(req: ApprovalRequest): Promise<Answer | undefined> {
+  const code = await touchIdCode(promptText(req));
   if (code === 0) return { decision: "approve", by: "touchid" };
   if (code === 1) return { decision: "dismissed" };
   return undefined; // failed or unavailable: let the dialog ask instead
@@ -58,10 +63,43 @@ async function terminal(req: ApprovalRequest): Promise<Answer> {
   return (await confirm(promptText(req))) ? { decision: "approve", by: "terminal" } : { decision: "deny", by: "terminal" };
 }
 
-/** Tests replace `native.ask`; everything else goes through it. */
+/** Why no system dialog can reach the Mac's owner from here, or undefined when one can. */
+function noOwnerDialog(): string | undefined {
+  if (process.platform !== "darwin") return "needs macOS (Touch ID or your login password)";
+  if (Bun.env[REVEAL.ciEnv]) return "isn't available in CI";
+  if (REVEAL.sshEnv.some((name) => Bun.env[name])) return "isn't available over SSH";
+  const session = Bun.spawnSync(["launchctl", "managername"], { stdout: "pipe", stderr: "ignore" }).stdout.toString().trim();
+  if (session !== REVEAL.guiSession) return "needs a logged-in macOS desktop session";
+  return undefined;
+}
+
+export type OwnerCheck = { ok: true } | { ok: false; reason: string };
+
+/**
+ * Proves the Mac's owner is at the keyboard: Touch ID, or the login password in the system
+ * dialog. Only LocalAuthentication counts. There's no terminal or stdin fallback, since an agent
+ * driving the terminal could answer those but can't answer the system dialog.
+ */
+async function authenticate(prompt: string): Promise<OwnerCheck> {
+  const blocked = noOwnerDialog();
+  if (blocked) return { ok: false, reason: `Authentication ${blocked}, so the real value stays hidden` };
+  const code = await touchIdCode(prompt);
+  if (code === 0) return { ok: true };
+  if (code === undefined || code === 3) return { ok: false, reason: "Touch ID and the macOS password dialog aren't available here (the helper needs swiftc: xcode-select --install), so the real value stays hidden" };
+  return { ok: false, reason: "Not authenticated, so the real value stays hidden" };
+}
+
+/** Tests replace `native.ask` and `native.authenticate`; everything else goes through them. */
 export const native = {
   async ask(req: ApprovalRequest): Promise<Answer> {
     if (process.platform === "darwin") return (await touchId(req)) ?? dialog(req);
     return terminal(req);
   },
+  authenticate,
 };
+
+/** Throws unless the owner authenticates. Call before anything shows or writes out a real value. */
+export async function requireOwner(prompt: string): Promise<void> {
+  const check = await native.authenticate(prompt);
+  if (!check.ok) throw new Error(check.reason);
+}

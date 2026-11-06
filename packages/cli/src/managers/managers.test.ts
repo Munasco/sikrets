@@ -7,6 +7,10 @@ import { Secret } from "../core/secret.ts";
 import { bitwarden, parseRef as parseBwRef } from "./bitwarden.ts";
 import { onepassword, parseRef as parseOpRef } from "./onepassword.ts";
 import { managerFor } from "./index.ts";
+import { openVault } from "../core/vault.ts";
+
+// Vault values are stored sealed, so read them back the way the CLI does rather than off the raw keychain entry.
+const opened = async (project: string, key: string) => (await (await openVault(project, "keychain")).get(key))?.reveal();
 
 // Fake `bw` and `op` on PATH (fakes/*.ts behind tiny shell wrappers), an in-memory keychain and a
 // throwaway config dir, so no real vault, keychain or account is touched. Every value is fake.
@@ -275,8 +279,8 @@ describe("sikrets import/link with a password manager", () => {
     } finally {
       process.chdir(cwd);
     }
-    expect(keychain.get("dev.sikrets.vault.project/GITHUB_PASSWORD")).toBe("old-github-token");
-    expect(keychain.get("dev.sikrets.vault.project/STRIPE_KEY")).toBe("fake-stripe-old");
+    expect(await opened("project", "GITHUB_PASSWORD")).toBe("old-github-token");
+    expect(await opened("project", "STRIPE_KEY")).toBe("fake-stripe-old");
     expect((await externalKeys(root)).map((k) => [k.key, k.ref])).toEqual([
       ["GITHUB_DEPLOY_KEY", "bw://item-1/deploy key"],
       ["GITHUB_PASSWORD", "bw://item-1/password"],

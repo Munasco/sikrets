@@ -1,4 +1,6 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, mock, spyOn, test } from "bun:test";
+import { createCipheriv, hkdfSync, randomBytes } from "node:crypto";
+import { DATA_KEY, ENVELOPE } from "./constants.ts";
 import { createSikrets, SikretsError } from "./index.ts";
 
 const STAND_IN = "sk-sikrets-AAAAbbbbCCCCddddEEEEffffGGGGhhhh";
@@ -83,5 +85,37 @@ describe("errors", () => {
     const s = createSikrets({ env: { KEY_A: STAND_IN }, project: "demo", fetch: fakeVault({}).fetch });
     const err = await s.get("KEY_A").catch((e: Error) => e);
     expect(String(err)).not.toContain(STAND_IN);
+  });
+});
+
+describe("client-side encryption", () => {
+  const dataKey = randomBytes(32);
+  const REAL = ["tok", "live", "fake"].join("_");
+  // Sealed the way the CLI seals (packages/cli/src/core/envelope.ts).
+  function sealed(project: string, key: string, value: string) {
+    const k = Buffer.from(hkdfSync("sha256", dataKey, ENVELOPE.hkdfSalt, ENVELOPE.hkdfInfo(project), 32));
+    const iv = randomBytes(ENVELOPE.ivBytes);
+    const c = createCipheriv("aes-256-gcm", k, iv).setAAD(Buffer.from(ENVELOPE.aad(project, key)));
+    const ct = Buffer.concat([c.update(value, "utf8"), c.final()]);
+    return ENVELOPE.prefix + Buffer.concat([iv, ct, c.getAuthTag()]).toString("base64");
+  }
+  const keychain = (entries: Record<string, string>) =>
+    spyOn(Bun.secrets, "get").mockImplementation(async ({ service, name }) => entries[`${service}/${name}`] ?? null);
+
+  afterEach(() => mock.restore());
+
+  test("a sealed keychain value is opened with the user's data key", async () => {
+    keychain({ [`${DATA_KEY.service}/${DATA_KEY.name}`]: dataKey.toString("base64"), "dev.sikrets.vault.demo/API_KEY": sealed("demo", "API_KEY", REAL) });
+    expect(await createSikrets({ env: {}, project: "demo", vault: "keychain" }).get("API_KEY")).toBe(REAL);
+  });
+
+  test("a value moved to another key fails, and nothing sealed is ever returned as the value", async () => {
+    keychain({ [`${DATA_KEY.service}/${DATA_KEY.name}`]: dataKey.toString("base64"), "dev.sikrets.vault.demo/OTHER_KEY": sealed("demo", "API_KEY", REAL) });
+    await expect(createSikrets({ env: {}, project: "demo", vault: "keychain" }).get("OTHER_KEY")).rejects.toThrow("can't decrypt");
+  });
+
+  test("without a data key the error says so", async () => {
+    keychain({ "dev.sikrets.vault.demo/API_KEY": sealed("demo", "API_KEY", REAL) });
+    await expect(createSikrets({ env: {}, project: "demo", vault: "keychain" }).get("API_KEY")).rejects.toThrow("no Sikrets data key");
   });
 });
