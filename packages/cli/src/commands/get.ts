@@ -20,13 +20,13 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   if (opts.real && opts.copy) throw new Error("Use --real or --copy, not both");
   const root = process.cwd();
   const { ctx } = await projectContext(root, { log: () => {} });
-  const vault = await openVault(ctx.project, ctx.vault);
-  if (!(await vault.has(key))) throw new Error(`${key} isn't in the ${vault.name} vault for ${ctx.project}. See: sikrets env`);
+  const vault = await openVault(ctx.project, ctx.server);
+  if (!(await vault.has(key))) throw new Error(`${key} isn't in the vault for ${ctx.project} on ${vault.server}. See: sikrets env`);
 
   if (opts.real || opts.copy) {
     await requireOwner(opts.copy ? `copy ${key} to the clipboard` : `show the real value of ${key}`);
     const value = await vault.get(key);
-    if (!value) throw new Error(`${key} isn't in the ${vault.name} vault for ${ctx.project}`);
+    if (!value) throw new Error(`${key} isn't in the vault for ${ctx.project} on ${vault.server}`);
     const via = opts.copy ? "copy" : "real";
     await record(root, { kind: "reveal", detail: `get --${via}`, keys: [key] });
     await recordUse(ctx.project, { keys: [key], via: "get", app: opts.copy ? "clipboard" : "terminal" });
@@ -38,10 +38,10 @@ export async function run(args: string[], opts: Record<string, unknown>) {
 
   const standIn = await standInFor(vault, key);
   const info = await details(root, ctx.project, key);
-  if (opts.json) return console.log(JSON.stringify({ key, standIn: standIn.reveal(), project: ctx.project, vault: vault.name, set: true, ...info }));
+  if (opts.json) return console.log(JSON.stringify({ key, standIn: standIn.reveal(), project: ctx.project, server: vault.server, set: true, ...info }));
   console.log(standIn.reveal());
   if (!process.stderr.isTTY) return;
-  console.error(`${key} · ${ctx.project} · ${vault.name} vault · set (stand-in above; --real or --copy for the value)`);
+  console.error(`${key} · ${ctx.project} · ${vault.server} · set (stand-in above; --real or --copy for the value)`);
   if (info.resource) console.error(`  resource      ${info.resource}`);
   if (info.source) console.error(`  source        ${info.source}`);
   console.error(`  last used     ${ago(info.lastUsed ?? undefined)}`);

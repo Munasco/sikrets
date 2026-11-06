@@ -1,9 +1,14 @@
+import { loadConfig } from "../core/config.ts";
 import { clearSession, deviceClient, readSession, type DeviceInfo } from "../core/device-auth.ts";
 import { describeKind, readDeviceMeta, thisDevice } from "../core/device.ts";
+import { resolveServer } from "../core/server.ts";
 import { log } from "../ui.ts";
 
 // sikrets devices [list|revoke <id>]: this device's key (and whether it is hardware-bound), then
 // every device signed in to your account. A revoked device's requests are refused from then on.
+// The server is the one this project uses (core/server.ts).
+
+const currentSession = async () => readSession(await resolveServer(await loadConfig(process.cwd())));
 
 export async function run(args: string[], opts: Record<string, unknown>) {
   const [action = "list", id] = args;
@@ -19,7 +24,7 @@ const status = (d: DeviceInfo) => (d.revokedAt ? `revoked ${d.revokedAt.slice(0,
 
 async function list(opts: Record<string, unknown>) {
   const meta = await readDeviceMeta();
-  const session = await readSession();
+  const session = await currentSession();
   const here = meta ? { kind: meta.kind, hardwareBound: meta.hardwareBound, description: describeKind(meta) } : undefined;
   const devices = session ? await deviceClient({ server: session.server, device: await thisDevice() }).devices(session) : undefined;
 
@@ -38,10 +43,10 @@ async function list(opts: Record<string, unknown>) {
 }
 
 async function revoke(id: string, opts: Record<string, unknown>) {
-  const session = await readSession();
+  const session = await currentSession();
   if (!session) throw new Error("Not signed in. Run: sikrets login");
   await deviceClient({ server: session.server, device: await thisDevice() }).revoke(session, id);
-  if (id === session.deviceId) await clearSession();
+  if (id === session.deviceId) await clearSession(session.server);
   if (opts.json) return console.log(JSON.stringify({ revoked: id }));
   log(opts, id === session.deviceId ? `Revoked ${id}, which is this device. Run sikrets login to sign in again.` : `Revoked ${id}. Its requests are refused from now on.`);
 }

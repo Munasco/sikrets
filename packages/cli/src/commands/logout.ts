@@ -1,5 +1,7 @@
+import { loadConfig } from "../core/config.ts";
 import { clearSession, deviceClient, readSession } from "../core/device-auth.ts";
 import { thisDevice } from "../core/device.ts";
+import { resolveServer } from "../core/server.ts";
 import { log } from "../ui.ts";
 
 // sikrets logout: revokes this device on the server, then forgets the sign-in. The device keys stay
@@ -7,7 +9,7 @@ import { log } from "../ui.ts";
 
 export async function run(_args: string[], opts: Record<string, unknown>) {
   const say = (m: string) => log(opts, m);
-  const session = await readSession();
+  const session = await readSession(await resolveServer(await loadConfig(process.cwd())));
   if (!session) {
     if (opts.json) return console.log(JSON.stringify({ signedIn: false }));
     return say("Not signed in.");
@@ -19,7 +21,7 @@ export async function run(_args: string[], opts: Record<string, unknown>) {
     revoked = false;
     say(`Couldn't revoke ${session.deviceId} on ${session.server} (${error instanceof Error ? error.message : String(error)}). Signed out here anyway; revoke it from another device with: sikrets devices revoke ${session.deviceId}`);
   }
-  await clearSession();
+  await clearSession(session.server);
   if (opts.json) return console.log(JSON.stringify({ signedIn: false, deviceId: session.deviceId, revoked }));
   if (revoked) say(`Signed out. ${session.deviceId} is revoked on ${session.server}.`);
 }

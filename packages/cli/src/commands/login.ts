@@ -1,15 +1,14 @@
+import { loadConfig } from "../core/config.ts";
 import { deviceClient, readSession, writeSession, type Approval } from "../core/device-auth.ts";
 import { describeKind, thisDevice } from "../core/device.ts";
+import { resolveServer } from "../core/server.ts";
 import { log } from "../ui.ts";
-import { DEVICE_AUTH, ENV, REVEAL } from "../constants.ts";
+import { REVEAL } from "../constants.ts";
 
 // sikrets login: registers this device's signing key with the Sikrets server. A person approves
 // the sign-in in the browser; after that every request is signed by this device's key, so there
 // is no token on disk worth stealing. No Touch ID: the device key works without user presence.
-
-/** --server, then SIKRETS_SERVER, then the server this device last signed in to, then the default. */
-export const serverUrl = (opts: Record<string, unknown>, session?: { server: string }) =>
-  (typeof opts.server === "string" && opts.server) || Bun.env[ENV.server] || session?.server || DEVICE_AUTH.defaultServer;
+// The server signed in to becomes this profile's saved server (see core/server.ts for the order).
 
 /** Opens the approval page when a person is plainly at this Mac; tests replace it. */
 export const browser = {
@@ -21,8 +20,8 @@ export const browser = {
 
 export async function run(_args: string[], opts: Record<string, unknown>) {
   const say = (m: string) => log(opts, m);
-  const previous = await readSession();
-  const server = serverUrl(opts, previous);
+  const server = await resolveServer(await loadConfig(process.cwd()), typeof opts.server === "string" ? opts.server : undefined);
+  const previous = await readSession(server);
   const device = await thisDevice();
 
   const approve = ({ url, userCode }: Approval) => {

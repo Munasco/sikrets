@@ -11,55 +11,31 @@ import { envelopeKind, openValue, projectKey, sealValue } from "./core/envelope.
 import { Secret } from "./core/secret.ts";
 import { standInKey } from "./core/standin.ts";
 import { state, type Resource } from "./core/state.ts";
-import { openVault, type SsmClient } from "./core/vault.ts";
-import { ENVELOPE, REVEAL } from "./constants.ts";
+import { openVault } from "./core/vault.ts";
+import { DEFAULT_USER } from "./testing/device-server.ts";
+import { TEST_SERVER, testServer } from "./testing/preload.ts";
+import { ENVELOPE, REVEAL, SERVER } from "./constants.ts";
 
 // Client-side encryption in the vault, and the Touch ID gate in front of anything that reveals a
-// real value. The keychain and SSM are in memory, the authenticator and clipboard are faked, and
-// every value is fake and assembled at runtime. Command output is captured, never printed.
+// real value. The vault is the real server, in memory (see testing/preload.ts); the keychain is in
+// memory, the authenticator and clipboard are faked, and every value is fake and assembled at
+// runtime. Command output is captured, never printed.
 
 const keychain = new Map<string, string>();
-const ssm = new Map<string, string>();
 let root: string;
 let home: string;
 let cwd: string;
 let out: string[];
 
 const REAL = ["tok", "live", "fakefakefakefakefake"].join("_");
-const ssmName = (project: string, key: string) => `/sikrets/${project}/${key}`;
-
-/** Just enough of SSMClient: Get/Put/Delete one parameter and list by path. */
-const fakeSsm: SsmClient = {
-  async send(command: object) {
-    const input = (command as { input: Record<string, any> }).input;
-    switch (command.constructor.name) {
-      case "GetParameterCommand": {
-        const value = ssm.get(input.Name);
-        if (value === undefined) throw Object.assign(new Error("not found"), { name: "ParameterNotFound" });
-        return { Parameter: { Name: input.Name, Value: value } };
-      }
-      case "PutParameterCommand":
-        if (input.Value.length > 4096) throw new Error("SSM would reject this: over 4 KB");
-        return void ssm.set(input.Name, input.Value);
-      case "DeleteParameterCommand":
-        return void ssm.delete(input.Name);
-      case "GetParametersByPathCommand":
-        return { Parameters: [...ssm].filter(([n]) => n.startsWith(`${input.Path}/`)).map(([Name, Value]) => ({ Name, Value })) };
-      default:
-        throw new Error(`unexpected ${command.constructor.name}`);
-    }
-  },
-};
 
 beforeEach(async () => {
   keychain.clear();
-  ssm.clear();
   out = [];
   root = await mkdtemp(path.join(os.tmpdir(), "sikrets-seal-"));
   home = await mkdtemp(path.join(os.tmpdir(), "sikrets-seal-home-"));
   process.env.SIKRETS_CONFIG_DIR = home;
-  process.env.SIKRETS_VAULT = "keychain";
-  await Bun.write(path.join(root, "sikrets.json"), JSON.stringify({ project: "demo", vault: "keychain" }));
+  await Bun.write(path.join(root, "sikrets.json"), JSON.stringify({ project: "demo" }));
   cwd = process.cwd();
   process.chdir(root);
   spyOn(Bun.secrets, "set").mockImplementation(async ({ service, name, value }) => void keychain.set(`${service}/${name}`, value));
@@ -74,22 +50,23 @@ afterEach(async () => {
   mock.restore();
   process.chdir(cwd);
   delete process.env.SIKRETS_CONFIG_DIR;
-  delete process.env.SIKRETS_VAULT;
   await rm(root, { recursive: true, force: true });
   await rm(home, { recursive: true, force: true });
 });
 
-const raw = (project: string, key: string) => keychain.get(`dev.sikrets.vault.${project}/${key}`);
+/** Exactly what the server holds for a key. */
+const scope = (project: string) => ({ account: DEFAULT_USER, project, environment: SERVER.environment });
+const raw = async (project: string, key: string) => (await testServer().store.getValue(scope(project), key))?.value;
 const printed = () => out.join("\n");
 const command = async (name: string) => (await import(`./commands/${name}.ts`)) as { run: (args: string[], opts: Record<string, unknown>) => Promise<void> };
 const authAs = (ok: boolean) =>
   spyOn(native, "authenticate").mockImplementation(async () => (ok ? { ok: true } : { ok: false, reason: "Not authenticated, so the real value stays hidden" }));
 
-/** An applied resource whose secret is in the keychain vault. */
+/** An applied resource whose secret is in the vault. */
 async function stored(value: string, over: Partial<Resource> = {}) {
   const res: Resource = { name: "anthropic", recipe: "anthropic/api-key", provider: "anthropic", strategy: "manual", inputs: {}, dependsOn: {}, envKeys: ["ANTHROPIC_API_KEY"], outputs: {}, applied: true, createdAt: new Date().toISOString(), ...over };
   await state.upsert(root, res);
-  await (await openVault("demo", "keychain")).put("ANTHROPIC_API_KEY", Secret.of(value));
+  await (await openVault("demo")).put("ANTHROPIC_API_KEY", Secret.of(value));
   return "ANTHROPIC_API_KEY";
 }
 
@@ -116,76 +93,65 @@ describe("envelope", () => {
   });
 
   test("the SDK opens what the CLI seals", async () => {
-    await (await openVault("demo", "keychain")).put("API_KEY", Secret.of(REAL));
+    await (await openVault("demo")).put("API_KEY", Secret.of(REAL));
+    // The SDK doesn't read the server yet; hand it the envelope through its keychain backend.
+    keychain.set(`dev.sikrets.vault.demo/API_KEY`, (await raw("demo", "API_KEY"))!);
     const { createSikrets } = await import("../../sdk/src/index.ts");
     expect(await createSikrets({ env: {}, project: "demo", vault: "keychain" }).get("API_KEY")).toBe(REAL);
   });
 
   test("swapping two values in the vault is caught on read", async () => {
-    const vault = await openVault("demo", "keychain");
+    const vault = await openVault("demo");
     await vault.put("A_KEY", Secret.of(REAL));
     await vault.put("B_KEY", Secret.of(`${REAL}_b`));
-    keychain.set("dev.sikrets.vault.demo/A_KEY", raw("demo", "B_KEY")!);
+    // The server swaps them (it can: it holds only ciphertext). The client notices.
+    const b = (await testServer().store.getValue(scope("demo"), "B_KEY"))!;
+    await testServer().store.putValue(scope("demo"), { ...b, name: "A_KEY" });
     await expect(vault.get("A_KEY")).rejects.toThrow("Can't decrypt A_KEY");
   });
 });
 
 describe("sealed vault", () => {
-  test("keychain: stores only the envelope, reads the value back", async () => {
-    const vault = await openVault("demo", "keychain");
+  test("the server holds only the envelope; the value reads back here", async () => {
+    const vault = await openVault("demo");
+    expect(vault.server).toBe(TEST_SERVER);
     await vault.put("API_KEY", Secret.of(REAL));
-    expect(envelopeKind(raw("demo", "API_KEY")!)).toBe("sealed");
-    expect(raw("demo", "API_KEY")).not.toContain(REAL);
+    expect(envelopeKind((await raw("demo", "API_KEY"))!)).toBe("sealed");
+    expect(await raw("demo", "API_KEY")).not.toContain(REAL);
     expect((await vault.get("API_KEY"))?.reveal()).toBe(REAL);
     expect(await vault.has("API_KEY")).toBe(true);
-  });
-
-  test("ssm: stores only the envelope, still as a SecureString under /sikrets/<project>/", async () => {
-    const vault = await openVault("demo", "ssm", { ssm: fakeSsm });
-    await vault.put("API_KEY", Secret.of(REAL));
-    expect(envelopeKind(ssm.get(ssmName("demo", "API_KEY"))!)).toBe("sealed");
-    expect((await vault.get("API_KEY"))?.reveal()).toBe(REAL);
-  });
-
-  test("legacy plaintext is read, then re-stored sealed", async () => {
-    await ensureDataKey();
-    keychain.set("dev.sikrets.vault.demo/OLD_KEY", REAL);
-    ssm.set(ssmName("demo", "OLD_KEY"), REAL);
-    for (const [vault, read] of [
-      [await openVault("demo", "keychain"), () => raw("demo", "OLD_KEY")],
-      [await openVault("demo", "ssm", { ssm: fakeSsm }), () => ssm.get(ssmName("demo", "OLD_KEY"))],
-    ] as const) {
-      expect((await vault.get("OLD_KEY"))?.reveal()).toBe(REAL);
-      expect(envelopeKind(read()!)).toBe("sealed");
-      expect((await vault.get("OLD_KEY"))?.reveal()).toBe(REAL);
-    }
+    expect(await vault.list()).toEqual(["API_KEY"]);
+    expect(await vault.get("OTHER_KEY")).toBeUndefined();
+    await vault.delete("API_KEY");
+    expect([await vault.has("API_KEY"), await raw("demo", "API_KEY")]).toEqual([false, undefined]);
   });
 
   test("the first write creates the data key; a device without it can't read sealed values", async () => {
     expect(await loadDataKey()).toBeUndefined();
-    const vault = await openVault("demo", "keychain");
-    await vault.put("API_KEY", Secret.of(REAL));
+    await (await openVault("demo")).put("API_KEY", Secret.of(REAL));
     expect(await loadDataKey()).toBeDefined();
-    await resetDevice(); // a new device: no device keys, no wrapped data key
+    await resetDevice(); // a new device on the same account: no device keys, no wrapped data key
+    const vault = await openVault("demo");
     await expect(vault.get("API_KEY")).rejects.toThrow("sikrets recovery restore");
     // Nor does it mint a fresh key next to sealed values it can't open.
-    await expect(vault.put("API_KEY", Secret.of(REAL))).rejects.toThrow("sikrets recovery restore");
+    await expect(vault.put("OTHER_KEY", Secret.of(REAL))).rejects.toThrow("sikrets recovery restore");
     expect(await loadDataKey()).toBeUndefined();
   });
 
-  test("ssm: a new device refuses to write while the project holds sealed values", async () => {
-    await (await openVault("demo", "ssm", { ssm: fakeSsm })).put("API_KEY", Secret.of(REAL));
-    await resetDevice(); // a new device: no device keys, no wrapped data key
-    await expect((await openVault("demo", "ssm", { ssm: fakeSsm })).put("OTHER_KEY", Secret.of(REAL))).rejects.toThrow("sikrets recovery restore");
+  test("normal values fit; oversize ones fail clearly and aren't stored", async () => {
+    const vault = await openVault("demo");
+    await vault.put("PRIVATE_KEY", Secret.of("x".repeat(3000))); // about the size of a 2048-bit private key
+    await expect(vault.put("HUGE_KEY", Secret.of("x".repeat(70_000)))).rejects.toThrow("HUGE_KEY is too large to store once encrypted");
+    expect(await vault.list()).toEqual(["PRIVATE_KEY"]);
   });
 
-  test("ssm: normal values fit the 4 KB Standard tier once sealed; oversize ones fail clearly", async () => {
-    const vault = await openVault("demo", "ssm", { ssm: fakeSsm });
-    const pem = "x".repeat(3000); // about the size of a 2048-bit private key
-    await vault.put("PRIVATE_KEY", Secret.of(pem));
-    expect(ssm.get(ssmName("demo", "PRIVATE_KEY"))!.length).toBeLessThanOrEqual(4096);
-    await expect(vault.put("HUGE_KEY", Secret.of("x".repeat(3100)))).rejects.toThrow("too large for the ssm vault once encrypted");
-    expect(ssm.has(ssmName("demo", "HUGE_KEY"))).toBe(false);
+  test("a sealed value is uploaded as is; plaintext never is", async () => {
+    const sealed = sealValue(projectKey(await ensureDataKey(), "demo"), "demo", "API_KEY", REAL);
+    const vault = await openVault("demo");
+    await vault.putSealed("API_KEY", sealed);
+    expect(await raw("demo", "API_KEY")).toBe(sealed);
+    expect((await vault.get("API_KEY"))?.reveal()).toBe(REAL);
+    await expect(vault.putSealed("OTHER_KEY", REAL)).rejects.toThrow("isn't sealed");
   });
 });
 
@@ -194,7 +160,7 @@ describe("sikrets get", () => {
     const key = await stored(REAL);
     const ask = authAs(true);
     await (await command("get")).run([key], {});
-    const standIn = (await (await openVault("demo", "keychain")).get(standInKey(key)))!.reveal();
+    const standIn = (await (await openVault("demo")).get(standInKey(key)))!.reveal();
     expect(out).toEqual([standIn]);
     expect(printed()).not.toContain(REAL);
     expect(ask).not.toHaveBeenCalled();
@@ -202,15 +168,15 @@ describe("sikrets get", () => {
     out.length = 0;
     await (await command("get")).run([key], { json: true });
     const json = JSON.parse(out[0]!);
-    expect(json).toMatchObject({ key, standIn, project: "demo", vault: "keychain", set: true, resource: "anthropic" });
+    expect(json).toMatchObject({ key, standIn, project: "demo", server: TEST_SERVER, set: true, resource: "anthropic" });
     expect(printed()).not.toContain(REAL);
   });
 
   test("a key without a stand-in yet (imported) gets one, persisted", async () => {
-    await (await openVault("demo", "keychain")).put("IMPORTED_TOKEN", Secret.of(REAL));
+    await (await openVault("demo")).put("IMPORTED_TOKEN", Secret.of(REAL));
     await (await command("get")).run(["IMPORTED_TOKEN"], {});
     expect(out[0]).toMatch(/^sk-sikrets-[A-Za-z0-9]{32}$/);
-    expect(raw("demo", standInKey("IMPORTED_TOKEN"))).toBeDefined();
+    expect(await raw("demo", standInKey("IMPORTED_TOKEN"))).toBeDefined();
     expect(printed()).not.toContain(REAL);
   });
 

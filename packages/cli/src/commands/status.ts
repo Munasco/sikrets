@@ -33,8 +33,8 @@ export async function run(_args: string[], opts: Record<string, unknown>) {
       return { name: r.name, recipe: r.recipe, strategy: r.strategy, live: r.applied, created: r.createdAt, lastUsed: last ?? null, rotateBy: r.rotateBy ?? null, keys: r.envKeys, spend: await spend(r) };
     }),
   );
-  if (opts.json) return console.log(JSON.stringify({ project: ctx.project, vault: ctx.vault, resources: rows }));
-  console.log(`Project ${ctx.project} · vault ${ctx.vault} · ${rows.length} resource(s)\n`);
+  if (opts.json) return console.log(JSON.stringify({ project: ctx.project, server: ctx.server, resources: rows }));
+  console.log(`Project ${ctx.project} · ${ctx.server} · ${rows.length} resource(s)\n`);
   if (!rows.length) return console.log("Nothing here yet. Add something: sikrets add <provider/service>");
   const w = Math.max(...rows.map((r) => r.name.length), 4);
   console.log(`${"NAME".padEnd(w)}  ${"RECIPE".padEnd(18)} ${"STATE".padEnd(12)} ${"CREATED".padEnd(10)} ${"LAST USED".padEnd(10)} ${"ROTATE".padEnd(14)} COST`);

@@ -10,7 +10,7 @@ import { managerFor } from "./index.ts";
 import { openVault } from "../core/vault.ts";
 
 // Vault values are stored sealed, so read them back the way the CLI does rather than off the raw keychain entry.
-const opened = async (project: string, key: string) => (await (await openVault(project, "keychain")).get(key))?.reveal();
+const opened = async (project: string, key: string) => (await (await openVault(project)).get(key))?.reveal();
 
 // Fake `bw` and `op` on PATH (fakes/*.ts behind tiny shell wrappers), an in-memory keychain and a
 // throwaway config dir, so no real vault, keychain or account is touched. Every value is fake.
@@ -271,7 +271,6 @@ describe("sikrets import/link with a password manager", () => {
     const output: string[] = [];
     spyOn(console, "error").mockImplementation((...a: unknown[]) => void output.push(a.join(" ")));
     spyOn(console, "log").mockImplementation((...a: unknown[]) => void output.push(a.join(" ")));
-    process.env.SIKRETS_VAULT = "keychain";
     process.chdir(root);
     try {
       await (await import("../commands/import.ts")).run(["bitwarden"], { yes: true });

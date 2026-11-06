@@ -58,13 +58,13 @@ export async function run(args: string[], opts: Record<string, unknown>) {
 
   say(`${ctx.dryRun ? "Dry run — would rotate" : "Rotating"} "${res.name}" (${r.id}):`);
   say(`  ~ ${plan.describe}`);
-  say(`  ~ Replace ${keys.join(", ")} in the ${ctx.vault} vault (stand-ins stay the same)`);
+  say(`  ~ Replace ${keys.join(", ")} in the vault on ${ctx.server} (stand-ins stay the same)`);
   say(`  ~ Next rotation due ${config.rotateEvery} after this`);
   if (ctx.dryRun) return opts.json ? console.log(JSON.stringify({ dryRun: true, resource: res.name, keys })) : undefined;
   if (!opts.yes && process.stdin.isTTY && !(await confirm("Rotate now? The old credential will stop working."))) return say("Cancelled; nothing changed.");
 
   const changed = await plan.run();
-  const vault = await openVault(ctx.project, ctx.vault);
+  const vault = await openVault(ctx.project, ctx.server);
   const outputs = { ...res.outputs };
   const rotated = new Map<string, Secret>();
   for (const [key, value] of Object.entries(changed)) {

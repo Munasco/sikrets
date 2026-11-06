@@ -8,18 +8,19 @@ import { clearSession, deviceClient, DeviceAuthError, readSession, writeSession,
 import { deviceDir, DeviceMismatchError, enclave, HelperMissingError, pointToJwk, readDeviceMeta, resetDevice, software, thisDevice, thumbprint, type Device, type DataKeyWrap } from "./core/device.ts";
 import { createProof, type Signer } from "./core/proof.ts";
 import { newCode, readRecord, wrap, writeRecord } from "./core/recovery.ts";
-import { startDeviceServer, type FakeServer } from "./testing/device-server.ts";
+import { startDeviceServer, type TestServer } from "./testing/device-server.ts";
 import { DEVICE, DEVICE_AUTH, ENV } from "./constants.ts";
 
 // Device identity: keys created in a (fake) Secure Enclave or as software keys, the data key wrapped
-// to the device, and sign-in with a signed proof on every request against the local fake server.
+// to the device, and sign-in with a signed proof on every request against the real server
+// (packages/server, in memory on a random localhost port).
 // The Secure Enclave is replaced by an in-process fake built on the software backend, so no test
 // runs the native helper or shows a dialog. Nothing private is ever printed; output is captured.
 
 const keychain = new Map<string, string>();
 let home: string;
 let out: string[];
-let server: FakeServer | undefined;
+let server: TestServer | undefined;
 
 /** The Secure Enclave, faked: software keys underneath, reported as hardware-bound. */
 function fakeEnclave(available = true) {
@@ -42,6 +43,7 @@ beforeEach(async () => {
   home = await mkdtemp(path.join(os.tmpdir(), "sikrets-device-"));
   process.env[ENV.configDir] = home;
   delete process.env[ENV.deviceKeys]; // the preload forces software keys; these tests choose
+  delete process.env[ENV.server]; // these tests start their own servers and use the saved one
   spyOn(Bun.secrets, "set").mockImplementation(async ({ service, name, value }) => void keychain.set(`${service}/${name}`, value));
   spyOn(Bun.secrets, "get").mockImplementation(async ({ service, name }) => keychain.get(`${service}/${name}`) ?? null);
   spyOn(Bun.secrets, "delete").mockImplementation(async ({ service, name }) => keychain.delete(`${service}/${name}`));
@@ -270,7 +272,9 @@ describe("sign-in", () => {
     let code = "";
     let polls = 0;
     // Still pending on the first poll; the person approves before the second.
-    const sleep = async () => void (polls++ === 0 && server!.approve(code, "me@example.test"));
+    const sleep = async () => {
+      if (polls++ === 0) await server!.approve(code, "me@example.test");
+    };
     const session = await deviceClient({ server: server.url, device, sleep }).login({
       name: "test-mac",
       approve: (a) => {
@@ -284,7 +288,7 @@ describe("sign-in", () => {
     // The certificate binds the device id to this device's key.
     const cert = JSON.parse(Buffer.from(session.certificate.split(".")[1]!, "base64url").toString());
     expect(cert).toMatchObject({ sub: session.deviceId, user: "me@example.test", hw: true });
-    expect(server.devices()[0]!.jwk).toEqual(pointToJwk(device.signingPublicKey));
+    expect((await server.devices("me@example.test"))[0]!.jwk).toEqual(pointToJwk(device.signingPublicKey));
   });
 
   test("only the key that started a sign-in can collect it, and registering needs that key's signature", async () => {

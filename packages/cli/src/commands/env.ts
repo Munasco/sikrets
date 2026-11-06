@@ -15,7 +15,7 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   const root = process.cwd();
   const { resources } = await state.load(root);
   const { config, ctx } = await projectContext(root, { log: () => {} });
-  const vault = await openVault(ctx.project, ctx.vault);
+  const vault = await openVault(ctx.project, ctx.server);
   const applied = resources.filter((r) => r.applied);
 
   if (args[0] === "pull") {
@@ -37,8 +37,8 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   const rows = await Promise.all(
     applied.flatMap(outputKeys).map(async ({ key, sensitive }) => ({ key, sensitive, set: await vault.has(key) })),
   );
-  if (opts.json) return console.log(JSON.stringify({ vault: vault.name, keys: rows }));
+  if (opts.json) return console.log(JSON.stringify({ server: vault.server, keys: rows }));
   if (!rows.length) return console.log("No values yet. Add something: sikrets add <provider/service>");
-  console.log(`Values in the ${vault.name} vault (names only):`);
+  console.log(`Values on ${vault.server} (names only):`);
   for (const r of rows) console.log(`  ${r.set ? "●" : "○"} ${r.key}${r.sensitive ? "  secret · .env holds a stand-in" : ""}${r.set ? "" : "  (missing)"}`);
 }

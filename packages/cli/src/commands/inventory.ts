@@ -45,7 +45,7 @@ export async function inventory(root: string, opts: { offline?: boolean } = {}):
   const usage = usageByKey(await readUsage(ctx.project));
   // Runs recorded before the usage log existed still count as use.
   const ran = lastUsed(await readActivity(root));
-  const vault = await openVault(ctx.project, ctx.vault);
+  const vault = await openVault(ctx.project, ctx.server);
 
   const rows: InventoryRow[] = [];
   for (const res of resources.filter((r) => r.applied)) {

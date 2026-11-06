@@ -2,7 +2,7 @@
 // help and typo suggestions without loading any implementation. Each command's code is imported
 // only when that command runs, so `sikrets ls` never pays for the browser stack.
 
-import { REVEAL } from "../constants.ts";
+import { ENV, REVEAL, SERVER } from "../constants.ts";
 
 export interface OptionSpec {
   name: string;
@@ -26,6 +26,9 @@ export interface CommandSpec {
   load: () => Promise<{ run: (args: string[], opts: Record<string, unknown>) => Promise<void> }>;
 }
 
+/** Every command that talks to the Sikrets server takes it (index.ts adds it unless the command has its own --server). */
+export const serverOption: OptionSpec = { name: "server", type: "string", argument: "URL", description: `Sikrets server for this run (default: ${ENV.server}, then sikrets.json, then the one you signed in to)` };
+
 export const jsonOption: OptionSpec = { name: "json", type: "boolean", description: "Machine-readable output on stdout (for agents)" };
 
 const dryRunOption: OptionSpec = { name: "dry-run", type: "boolean", description: "Show exactly what would change, and what it costs, without touching anything" };
@@ -36,14 +39,14 @@ const envOption: OptionSpec = { name: "env", type: "boolean", description: "Prin
 export const commands: CommandSpec[] = [
   {
     name: "init",
-    description: "Create sikrets.json for this project (name, vault, env file, IaC dir, default connections)",
+    description: "Create sikrets.json for this project (name, server, env file, IaC dir, default connections)",
     arguments: [],
     options: [
       { name: "project", type: "string", argument: "NAME", description: "Project name (default: directory name)" },
-      { name: "vault", type: "string", argument: "ssm|keychain", description: "Where secrets live (default: ssm)" },
+      { name: "server", type: "string", argument: "URL", description: "A custom Sikrets server for this project (default: ours)" },
       jsonOption,
     ],
-    examples: ["sikrets init", "sikrets init --project shop --vault keychain"],
+    examples: ["sikrets init", "sikrets init --project shop --server https://sikrets.acme.dev"],
     load: () => import("./init.ts"),
   },
   {
@@ -206,11 +209,11 @@ export const commands: CommandSpec[] = [
     description: "Sign this device in: registers its key (Secure Enclave on a Mac) after you approve in the browser; requests are then signed by the device",
     arguments: [],
     options: [
-      { name: "server", type: "string", argument: "URL", description: "Sikrets server (default: SIKRETS_SERVER, else the last one used)" },
+      { name: "server", type: "string", argument: "URL", description: `Sign in to this server and remember it (default: ${ENV.server}, sikrets.json, the remembered one, then ours)` },
       { name: "no-browser", type: "boolean", description: "Print the approval link instead of opening it" },
       jsonOption,
     ],
-    examples: ["sikrets login", "sikrets login --server http://127.0.0.1:4873 --no-browser"],
+    examples: ["sikrets login", `sikrets login --server http://${SERVER.localHost}:${SERVER.localPort} --no-browser`],
     load: () => import("./login.ts"),
   },
   {
@@ -231,6 +234,29 @@ export const commands: CommandSpec[] = [
     options: [jsonOption],
     examples: ["sikrets devices", "sikrets devices revoke dev_1a2b3c", "sikrets devices --json"],
     load: () => import("./devices.ts"),
+  },
+  {
+    name: "server",
+    description: "Run a Sikrets server on this machine (SQLite in ~/.sikrets): it stores only ciphertext and signs you in automatically",
+    arguments: [],
+    options: [
+      { name: "port", type: "string", argument: "PORT", description: `Port on ${SERVER.localHost} (default: ${SERVER.localPort})` },
+      { name: "data", type: "string", argument: "DIR", description: `Where the database lives (default: ~/.sikrets/${SERVER.dataDir})` },
+    ],
+    examples: ["sikrets server", "sikrets server --port 4900 --data ./sikrets-data", `sikrets login --server http://${SERVER.localHost}:${SERVER.localPort}`],
+    load: () => import("./server.ts"),
+  },
+  {
+    name: "migrate",
+    description: "Move values from the old SSM or keychain vault to the Sikrets server (dry run unless --apply; names only)",
+    arguments: [],
+    options: [
+      { name: "from", type: "string", argument: "ssm|keychain", description: `Where the values are now (default: "vault" in sikrets.json, else ssm)` },
+      { name: "apply", type: "boolean", description: "Upload them; without it nothing changes" },
+      jsonOption,
+    ],
+    examples: ["sikrets migrate", "sikrets migrate --apply", "sikrets migrate --from keychain --apply --json"],
+    load: () => import("./migrate.ts"),
   },
   {
     name: "unlock",

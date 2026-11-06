@@ -27,11 +27,11 @@ export async function run(args: string[], opts: Record<string, unknown>) {
 
   const m = managerFor(ref);
   const { ctx } = await projectContext(root, { log: (s) => log(opts, s) });
-  const vault = await openVault(ctx.project, ctx.vault);
+  const vault = await openVault(ctx.project, ctx.server);
   const value = await m.read(ref);
   await vault.put(key, value);
   await saveExternalKeys(root, [{ key, source: m.id, ref, addedAt: new Date().toISOString() }]);
   await record(root, { kind: "link", detail: `${m.name} ${ref}`, keys: [key] });
   if (opts.json) console.log(JSON.stringify({ key, ref, manager: m.id }));
-  else log(opts, `Linked ${key} to ${m.name} (${ref}). Copied its current value into the ${vault.name} vault; rotations write back to ${m.name}.`);
+  else log(opts, `Linked ${key} to ${m.name} (${ref}). Copied its current value into the vault on ${vault.server}; rotations write back to ${m.name}.`);
 }

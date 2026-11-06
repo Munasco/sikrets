@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { parseArgs } from "node:util";
-import { commands, findCommand, type CommandSpec } from "./commands/specs.ts";
+import { commands, findCommand, serverOption, type CommandSpec } from "./commands/specs.ts";
+import { serverFlag } from "./core/server.ts";
 
 const usage = (c: CommandSpec) => `sikrets ${c.name}${c.arguments.map((a) => (a.required ? ` <${a.name}>` : ` [${a.name}]`)).join("")}`;
 
@@ -9,7 +10,7 @@ function help(c?: CommandSpec) {
     const width = Math.max(...commands.map((x) => x.name.length));
     return `sikrets — connect providers, provision and rotate credentials\n\nCommands\n${commands
       .map((x) => `  ${x.name.padEnd(width)}  ${x.description}`)
-      .join("\n")}\n\nRun sikrets <command> --help for details.`;
+      .join("\n")}\n\nGlobal options\n  --${serverOption.name} <${serverOption.argument}>  ${serverOption.description}\n\nRun sikrets <command> --help for details.`;
   }
   const opts = c.options.map((o) => `  --${o.name}${o.argument ? ` <${o.argument}>` : ""}`);
   const width = Math.max(0, ...opts.map((o) => o.length));
@@ -52,11 +53,14 @@ async function main(argv = process.argv.slice(2)) {
   const own = split >= 0 ? rest.slice(0, split) : rest;
   const passed = split >= 0 ? rest.slice(split + 1) : [];
 
+  // --server picks the Sikrets server for any command, unless the command has its own --server.
+  const globalServer = !spec.options.some((o) => o.name === serverOption.name);
   const { values, positionals } = parseArgs({
     args: own,
     allowPositionals: true,
     options: {
       help: { type: "boolean", short: "h" },
+      ...(globalServer ? { [serverOption.name]: { type: "string" as const } } : {}),
       ...Object.fromEntries(spec.options.map((o) => [o.name, { type: o.type, multiple: o.multiple ?? false, ...(o.short ? { short: o.short } : {}) }])),
     },
   });
@@ -65,6 +69,8 @@ async function main(argv = process.argv.slice(2)) {
   const missing = spec.arguments.slice(args.length).find((a) => a.required);
   if (missing) throw new Error(`Missing <${missing.name}>. Usage: ${usage(spec)}${spec.passthrough ? " -- …" : ""}`);
 
+  const flag = (values as Record<string, unknown>)[serverOption.name];
+  if (globalServer && typeof flag === "string") serverFlag.value = flag;
   const { run } = await spec.load();
   await run(args, values);
 }

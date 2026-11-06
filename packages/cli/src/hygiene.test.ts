@@ -9,7 +9,7 @@ import { openVault } from "./core/vault.ts";
 import { native } from "./core/doorman.ts";
 
 // Vault values are stored sealed, so read them back the way the CLI does rather than off the raw keychain entry.
-const opened = async (project: string, key: string) => (await (await openVault(project, "keychain")).get(key))?.reveal();
+const opened = async (project: string, key: string) => (await (await openVault(project)).get(key))?.reveal();
 
 // Credential hygiene: usage log, inventory, agent identities, offboarding and short-lived
 // credentials. Providers are faked (fetch is mocked; STS is a local HTTP server), the keychain is
@@ -40,9 +40,8 @@ beforeEach(async () => {
   root = await mkdtemp(path.join(os.tmpdir(), "sikrets-hygiene-"));
   home = await mkdtemp(path.join(os.tmpdir(), "sikrets-home-"));
   process.env.SIKRETS_CONFIG_DIR = home;
-  process.env.SIKRETS_VAULT = "keychain";
   delete process.env.SIKRETS_AGENT;
-  await Bun.write(path.join(root, "sikrets.json"), JSON.stringify({ project: "demo", vault: "keychain" }));
+  await Bun.write(path.join(root, "sikrets.json"), JSON.stringify({ project: "demo" }));
   cwd = process.cwd();
   process.chdir(root);
 
@@ -69,13 +68,13 @@ afterEach(async () => {
 const DAY = 86_400_000;
 const daysAgo = (n: number) => new Date(Date.now() - n * DAY).toISOString();
 
-/** A live resource in state with its secret in the (fake) keychain vault. */
+/** A live resource in state with its secret in the vault (the in-memory test server). */
 async function stored(name: string, recipe: Resource["recipe"], value: string, over: Partial<Resource> = {}) {
   const env = recipe === "github/app-key" ? "PRIVATE_KEY" : recipe === "aws/access-key" ? "ACCESS_KEY" : "API_KEY";
   const key = `${name.toUpperCase().replaceAll("-", "_")}_${env}`;
   const res: Resource = { name, recipe, provider: recipe.split("/")[0]!, strategy: "manual", inputs: {}, dependsOn: {}, envKeys: [key], outputs: {}, applied: true, createdAt: new Date().toISOString(), ...over };
   await state.upsert(root, res);
-  await (await openVault("demo", "keychain")).put(key, Secret.of(value));
+  await (await openVault("demo")).put(key, Secret.of(value));
   return key;
 }
 
@@ -234,8 +233,8 @@ describe("offboard", () => {
     process.env.UPSTASH_EMAIL = "dev@example.com";
     process.env.UPSTASH_API_KEY = "test-management-key";
     await stored("cache", "upstash/redis", token, { strategy: "api", remoteId: "db_cache", envKeys: ["CACHE_REDIS_REST_URL", "CACHE_REDIS_REST_TOKEN"] });
-    await (await openVault("demo", "keychain")).put("CACHE_REDIS_REST_TOKEN", Secret.of(token));
-    await (await openVault("demo", "keychain")).put("CACHE_REDIS_REST_URL", Secret.of("https://happy-fox-123.upstash.io"));
+    await (await openVault("demo")).put("CACHE_REDIS_REST_TOKEN", Secret.of(token));
+    await (await openVault("demo")).put("CACHE_REDIS_REST_URL", Secret.of("https://happy-fox-123.upstash.io"));
     await stored("anthropic", "anthropic/api-key", "sk-ant-api03-secretsecretsecret");
     const { recordUse } = await import("./core/usage.ts");
     await recordUse("demo", { keys: ["CACHE_REDIS_REST_URL", "CACHE_REDIS_REST_TOKEN"], via: "run", app: "claude", agent: "reviewer" });

@@ -12,11 +12,12 @@ import { recipe } from "./recipes/index.ts";
 import { resolveInputs } from "./recipes/types.ts";
 import "./core/files.ts";
 import "./core/vault.ts";
+import { TEST_SERVER } from "./testing/preload.ts";
 
 // Vault values are stored sealed, so read them back the way the CLI does rather than off the raw keychain entry.
 /** Entries in project vaults; the per-user data key outlives any one project's rollback. */
-const vaultEntries = () => [...keychain.keys()].filter((k) => k.startsWith("dev.sikrets.vault.")).length;
-const opened = async (project: string, key: string) => (await (await openVault(project, "keychain")).get(key))?.reveal();
+const vaultEntries = async () => (await (await openVault("demo")).list()).length;
+const opened = async (project: string, key: string) => (await (await openVault(project)).get(key))?.reveal();
 
 // Fake Upstash account, in-memory keychain and a throwaway project, so nothing real is touched.
 let databases: Record<string, { database_id: string; database_name: string; endpoint: string; rest_token: string }>;
@@ -32,8 +33,7 @@ beforeEach(async () => {
   failCreate = false;
   keychain.clear();
   root = await mkdtemp(path.join(os.tmpdir(), "sikrets-test-"));
-  ctx = { root, project: "demo", vault: "keychain", dryRun: false, log: () => {} };
-  process.env.SIKRETS_VAULT = "keychain";
+  ctx = { root, project: "demo", server: TEST_SERVER, dryRun: false, log: () => {} };
   process.env.UPSTASH_EMAIL = "dev@example.com";
   process.env.UPSTASH_API_KEY = "test-management-key";
 
@@ -133,7 +133,7 @@ describe("API recipes (upstash/redis)", () => {
 
     await undoSteps(op, ctx);
     expect(Object.keys(databases)).toHaveLength(0);
-    expect(vaultEntries()).toBe(0);
+    expect(await vaultEntries()).toBe(0);
     expect((await state.load(root)).resources).toHaveLength(0);
   });
 
@@ -149,7 +149,7 @@ describe("API recipes (upstash/redis)", () => {
   test("a provider error leaves nothing behind", async () => {
     failCreate = true;
     await expect(applyPlan("add upstash/redis", (await planAdd(request({}), ctx)).changes, ctx)).rejects.toThrow("HTTP 500");
-    expect(vaultEntries()).toBe(0);
+    expect(await vaultEntries()).toBe(0);
     expect((await state.load(root)).resources).toHaveLength(0);
   });
 });
@@ -222,19 +222,19 @@ describe("manual recipes (anthropic/api-key)", () => {
     expect(res).toMatchObject({ name: "anthropic", strategy: "manual", applied: true, envKeys: ["ANTHROPIC_API_KEY"] });
     expect(JSON.stringify(res)).not.toContain("sk-ant");
     await undoSteps(op, ctx);
-    expect(vaultEntries()).toBe(0);
+    expect(await vaultEntries()).toBe(0);
     expect((await state.load(root)).resources).toHaveLength(0);
   });
 
   test("something that isn't a key is rejected before any network call", async () => {
     await expect(applyPlan("add", (await planAdd(paste("hello"), ctx)).changes, ctx)).rejects.toThrow("doesn't look like");
     expect(fetchCalls).toBe(0);
-    expect(vaultEntries()).toBe(0);
+    expect(await vaultEntries()).toBe(0);
   });
 
   test("a revoked or mistyped key is rejected and nothing is stored", async () => {
     await expect(applyPlan("add", (await planAdd(paste("sk-ant-api03-revokedrevokedrevoked99"), ctx)).changes, ctx)).rejects.toThrow("rejected this key");
-    expect(vaultEntries()).toBe(0);
+    expect(await vaultEntries()).toBe(0);
     expect((await state.load(root)).resources).toHaveLength(0);
   });
 });
@@ -255,12 +255,12 @@ describe("stand-ins", () => {
 
     await undoSteps(op, ctx);
     expect(await dotenv()).toBe("# mine\nPORT=3000\n");
-    expect(vaultEntries()).toBe(0); // real token and stand-in both gone
+    expect(await vaultEntries()).toBe(0); // real token and stand-in both gone
   });
 
   test("stand-ins are stable, and --real resolves to the real values", async () => {
     await applyPlan("add", (await planAdd(request({}), ctx)).changes, ctx);
-    const vault = await openVault("demo", "keychain");
+    const vault = await openVault("demo");
     const { resources } = await state.load(root);
     const first = await envValues(vault, resources, false);
     const again = await envValues(vault, resources, false);
@@ -283,22 +283,22 @@ describe("sikrets.json", () => {
   test("defaults come from the directory; strict validation rejects typos", async () => {
     const { loadConfig, validateConfig } = await import("./core/config.ts");
     const c = await loadConfig(root);
-    expect(c).toMatchObject({ vault: "ssm", env: ".env", iac: { tool: "terraform", dir: "iac/terraform" } });
+    expect(c).toMatchObject({ env: ".env", iac: { tool: "terraform", dir: "iac/terraform" } });
+    expect([c.server, c.vault]).toEqual([undefined, undefined]);
     expect(() => validateConfig({ projct: "x" }, root)).toThrow("unknown field projct");
     expect(() => validateConfig({ vault: "s3" }, root)).toThrow('"vault"');
+    expect(() => validateConfig({ server: "not a url" }, root)).toThrow('"server"');
+    expect(() => validateConfig({ server: "ftp://sikrets.example.com" }, root)).toThrow('"server"');
     expect(() => validateConfig({ env: "../secrets" }, root)).toThrow('"env"');
     expect(() => validateConfig({ project: "Shop App" }, root)).toThrow('"project"');
   });
 
-  test("the project name and vault come from sikrets.json", async () => {
+  test("the project name and server come from sikrets.json", async () => {
     const { projectContext } = await import("./core/config.ts");
-    await Bun.write(path.join(root, "sikrets.json"), JSON.stringify({ project: "shop", vault: "keychain", env: ".env.local" }));
-    delete process.env.SIKRETS_VAULT;
+    await Bun.write(path.join(root, "sikrets.json"), JSON.stringify({ project: "shop", server: "https://sikrets.acme.dev/", vault: "keychain", env: ".env.local" }));
+    delete process.env.SIKRETS_SERVER;
     const { config, ctx: c } = await projectContext(root, { log: () => {} });
-    expect([c.project, c.vault, config.env]).toEqual(["shop", "keychain", ".env.local"]);
-    process.env.SIKRETS_VAULT = "ssm"; // per-run override
-    expect((await projectContext(root, { log: () => {} })).ctx.vault).toBe("ssm");
-    process.env.SIKRETS_VAULT = "keychain";
+    expect([c.project, c.server, config.env, config.vault]).toEqual(["shop", "https://sikrets.acme.dev", ".env.local", "keychain"]);
   });
 });
 
