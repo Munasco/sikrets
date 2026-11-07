@@ -38,6 +38,8 @@ export const CLOCK_SKEW_MS = 2 * 60_000;
 export const MESSAGE_IDS = {
   hello: "hello",
   snapshot: "snapshot",
+  /** Either side forgot the pairing; sealed with the session key so only the other side can act on it. */
+  unpaired: "unpaired",
 } as const;
 
 /** Relay mailbox limits. The relay enforces them; clients stay inside them. */

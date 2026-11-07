@@ -1,24 +1,33 @@
 import path from "node:path";
 import {
+  AAD,
   MESSAGE_IDS,
+  PROTOCOL_VERSION,
   createOffer,
   encodeOffer,
   mailbox,
   openHello,
   relayClient,
+  seal,
   sessionKey,
   type CliPairingSecrets,
   type Hello,
   type Offer,
   type RelayClient,
+  type UnpairNotice,
 } from "@sikrets/pairing";
 import { configDir, keychain } from "../store.ts";
-import { readJson, remove, writePrivate } from "./fs.ts";
+import { privateDir, readJson, remove } from "./fs.ts";
+import { writeAtomic } from "./lock.ts";
 import { ENV, RELAY } from "../constants.ts";
 
 // The laptop's half of phone pairing. The CLI's X25519 secret key and the pairing secret live in
 // the OS keychain; ~/.sikrets/pairing.json keeps only public facts (the phone's public keys, the
 // relay URL, opaque box ids) so `sikrets pair --status` never needs the keychain.
+//
+// Each pairing's secrets get their own keychain slot, named by its pairing id, and pairing.json
+// names the slot. Re-pairing writes the new slot, then swaps pairing.json in one rename, then drops
+// the old slot, so a crash at any point leaves one complete pairing: the old one or the new one.
 
 export interface Pairing {
   relay: string;
@@ -44,16 +53,24 @@ const file = () => path.join(configDir(), RELAY.pairingFile);
 
 export const loadPairing = () => readJson<Pairing | undefined>(file(), undefined);
 
-async function loadSecrets(): Promise<CliPairingSecrets | undefined> {
-  const raw = await keychain.get(RELAY.keychainProvider, RELAY.keychainAccount);
-  return raw ? (JSON.parse(raw) as CliPairingSecrets) : undefined;
+/** Pairings saved before per-pairing slots used the fixed account. */
+const slotFor = (p: Pick<Pairing, "pairingId">) => `${RELAY.keychainAccount}-${p.pairingId}`;
+const slots = (p: Pairing) => [slotFor(p), RELAY.keychainAccount];
+
+async function loadSecrets(p: Pairing): Promise<CliPairingSecrets | undefined> {
+  for (const slot of slots(p)) {
+    const raw = await keychain.get(RELAY.keychainProvider, slot);
+    const secrets = raw ? (JSON.parse(raw) as CliPairingSecrets) : undefined;
+    if (secrets && mailbox(secrets.pairSecret).pairingId === p.pairingId) return secrets; // never another pairing's
+  }
+  return undefined;
 }
 
 /** The paired phone and the session key, or undefined when nothing is paired. */
 export async function loadLink(fetcher?: typeof fetch): Promise<Link | undefined> {
   const pairing = await loadPairing();
   if (!pairing) return undefined;
-  const secrets = await loadSecrets();
+  const secrets = await loadSecrets(pairing);
   if (!secrets) throw new Error("This laptop's pairing keys are missing from the keychain. Pair again with: sikrets pair");
   return { pairing, key: sessionKey(secrets.cliSecretKey, pairing.phoneEncKey, secrets.pairSecret), relay: relayClient(pairing.relay, fetcher) };
 }
@@ -95,12 +112,26 @@ async function finish(offer: Offer, secrets: CliPairingSecrets, hello: Hello): P
     phoneName: hello.name.slice(0, 64),
     pairedAt: new Date().toISOString(),
   };
-  await keychain.set(RELAY.keychainProvider, RELAY.keychainAccount, JSON.stringify(secrets));
-  await writePrivate(file(), JSON.stringify(pairing, null, 2) + "\n");
+  const previous = await loadPairing();
+  await keychain.set(RELAY.keychainProvider, slotFor(pairing), JSON.stringify(secrets));
+  await privateDir(configDir());
+  await writeAtomic(file(), JSON.stringify(pairing, null, 2) + "\n", 0o600);
+  if (previous && previous.pairingId !== pairing.pairingId) for (const slot of slots(previous)) await keychain.delete(RELAY.keychainProvider, slot);
   return pairing;
 }
 
-export async function forgetPairing() {
-  await keychain.delete(RELAY.keychainProvider, RELAY.keychainAccount).catch(() => undefined);
+/**
+ * Unpairs: tells the phone (best effort, unless the phone is the one that unpaired), removes the
+ * record, then the keychain slot. A record without its slot is never left behind.
+ */
+export async function forgetPairing(opts: { notify?: boolean; fetcher?: typeof fetch } = {}) {
+  const pairing = await loadPairing();
+  if (!pairing) return;
+  if (opts.notify !== false) {
+    const link = await loadLink(opts.fetcher).catch(() => undefined);
+    const notice: UnpairNotice = { v: PROTOCOL_VERSION, pairingId: pairing.pairingId, at: new Date().toISOString() };
+    if (link) await link.relay.put(pairing.toPhone, MESSAGE_IDS.unpaired, seal(link.key, AAD.toPhone, notice), RELAY.snapshotTtlSeconds).catch(() => undefined);
+  }
   await remove(file());
+  for (const slot of slots(pairing)) await keychain.delete(RELAY.keychainProvider, slot);
 }

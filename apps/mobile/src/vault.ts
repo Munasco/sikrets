@@ -19,7 +19,11 @@ export interface StoredPairing {
   pairedAt: string;
   /** True when the signing key's keychain item itself requires Face ID. */
   biometricBound: boolean;
+  /** Keychain item holding this pairing's signing key. Absent on older pairings: STORAGE.signKey. */
+  signKeySlot?: string;
 }
+
+const slotOf = (p: StoredPairing) => p.signKeySlot ?? STORAGE.signKey;
 
 const deviceOnly = { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY };
 const isExpoGo = () => Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
@@ -33,16 +37,24 @@ export async function biometricsReady() {
   return (await LocalAuthentication.hasHardwareAsync()) && (await LocalAuthentication.isEnrolledAsync());
 }
 
-/** Scanned QR text → keys created, stored, and the hello sent to the laptop. */
+/**
+ * Scanned QR text → keys created, the hello sent to the laptop, then stored. The new signing key goes
+ * into a slot of its own, and the previous pairing (record and key) stays untouched until the hello
+ * is out: if the relay can't be reached, nothing about the current pairing changes.
+ */
 export async function pairWith(qrText: string): Promise<StoredPairing> {
   const offer = decodeOffer(qrText);
   if (!(await biometricsReady())) throw new Error("Set up Face ID (or a passcode) first: approvals are signed behind it.");
   const id = createPhoneIdentity();
+  const box = mailbox(offer.secret);
+  const previous = await loadPairing();
+  if (previous?.offer.secret === offer.secret) throw new Error("Already paired with this laptop.");
+  const slot = `${STORAGE.signKey}.${box.pairingId.slice(0, 16)}`;
   let biometricBound = false;
-  await SecureStore.deleteItemAsync(STORAGE.signKey).catch(() => undefined);
+  await SecureStore.deleteItemAsync(slot).catch(() => undefined);
   if (!isExpoGo() && SecureStore.canUseBiometricAuthentication()) {
     try {
-      await SecureStore.setItemAsync(STORAGE.signKey, id.signSecretKey, {
+      await SecureStore.setItemAsync(slot, id.signSecretKey, {
         requireAuthentication: true,
         authenticationPrompt: COPY.faceIdApprove,
         keychainAccessible: SecureStore.WHEN_PASSCODE_SET_THIS_DEVICE_ONLY,
@@ -52,12 +64,17 @@ export async function pairWith(qrText: string): Promise<StoredPairing> {
       biometricBound = false;
     }
   }
-  if (!biometricBound) await SecureStore.setItemAsync(STORAGE.signKey, id.signSecretKey, { keychainAccessible: SecureStore.WHEN_PASSCODE_SET_THIS_DEVICE_ONLY });
+  if (!biometricBound) await SecureStore.setItemAsync(slot, id.signSecretKey, { keychainAccessible: SecureStore.WHEN_PASSCODE_SET_THIS_DEVICE_ONLY });
 
-  const pairing: StoredPairing = { offer, encSecretKey: id.encSecretKey, encPublicKey: id.encPublicKey, signPublicKey: id.signPublicKey, pairedAt: new Date().toISOString(), biometricBound };
-  const box = mailbox(offer.secret);
-  await relayClient(offer.relay).put(box.toCli, MESSAGE_IDS.hello, sealHello(offer.secret, { v: PROTOCOL_VERSION, encKey: id.encPublicKey, signKey: id.signPublicKey, name: COPY.phoneName, at: pairing.pairedAt }));
+  const pairing: StoredPairing = { offer, encSecretKey: id.encSecretKey, encPublicKey: id.encPublicKey, signPublicKey: id.signPublicKey, pairedAt: new Date().toISOString(), biometricBound, signKeySlot: slot };
+  try {
+    await relayClient(offer.relay).put(box.toCli, MESSAGE_IDS.hello, sealHello(offer.secret, { v: PROTOCOL_VERSION, encKey: id.encPublicKey, signKey: id.signPublicKey, name: COPY.phoneName, at: pairing.pairedAt }));
+  } catch (error) {
+    await SecureStore.deleteItemAsync(slot).catch(() => undefined);
+    throw error;
+  }
   await SecureStore.setItemAsync(STORAGE.pairing, JSON.stringify(pairing), deviceOnly);
+  if (previous && slotOf(previous) !== slot) await SecureStore.deleteItemAsync(slotOf(previous)).catch(() => undefined);
   return pairing;
 }
 
@@ -68,18 +85,21 @@ export async function pairWith(qrText: string): Promise<StoredPairing> {
 export async function unlockSigningKey(pairing: StoredPairing, prompt: string): Promise<string | undefined> {
   if (pairing.biometricBound) {
     try {
-      return (await SecureStore.getItemAsync(STORAGE.signKey, { requireAuthentication: true, authenticationPrompt: prompt })) ?? undefined;
+      return (await SecureStore.getItemAsync(slotOf(pairing), { requireAuthentication: true, authenticationPrompt: prompt })) ?? undefined;
     } catch {
       return undefined; // cancelled or failed: treat as no answer
     }
   }
   const auth = await LocalAuthentication.authenticateAsync({ promptMessage: prompt, cancelLabel: "Cancel", disableDeviceFallback: false });
   if (!auth.success) return undefined;
-  return (await SecureStore.getItemAsync(STORAGE.signKey)) ?? undefined;
+  return (await SecureStore.getItemAsync(slotOf(pairing))) ?? undefined;
 }
 
 export async function forget() {
+  const pairing = await loadPairing();
+  if (pairing) await SecureStore.deleteItemAsync(slotOf(pairing)).catch(() => undefined);
   await SecureStore.deleteItemAsync(STORAGE.signKey).catch(() => undefined);
+  await SecureStore.deleteItemAsync(STORAGE.sent).catch(() => undefined);
   await SecureStore.deleteItemAsync(STORAGE.pairing, deviceOnly).catch(() => undefined);
   await SecureStore.deleteItemAsync(STORAGE.notified).catch(() => undefined);
 }

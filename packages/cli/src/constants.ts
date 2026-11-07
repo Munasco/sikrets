@@ -149,6 +149,8 @@ export const RELAY = {
   recentMs: 24 * 60 * 60_000,
   /** Snapshot message id prefix; a short hash of the project path follows. */
   snapshotIdPrefix: "snapshot",
+  /** A used challenge for a request still pending this long later (its answer never applied) is replaced. */
+  reissueAfterMs: 60_000,
 } as const;
 
 // ── Local state-file locks ────────────────────────────────────────────────

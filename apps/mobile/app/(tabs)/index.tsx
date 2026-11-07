@@ -7,7 +7,7 @@ import { Badge, Button, Card, Empty, T } from "../../src/ui";
 import { statusBadge, timeLeft } from "../../src/format";
 
 export default function Approvals() {
-  const { pairing, requests, sent, refresh, error, ready } = useSikrets();
+  const { pairing, requests, sentFor, refresh, error, ready } = useSikrets();
   const [refreshing, setRefreshing] = useState(false);
   if (!ready) return null;
   if (!pairing)
@@ -40,7 +40,7 @@ export default function Approvals() {
       }
       ListHeaderComponent={error ? <T variant="small" style={{ color: COLORS.danger }}>{error}</T> : undefined}
       ListEmptyComponent={<Empty title="Nothing waiting" detail="Requests from sikrets approvals watch show up here." />}
-      renderItem={({ item }) => <Row req={item} sent={sent[item.id]} />}
+      renderItem={({ item }) => <Row req={item} sent={sentFor(item)} />}
     />
   );
 }

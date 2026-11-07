@@ -2,7 +2,7 @@ import { record } from "../core/activity.ts";
 import { applyEvent, approvals, decide, isOpen, isReason, reasonText, requestRotation, type ApprovalRequest, type Reason } from "../core/approvals.ts";
 import { native } from "../core/doorman.ts";
 import { loadLink } from "../core/pairing.ts";
-import { poll, push } from "../core/phone.ts";
+import { PhoneUnpairedError, poll, push } from "../core/phone.ts";
 import { state } from "../core/state.ts";
 import { until } from "../core/ttl.ts";
 import { log } from "../ui.ts";
@@ -102,6 +102,7 @@ async function watch(root: string, opts: Record<string, unknown>, say: (m: strin
   let fingerprint = JSON.stringify(await approvals.load(root));
   for (;;) {
     const outcomes = await poll(root, link, (r) => rotation.run(r)).catch((e: unknown) => {
+      if (e instanceof PhoneUnpairedError) throw e;
       say(`Relay unreachable (${e instanceof Error ? e.message : "error"}); retrying.`);
       return [];
     });

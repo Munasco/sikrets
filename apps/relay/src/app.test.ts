@@ -66,6 +66,14 @@ describe("relay mailbox", () => {
     expect((await r.call("PUT", `/v1/boxes/${BOX}/messages/m0`, { blob: "eQ" })).status).toBe(204);
   });
 
+  test("concurrent puts into a nearly full box don't overshoot the cap", async () => {
+    const r = relay();
+    for (let i = 0; i < RELAY_LIMITS.maxMessagesPerBox - 1; i++) await r.call("PUT", `/v1/boxes/${BOX}/messages/m${i}`, { blob: "eA" });
+    const codes = await Promise.all(["x1", "x2", "x3", "x4"].map(async (id) => (await r.call("PUT", `/v1/boxes/${BOX}/messages/${id}`, { blob: "eA" })).status));
+    expect(codes.filter((c) => c === 429).length).toBeGreaterThanOrEqual(3);
+    expect((await list(r)).length).toBeLessThanOrEqual(RELAY_LIMITS.maxMessagesPerBox);
+  });
+
   test("health check and CORS preflight", async () => {
     const r = relay();
     expect((await r.call("GET", "/health")).status).toBe(200);

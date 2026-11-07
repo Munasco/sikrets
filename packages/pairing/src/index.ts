@@ -170,6 +170,13 @@ export function openHello(pairSecret: string, blob: string): Hello {
   return hello;
 }
 
+/** Sent by whichever side unpairs, so the other one stops showing or accepting a dead pairing. */
+export interface UnpairNotice {
+  v: typeof PROTOCOL_VERSION;
+  pairingId: string;
+  at: string;
+}
+
 // ── What the CLI shows the phone ───────────────────────────────────────────
 
 export type ReasonCategory = "exposed" | "expired" | "requested";
@@ -183,7 +190,7 @@ export interface RequestView {
   status: string;
   createdAt: string;
   expiresAt: string;
-  /** One-time value the phone must sign; the CLI forgets it once used. */
+  /** One-time value the phone must sign; empty once used or when the request is closed. */
   challenge: string;
 }
 

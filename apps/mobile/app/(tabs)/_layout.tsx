@@ -4,8 +4,8 @@ import { useSikrets } from "../../src/state";
 import { Icon } from "../../src/ui";
 
 export default function TabsLayout() {
-  const { requests, sent } = useSikrets();
-  const waiting = requests.filter((r) => r.challenge && !sent[r.id]).length;
+  const { requests, sentFor } = useSikrets();
+  const waiting = requests.filter((r) => r.challenge && !sentFor(r)).length;
   return (
     <Tabs
       screenOptions={{

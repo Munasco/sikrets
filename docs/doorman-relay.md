@@ -22,9 +22,14 @@ verify signature + one-time challenge, then rotate
 - Session key: `HKDF(X25519(cli, phone), salt = pairing secret)`; associated data binds direction.
 - Each open request gets a 128-bit challenge, stored only in the project's `.sikrets/relay.json`.
   The phone signs `[context, version, pairing id, request id, resource, decision, challenge, time]`.
-  The CLI verifies against the phone key it paired with, deletes the challenge, then decides. A
-  replay, a decision for another request or pairing, a forged or flipped signature, or one older
-  than 15 minutes is refused.
+  The CLI verifies against the phone key it paired with and marks the challenge used (checked and
+  written in one step, under a lock on `relay.json`), then decides. Used challenges stay as
+  tombstones; a request that reopens after a failed rotation gets a new one. A replay, a decision
+  for another request or pairing, a forged or flipped signature, or one older than 15 minutes is
+  refused.
+- Unpairing on either side sends a sealed `unpaired` notice, so the other side forgets the pairing
+  too. A new pairing's keys get their own keychain slots and replace the old ones only after the
+  hello has gone through.
 - The phone's signing key is a keychain item that requires Face ID in standalone builds; in Expo
   Go it is device-only and gated by `expo-local-authentication`.
 - No push yet: the app polls while open. APNs needs a paid Apple Developer account.

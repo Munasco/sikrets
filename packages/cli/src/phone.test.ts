@@ -18,12 +18,13 @@ import {
   type Offer,
   type PhoneIdentity,
   type Snapshot,
+  type UnpairNotice,
 } from "@sikrets/pairing";
 import { createRelay } from "../../../apps/relay/src/app.ts";
 import { memoryStore } from "../../../apps/relay/src/store.ts";
-import { approvals, requestRotation } from "./core/approvals.ts";
+import { applyEvent, approvals, requestRotation } from "./core/approvals.ts";
 import { beginPairing, forgetPairing, loadLink, loadPairing, type Link } from "./core/pairing.ts";
-import { poll, push, snapshotId } from "./core/phone.ts";
+import { PhoneUnpairedError, poll, push, snapshotId } from "./core/phone.ts";
 import { state } from "./core/state.ts";
 import { ENV } from "./constants.ts";
 
@@ -108,7 +109,7 @@ describe("pairing", () => {
     expect(saved.phoneSignKey).toBe(phone.id.signPublicKey);
     const onDisk = await Bun.file(path.join(config, "pairing.json")).text();
     expect(onDisk).not.toContain(phone.offer.secret);
-    expect([...keychain.keys()]).toEqual(["dev.sikrets.pairing/default"]);
+    expect([...keychain.keys()]).toEqual([`dev.sikrets.pairing/default-${saved.pairingId}`]);
     expect(await phone.relay.list(phone.box.toCli)).toEqual([]); // hello cleaned up
   });
 
@@ -220,5 +221,70 @@ describe("approvals through the phone", () => {
     await push(root, link);
     const stored = JSON.stringify(await phone.relay.list(phone.box.toPhone));
     for (const leak of ["openai", "exposed", "OPENAI_API_KEY", root]) expect(stored).not.toContain(leak);
+  });
+});
+
+describe("challenge and pairing state", () => {
+  test("a push running alongside a poll can't bring a consumed challenge back", async () => {
+    const { phone, link } = await pairPhone();
+    const { request } = await requestRotation(root, "openai", "exposed");
+    await push(root, link);
+    const blob = await phone.answer(request.id, "deny");
+    await Promise.all([poll(root, link, rotate), push(root, link), push(root, link)]);
+    expect((await approvals.find(root, request.id)).status).toBe("denied");
+    await phone.relay.put(phone.box.toCli, messageId(), blob); // replayed
+    expect(await poll(root, link, rotate)).toEqual([{ requestId: request.id, rejected: "stale or reused challenge" }]);
+    const relayState = await Bun.file(path.join(root, ".sikrets/relay.json")).json();
+    expect(relayState.challenges[request.id]).toMatchObject({ status: "used" }); // kept as a tombstone
+  });
+
+  test("an answer for a request denied on the laptop meanwhile is reported as such, not as failed", async () => {
+    const { phone, link } = await pairPhone();
+    const { request } = await requestRotation(root, "openai", "exposed");
+    await push(root, link);
+    await phone.answer(request.id, "approve");
+    await applyEvent(root, request.id, "deny", { by: "cli" });
+    expect(await poll(root, link, rotate)).toEqual([{ requestId: request.id, rejected: "already denied" }]);
+    expect(rotated).toEqual([]);
+  });
+
+  test("a failed rotation gets a fresh challenge and can be denied from the phone", async () => {
+    const { phone, link } = await pairPhone();
+    const { request } = await requestRotation(root, "openai", "exposed");
+    await push(root, link);
+    await phone.answer(request.id, "approve");
+    expect(await poll(root, link, async () => { throw new Error("provider down"); })).toEqual([{ requestId: request.id, result: "failed" }]);
+    await push(root, link);
+    expect((await phone.snapshot()).requests[0]).toMatchObject({ status: "failed", challenge: expect.any(String) });
+    await phone.answer(request.id, "deny");
+    expect(await poll(root, link, rotate)).toEqual([{ requestId: request.id, result: "denied" }]);
+  });
+
+  test("re-pairing that dies before the record is swapped keeps the old pairing working", async () => {
+    const first = await pairPhone();
+    const session = beginPairing(RELAY_URL, fetcher);
+    // The new pairing's keychain slot was written, then the process died before pairing.json moved.
+    keychain.set(`dev.sikrets.pairing/default-${"f".repeat(32)}`, JSON.stringify({ cliSecretKey: "x", pairSecret: decodeOffer(session.qrText).secret }));
+    const link = (await loadLink(fetcher))!;
+    expect(link.pairing.pairingId).toBe(first.phone.box.pairingId);
+    expect(link.key).toEqual(first.phone.key);
+    // Finishing a pairing replaces the record and drops the old slot.
+    const second = await pairPhone();
+    expect((await loadLink(fetcher))!.key).toEqual(second.phone.key);
+    expect([...keychain.keys()]).not.toContain(`dev.sikrets.pairing/default-${first.phone.box.pairingId}`);
+  });
+
+  test("unpairing on the phone unpairs the laptop too, and the other way round", async () => {
+    const { phone, link } = await pairPhone();
+    const notice: UnpairNotice = { v: 1, pairingId: phone.box.pairingId, at: new Date().toISOString() };
+    await phone.relay.put(phone.box.toCli, MESSAGE_IDS.unpaired, seal(phone.key, AAD.toCli, notice));
+    await expect(poll(root, link, rotate)).rejects.toBeInstanceOf(PhoneUnpairedError);
+    expect(await loadPairing()).toBeUndefined();
+    expect(keychain.size).toBe(0);
+
+    const again = await pairPhone();
+    await forgetPairing({ fetcher });
+    const sent = (await again.phone.relay.list(again.phone.box.toPhone)).find((m) => m.id === MESSAGE_IDS.unpaired)!;
+    expect(open<UnpairNotice>(again.phone.key, AAD.toPhone, sent.blob).pairingId).toBe(again.phone.box.pairingId);
   });
 });

@@ -55,8 +55,14 @@ export function createRelay(store: Store, clock: () => number = Date.now) {
         const ttl = body.ttl === undefined || body.ttl === null ? RELAY_LIMITS.defaultTtlSeconds : Number(body.ttl);
         if (!Number.isInteger(ttl) || ttl < RELAY_LIMITS.minTtlSeconds || ttl > RELAY_LIMITS.maxTtlSeconds) return json(400, { error: "bad ttl" });
         const existing = await store.list(box, now);
-        if (existing.length >= RELAY_LIMITS.maxMessagesPerBox && !existing.some((e) => e.id === id)) return json(429, { error: "box full" });
+        const replacing = existing.some((e) => e.id === id);
+        if (existing.length >= RELAY_LIMITS.maxMessagesPerBox && !replacing) return json(429, { error: "box full" });
         await store.put(box, { id, blob, expiresAt: now + ttl });
+        // Concurrent puts can each pass the check above; recount and back out a new message over the limit.
+        if (!replacing && (await store.list(box, now)).length > RELAY_LIMITS.maxMessagesPerBox) {
+          await store.remove(box, id);
+          return json(429, { error: "box full" });
+        }
         return json(204);
       }
       if (req.method === "DELETE" && id !== undefined) {

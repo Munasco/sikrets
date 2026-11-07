@@ -8,12 +8,12 @@ import { Badge, Button, Card, Empty, Logo, T } from "../../src/ui";
 
 export default function RequestDetail() {
   const { id, project } = useLocalSearchParams<{ id: string; project: string }>();
-  const { requests, sent, answer } = useSikrets();
+  const { requests, sentFor, answer } = useSikrets();
   const [busy, setBusy] = useState<"approve" | "deny">();
   const req = requests.find((r) => r.id === id && r.project === project);
   if (!req) return <Empty title="Request not found" detail="It may have expired or been decided on the laptop." />;
-  const badge = statusBadge(req, sent[req.id]);
-  const canAnswer = Boolean(req.challenge) && !sent[req.id] && Date.parse(req.expiresAt) > Date.now();
+  const badge = statusBadge(req, sentFor(req));
+  const canAnswer = Boolean(req.challenge) && !sentFor(req) && Date.parse(req.expiresAt) > Date.now();
 
   const act = async (decision: "approve" | "deny") => {
     setBusy(decision);

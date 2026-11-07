@@ -27,6 +27,8 @@ export const AGENT_CHAT_URL = "https://dan27asb93qem.cloudfront.net";
 
 /** How often the app checks the relay while open. Real push needs an Apple developer account. */
 export const POLL_MS = 5_000;
+/** Sent answers remembered (newest kept); older ones belong to long-closed requests. */
+export const SENT_MEMORY = 100;
 /** How long a signed answer waits on the relay for the laptop. */
 export const ANSWER_TTL_SECONDS = 15 * 60;
 
@@ -34,8 +36,14 @@ export const ANSWER_TTL_SECONDS = 15 * 60;
 export const STORAGE = {
   /** Pairing record: relay, laptop public key, pairing secret, this phone's X25519 key. */
   pairing: "sikrets.pairing.v1",
-  /** Ed25519 signing key; behind Face ID wherever the platform allows it. */
+  /**
+   * Ed25519 signing key; behind Face ID wherever the platform allows it. Each pairing gets its own
+   * slot (this plus "." and the start of its pairing id), so a new key never replaces the one the
+   * current pairing uses until the laptop has accepted the new one. Bare: pairings from before that.
+   */
   signKey: "sikrets.signkey.v1",
+  /** Answers this phone sent, by request and challenge, so they survive a restart. */
+  sent: "sikrets.sent.v1",
   /** Ids of requests already notified about, so each one notifies once. */
   notified: "sikrets.notified.v1",
 } as const;
@@ -44,4 +52,5 @@ export const COPY = {
   faceIdApprove: "Approve rotating this key",
   faceIdDeny: "Deny this rotation",
   phoneName: "iPhone",
+  unpairedByLaptop: "This laptop unpaired. Scan a new code to pair again.",
 } as const;
