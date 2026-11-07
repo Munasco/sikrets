@@ -172,7 +172,13 @@ export const AGENT_ROLE = {
   namePrefix: "sikrets-agent-",
   /** Every agent role is tagged sikrets:agent=<name>; the manager policy refuses to create one without it. */
   tag: "sikrets:agent",
-  /** Inline policies: the vault secrets in the agent's scope, and extra AWS actions from --allow. */
+  /** Agents are per project, so each role carries its project (tag, and a hash in its name). */
+  projectTag: "sikrets:project",
+  projectHashLength: 8,
+  /** When the agent expires (ISO time), or noExpiry; read by `agent role` for agents outside this folder. */
+  expiresTag: "sikrets:expires-at",
+  noExpiry: "never",
+  /** Inline policies, suffixed per project: the vault secrets in the agent's scope, and extra AWS actions from --allow. */
   vaultPolicy: "sikrets-vault",
   allowPolicy: "sikrets-allow",
   maxSessionSeconds: 3600,

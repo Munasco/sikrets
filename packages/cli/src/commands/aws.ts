@@ -30,7 +30,7 @@ function storedKey(resources: readonly Resource[], name: unknown): Resource | un
 
 export async function run(args: string[], opts: Record<string, unknown>) {
   const [sub, ...command] = args;
-  if (sub === "connect" || sub === "disconnect") return (await import("./cloud.ts")).run([sub], { ...opts, provider: "aws" });
+  if (sub === "connect" || sub === "disconnect" || sub === "status") return (await import("./cloud.ts")).run([sub], { ...opts, provider: "aws" });
   if (sub !== "session") throw new Error(`Usage: sikrets aws connect|disconnect, or ${USAGE} [--role ARN] [--for 30m] (--env | -- <command>)`);
   const root = process.cwd();
   const wanted = sessionSeconds(typeof opts.for === "string" ? opts.for : AWS_SESSION.defaultDuration);

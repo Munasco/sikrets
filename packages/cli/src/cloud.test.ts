@@ -5,6 +5,7 @@ import path from "node:path";
 import { Secret } from "./core/secret.ts";
 import { state, type Resource } from "./core/state.ts";
 import { AGENT_ROLE, AWS_STACK } from "./constants.ts";
+import { agentRoleName, policyNames } from "./cloud/aws-stack.ts";
 
 // Self-hosted Sikrets in your AWS account (the cloud provider interface's AWS implementation). AWS is a local HTTP server speaking STS, CloudFormation
 // and IAM (Query/XML) and SSM (JSON); the real SDK reaches it through AWS_ENDPOINT_URL_* and signs
@@ -20,6 +21,9 @@ const BOUNDARY_ARN = `arn:aws:iam::${ACCOUNT}:policy/sikrets-AgentBoundary-XYZ`;
 const KEY_ARN = `arn:aws:kms:${REGION}:${ACCOUNT}:key/1234abcd-0000-0000-0000-000000000000`;
 const BROKER_ARN = `arn:aws:iam::${ACCOUNT}:role/sikrets-BrokerRole-ABC`;
 const GITHUB_ROLE = "sikrets-agent-github-actions";
+/** Roles and their inline policies are per project. */
+const ROLE = (agent: string, project = PROJECT) => agentRoleName(project, agent);
+const POL = policyNames(PROJECT);
 const USER = { id: "AKIAUSERUSERUSERUSER", secret: "userSecretValue" };
 const CACHE_VALUE = "redis-token-value-1234567890";
 const STRIPE_VALUE = "stripe-key-value-0987654321";
@@ -34,6 +38,7 @@ interface FakeStack {
   tags: Record<string, string>;
   describesUntilDone: number;
   failOnCreate?: boolean;
+  drift?: string;
 }
 interface FakeRole {
   name: string;
@@ -58,6 +63,8 @@ let roles: Map<string, FakeRole>;
 let ssm: Map<string, { value: string; keyId?: string }>;
 /** Temporary access key id → the role it was issued for. */
 let sessions: Map<string, { roleArn: string; secret: string; token: string }>;
+/** IAM actions that fail (AccessDenied, which the SDK doesn't retry) until removed from the set. */
+let failing: Set<string>;
 const saved: Record<string, string | undefined> = {};
 const ENV_KEYS = ["AWS_ENDPOINT_URL_STS", "AWS_ENDPOINT_URL_CLOUDFORMATION", "AWS_ENDPOINT_URL_IAM", "AWS_ENDPOINT_URL_SSM", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_PROFILE", "AWS_REGION", "AWS_CONFIG_FILE", "AWS_SHARED_CREDENTIALS_FILE", "SIKRETS_STACK_TEMPLATE_URL", "SIKRETS_VAULT", "SIKRETS_AGENT"];
 
@@ -97,12 +104,13 @@ const stackOutputs = (s: FakeStack): Record<string, string> => ({
 });
 
 const stackXml = (s: FakeStack) => {
-  const outputs = s.status === "CREATE_COMPLETE" || s.status === "UPDATE_COMPLETE" ? stackOutputs(s) : {};
+  const outputs = ["CREATE_COMPLETE", "UPDATE_COMPLETE", "UPDATE_ROLLBACK_COMPLETE"].includes(s.status) ? stackOutputs(s) : {};
   // Like CloudFormation, NoEcho parameters come back masked.
   const shown = { ...s.params, ...(s.params.ExternalId ? { ExternalId: "****" } : {}) };
   return `<member><StackName>${s.name}</StackName><StackId>${s.id}</StackId><StackStatus>${s.status}</StackStatus><CreationTime>2026-11-01T00:00:00Z</CreationTime>
 <Parameters>${Object.entries(shown).map(([k, v]) => `<member><ParameterKey>${k}</ParameterKey><ParameterValue>${esc(v)}</ParameterValue></member>`).join("")}</Parameters>
-<Outputs>${Object.entries(outputs).map(([k, v]) => `<member><OutputKey>${k}</OutputKey><OutputValue>${esc(v)}</OutputValue></member>`).join("")}</Outputs></member>`;
+<Outputs>${Object.entries(outputs).map(([k, v]) => `<member><OutputKey>${k}</OutputKey><OutputValue>${esc(v)}</OutputValue></member>`).join("")}</Outputs>
+<Tags>${Object.entries(s.tags).map(([k, v]) => `<member><Key>${k}</Key><Value>${esc(v)}</Value></member>`).join("")}</Tags>${s.drift ? `<DriftInformation><StackDriftStatus>${s.drift}</StackDriftStatus></DriftInformation>` : ""}</member>`;
 };
 
 const roleXml = (r: FakeRole) =>
@@ -179,6 +187,7 @@ function aws(action: string, p: URLSearchParams, signer: string): Response {
     default: {
       // IAM: your own credentials, as in the default (no broker) setup.
       if (signer !== USER.id) return fail(403, "AccessDenied", `${signer} may not call IAM`);
+      if (failing.has(action)) return fail(403, "AccessDenied", `${action} refused (test)`);
       const name = p.get("RoleName") ?? "";
       const role = roles.get(name);
       if (action === "GetRole") return role ? ok(IAM, action, `<Role>${roleXml(role)}</Role>`) : fail(404, "NoSuchEntity", `The role with name ${name} cannot be found.`);
@@ -197,6 +206,14 @@ function aws(action: string, p: URLSearchParams, signer: string): Response {
       if (action === "PutRolePolicy") {
         if (role.boundary !== BOUNDARY_ARN) return fail(403, "AccessDenied", "boundary required");
         role.policies[p.get("PolicyName")!] = p.get("PolicyDocument")!;
+        return ok(IAM, action, "");
+      }
+      if (action === "GetRolePolicy") {
+        const doc = role.policies[p.get("PolicyName")!];
+        return doc ? ok(IAM, action, `<RoleName>${name}</RoleName><PolicyName>${p.get("PolicyName")}</PolicyName><PolicyDocument>${esc(encodeURIComponent(doc))}</PolicyDocument>`) : fail(404, "NoSuchEntity", "no such policy");
+      }
+      if (action === "TagRole") {
+        for (const m of members(p, "Tags")) role.tags[m.Key!] = m.Value!;
         return ok(IAM, action, "");
       }
       if (action === "ListRolePolicies") return ok(IAM, action, `<PolicyNames>${Object.keys(role.policies).map((n) => `<member>${n}</member>`).join("")}</PolicyNames><IsTruncated>false</IsTruncated>`);
@@ -221,12 +238,16 @@ function ssmCall(target: string, body: any, signer: string): Response {
   const session = sessions.get(signer);
   if (session) {
     const role = [...roles.values()].find((r) => r.arn === session.roleArn);
-    const policy = role?.policies[AGENT_ROLE.vaultPolicy] ? JSON.parse(role.policies[AGENT_ROLE.vaultPolicy]!) : { Statement: [] };
+    const statements = Object.entries(role?.policies ?? {})
+      .filter(([n]) => n.startsWith(AGENT_ROLE.vaultPolicy))
+      .flatMap(([, doc]) => JSON.parse(doc).Statement);
     const arn = `arn:aws:ssm:${REGION}:${ACCOUNT}:parameter${body.Name}`;
-    const allowed = op === "GetParameter" && policy.Statement.some((s: any) => s.Action.includes("ssm:GetParameter") && [s.Resource].flat().includes(arn));
+    const live = (s: any) => !s.Condition?.DateLessThan || Date.now() < Date.parse(s.Condition.DateLessThan["aws:CurrentTime"]);
+    const allowed = op === "GetParameter" && statements.some((s: any) => s.Action.includes("ssm:GetParameter") && [s.Resource].flat().includes(arn) && live(s));
     if (!allowed) return json({ __type: "AccessDeniedException", message: `${session.roleArn} may not ${op} ${body.Name}` }, 400);
   } else if (signer !== USER.id) return json({ __type: "AccessDeniedException", message: "unknown caller" }, 400);
   if (op === "PutParameter") {
+    if (body.Overwrite === false && ssm.has(body.Name)) return json({ __type: "ParameterAlreadyExists", message: "exists" }, 400);
     ssm.set(body.Name, { value: body.Value, keyId: body.KeyId });
     return json({ Version: 1, Tier: "Standard" });
   }
@@ -251,11 +272,15 @@ beforeEach(async () => {
   roles = new Map();
   ssm = new Map();
   sessions = new Map();
+  failing = new Set();
   for (const k of ENV_KEYS) saved[k] = process.env[k];
   home = await mkdtemp(path.join(os.tmpdir(), "sikrets-stack-home-"));
   root = await mkdtemp(path.join(os.tmpdir(), "sikrets-stack-"));
   process.env.SIKRETS_CONFIG_DIR = home;
   server = Bun.serve({
+    // Bound to the loopback address the clients use: on a wildcard bind, another process listening on
+    // 127.0.0.1 with the same port number could answer instead.
+    hostname: "127.0.0.1",
     port: 0,
     async fetch(req) {
       const text = await req.text();
@@ -466,19 +491,21 @@ describe("agents in the stack", () => {
 
   test("agent add creates the agent's own role: under the boundary, tagged, reading only its secrets until it expires", async () => {
     await (await agentCmd())(["add", "reporter"], { key: ["cache"], expires: "7d", allow: ["s3:GetObject=arn:aws:s3:::reports/*"], json: true });
-    const role = roles.get("sikrets-agent-reporter")!;
-    expect(lastJson()).toMatchObject({ name: "reporter", scope: ["cache"], identity: role.arn });
+    const role = roles.get(ROLE("reporter"))!;
+    const expiresAt = lastJson().expiresAt;
+    expect(lastJson()).toMatchObject({ name: "reporter", scope: ["cache"], identity: role.arn, cloudIdentity: { status: "ready", id: role.arn } });
+    expect(role.name).toMatch(/^sikrets-agent-reporter-[0-9a-f]{8}$/);
     expect(role.path).toBe(AGENT_ROLE.path);
     expect(role.boundary).toBe(BOUNDARY_ARN);
-    expect(role.tags).toEqual({ [AGENT_ROLE.tag]: "reporter", [AWS_STACK.managedByTag]: "sikrets" });
+    expect(role.tags).toEqual({ [AGENT_ROLE.tag]: "reporter", [AGENT_ROLE.projectTag]: PROJECT, [AGENT_ROLE.expiresTag]: expiresAt, [AWS_STACK.managedByTag]: "sikrets" });
     expect(JSON.parse(role.trust).Statement[0].Principal).toEqual({ AWS: [`arn:aws:iam::${ACCOUNT}:root`] });
 
-    const expiresAt = lastJson().expiresAt;
-    expect(JSON.parse(role.policies[AGENT_ROLE.vaultPolicy]!).Statement).toEqual([
+    expect(JSON.parse(role.policies[POL.vault]!).Statement).toEqual([
       { Effect: "Allow", Action: ["ssm:GetParameter", "ssm:GetParameters"], Resource: [`arn:aws:ssm:${REGION}:${ACCOUNT}:parameter/sikrets/${PROJECT}/CACHE_TOKEN`], Condition: { DateLessThan: { "aws:CurrentTime": expiresAt } } },
       { Effect: "Allow", Action: ["kms:Decrypt"], Resource: KEY_ARN, Condition: { StringEquals: { "kms:ViaService": `ssm.${REGION}.amazonaws.com` }, DateLessThan: { "aws:CurrentTime": expiresAt } } },
     ]);
-    expect(JSON.parse(role.policies[AGENT_ROLE.allowPolicy]!).Statement).toEqual([{ Effect: "Allow", Action: ["s3:GetObject"], Resource: "arn:aws:s3:::reports/*" }]);
+    // --allow permissions end when the agent does, too.
+    expect(JSON.parse(role.policies[POL.allow]!).Statement).toEqual([{ Effect: "Allow", Action: ["s3:GetObject"], Resource: "arn:aws:s3:::reports/*", Condition: { DateLessThan: { "aws:CurrentTime": expiresAt } } }]);
     expect(calls.filter((c) => ["CreateRole", "PutRolePolicy"].includes(c.action)).every((c) => c.signer === USER.id)).toBe(true);
   });
 
@@ -490,7 +517,7 @@ describe("agents in the stack", () => {
     expect(await Bun.file(file).text()).toBe(`${CACHE_VALUE}|`);
 
     const assume = calls.find((c) => c.action === "AssumeRole")!;
-    expect(assume.params.get("RoleArn")).toBe(roles.get("sikrets-agent-reporter")!.arn);
+    expect(assume.params.get("RoleArn")).toBe(roles.get(ROLE("reporter"))!.arn);
     expect(assume.params.get("DurationSeconds")).toBe("900");
     expect(assume.params.get("RoleSessionName")).toBe("sikrets-reporter");
     const read = calls.find((c) => c.action === "GetParameter")!;
@@ -500,7 +527,9 @@ describe("agents in the stack", () => {
     // Even past the CLI's own scope check, the role can't read a secret outside its scope.
     const { openVault } = await import("./core/vault.ts");
     const { agentVaultCredentials } = await import("./commands/agent-role.ts");
-    const asAgent = await openVault(PROJECT, "aws", { as: await agentVaultCredentials("aws", "reporter") });
+    const { agents } = await import("./core/agents.ts");
+    const ctx = { root, project: PROJECT, vault: "aws" as const, requireSealed: false, dryRun: false, log: () => {} };
+    const asAgent = await openVault(PROJECT, "aws", { as: await agentVaultCredentials(ctx, (await agents.find(root, "reporter"))!) });
     await expect(asAgent.get("STRIPE_KEY")).rejects.toThrow("may not GetParameter");
     await expect(asAgent.put("CACHE_TOKEN", Secret.of("x"))).rejects.toThrow();
     expect(printed()).not.toContain(CACHE_VALUE);
@@ -512,7 +541,7 @@ describe("agents in the stack", () => {
     await run(["add", "billing"], { key: ["stripe"] });
     await run(["revoke", "reporter"], { json: true });
     expect(lastJson()).toMatchObject({ name: "reporter", identityRemoved: true });
-    expect([...roles.keys()]).toEqual(["sikrets-agent-billing"]);
+    expect([...roles.keys()]).toEqual([ROLE("billing")]);
     await expect((await import("./commands/run.ts")).run(["true"], { agent: "reporter" })).rejects.toThrow("revoked");
   });
 
@@ -521,7 +550,7 @@ describe("agents in the stack", () => {
     calls = [];
     await (await agentCmd())(["add", AGENT_ROLE.githubAgent], { key: ["stripe"] });
     expect(actions()).not.toContain("CreateRole");
-    expect(JSON.parse(roles.get(GITHUB_ROLE)!.policies[AGENT_ROLE.vaultPolicy]!).Statement[0].Resource).toEqual([`arn:aws:ssm:${REGION}:${ACCOUNT}:parameter/sikrets/${PROJECT}/STRIPE_KEY`]);
+    expect(JSON.parse(roles.get(GITHUB_ROLE)!.policies[POL.vault]!).Statement[0].Resource).toEqual([`arn:aws:ssm:${REGION}:${ACCOUNT}:parameter/sikrets/${PROJECT}/STRIPE_KEY`]);
     await (await agentCmd())(["revoke", AGENT_ROLE.githubAgent], {});
     expect(roles.get(GITHUB_ROLE)!.policies).toEqual({}); // permissions gone, the stack's role stays
   });
@@ -548,9 +577,9 @@ describe("agent role", () => {
       allow: ["s3:GetObject,s3:ListBucket=arn:aws:s3:::reports/*", "s3:ListAllMyBuckets", "s3:PutObject=arn:aws:s3:::reports/*"],
       ttl: "30m",
     });
-    const role = roles.get("sikrets-agent-builder")!;
+    const role = roles.get(ROLE("builder"))!;
     expect(role.boundary).toBe(BOUNDARY_ARN);
-    expect(JSON.parse(role.policies[AGENT_ROLE.allowPolicy]!).Statement).toEqual([
+    expect(JSON.parse(role.policies[POL.allow]!).Statement).toEqual([
       { Effect: "Allow", Action: ["s3:GetObject", "s3:ListBucket", "s3:PutObject"], Resource: "arn:aws:s3:::reports/*" },
       { Effect: "Allow", Action: ["s3:ListAllMyBuckets"], Resource: "*" },
     ]);
@@ -567,8 +596,8 @@ describe("agent role", () => {
     await run(["add", "reporter"], { key: ["cache"] });
     calls = [];
     await run(["role", "reporter"], { env: true });
-    expect(actions()).toEqual(["GetRole", "AssumeRole"]);
-    expect(calls[1]!.params.get("DurationSeconds")).toBe(String(15 * 60));
+    expect(actions()).toEqual(["GetRole", "GetRole", "AssumeRole"]); // its role, and a pre-project one to take over (none)
+    expect(calls[2]!.params.get("DurationSeconds")).toBe(String(15 * 60));
     expect(out.at(-1)).toContain("export AWS_ACCESS_KEY_ID='ASIAAGENT");
     await run(["revoke", "reporter"], {});
     await expect(run(["role", "reporter"], { env: true })).rejects.toThrow("revoked");
@@ -588,7 +617,7 @@ describe("agent role", () => {
   });
 
   test("won't touch a same-named role that isn't a Sikrets agent role", async () => {
-    roles.set("sikrets-agent-builder", { name: "sikrets-agent-builder", path: AGENT_ROLE.path, arn: `arn:aws:iam::${ACCOUNT}:role/x`, tags: {}, trust: "{}", policies: {} });
+    roles.set(ROLE("builder"), { name: ROLE("builder"), path: AGENT_ROLE.path, arn: `arn:aws:iam::${ACCOUNT}:role/x`, tags: {}, trust: "{}", policies: {} });
     await expect((await agentCmd())(["role", "builder", "true"], { allow: ["s3:GetObject"] })).rejects.toThrow("refusing to touch it");
     expect(actions()).not.toContain("PutRolePolicy");
   });
@@ -616,13 +645,249 @@ describe("aws disconnect", () => {
     expect(roles.size).toBe(3);
 
     await (await cloudCmd())(["disconnect"], { yes: true, json: true });
-    expect(lastJson()).toEqual({ provider: "aws", deleted: STACK, agentIdentities: [GITHUB_ROLE, "sikrets-agent-reporter", "sikrets-agent-builder"] });
+    expect(lastJson()).toEqual({ provider: "aws", deleted: STACK, agentIdentities: [GITHUB_ROLE, ROLE("reporter"), ROLE("builder")] });
     expect([...stacks.values()][0]!.status).toBe("DELETE_COMPLETE");
     expect(roles.size).toBe(0);
     expect(actions().indexOf("DeleteStack")).toBeGreaterThan(actions().lastIndexOf("DeleteRole"));
     expect(calls.find((c) => c.action === "DeleteStack")!.signer).toBe(USER.id);
     expect(await Bun.file(stateFile()).exists()).toBe(false);
     await expect((await cloudCmd())(["disconnect"], { yes: true })).rejects.toThrow("nothing to disconnect");
+  });
+});
+
+describe("agent identity lifecycle", () => {
+  beforeEach(async () => {
+    await connect();
+    await awsProject();
+    calls = [];
+  });
+  const stored = async (name: string) => (await (await import("./core/agents.ts")).agents.find(root, name))!;
+
+  test("revoke: an IAM failure leaves the agent revoked and its role marked removing; a re-run finishes", async () => {
+    const run = await agentCmd();
+    await run(["add", "reporter"], { key: ["cache"] });
+    failing.add("DeleteRole");
+    await expect(run(["revoke", "reporter"], {})).rejects.toThrow("DeleteRole refused");
+    expect(await stored("reporter")).toMatchObject({ status: "revoked", cloudIdentity: { status: "removing" } });
+    expect(roles.has(ROLE("reporter"))).toBe(true);
+    // Already revoked locally, so nothing more is handed out meanwhile.
+    await expect((await import("./commands/run.ts")).run(["true"], { agent: "reporter" })).rejects.toThrow("revoked");
+
+    failing.clear();
+    await run(["revoke", "reporter"], { json: true });
+    expect(lastJson()).toMatchObject({ status: "revoked", identityRemoved: true, cloudIdentity: { status: "removed" } });
+    expect(roles.has(ROLE("reporter"))).toBe(false);
+    await run(["revoke", "reporter"], {});
+    expect(printed()).toContain("already revoked");
+  });
+
+  test("revoke retries for a record revoked before identities were tracked", async () => {
+    const run = await agentCmd();
+    await run(["add", "reporter"], { key: ["cache"] });
+    // What the old order could leave: revoked locally, role still in AWS.
+    const file = path.join(root, ".sikrets/agents.json");
+    const all = await Bun.file(file).json();
+    await Bun.write(file, JSON.stringify(all.map(({ cloudIdentity: _, ...a }: any) => ({ ...a, status: "revoked", revokedAt: new Date().toISOString() }))));
+    await run(["revoke", "reporter"], {});
+    expect(roles.has(ROLE("reporter"))).toBe(false);
+    expect((await stored("reporter")).cloudIdentity?.status).toBe("removed");
+  });
+
+  test("agent role --revoke on this project's agent revokes it, so agents.json never says active for a deleted role", async () => {
+    const run = await agentCmd();
+    await run(["add", "reporter"], { key: ["cache"] });
+    await run(["role", "reporter"], { revoke: true });
+    expect(roles.has(ROLE("reporter"))).toBe(false);
+    expect(await stored("reporter")).toMatchObject({ status: "revoked", cloudIdentity: { status: "removed" } });
+  });
+
+  test("add records the agent before creating its role; a failed create is resumed, never orphaned", async () => {
+    const run = await agentCmd();
+    failing.add("CreateRole");
+    await expect(run(["add", "reporter"], { key: ["cache"] })).rejects.toThrow("CreateRole refused");
+    expect(await stored("reporter")).toMatchObject({ status: "active", cloudIdentity: { status: "pending" } });
+    expect(roles.size).toBe(0);
+    failing.clear();
+    await run(["add", "reporter"], { key: ["cache"], json: true });
+    expect(lastJson().cloudIdentity).toMatchObject({ status: "ready", id: roles.get(ROLE("reporter"))!.arn });
+    expect((await (await import("./core/agents.ts")).agents.load(root)).filter((a) => a.name === "reporter")).toHaveLength(1);
+    await expect(run(["add", "reporter"], { key: ["cache"] })).rejects.toThrow("already exists");
+  });
+
+  test("credentials never outlive the agent: the lease is cut to its expiry", async () => {
+    const run = await agentCmd();
+    await run(["add", "reporter"], { key: ["cache"], expires: "20m" });
+    notTTY();
+    calls = [];
+    await run(["role", "reporter"], { env: true, ttl: "60m" });
+    const seconds = Number(calls.find((c) => c.action === "AssumeRole")!.params.get("DurationSeconds"));
+    expect(seconds).toBeLessThanOrEqual(20 * 60);
+    expect(seconds).toBeGreaterThan(18 * 60);
+  });
+
+  test("agent role checks expiry from the role itself for agents not in this folder's agents.json", async () => {
+    const run = await agentCmd();
+    await run(["role", "builder", "true"], { allow: ["s3:GetObject"] });
+    expect(roles.get(ROLE("builder"))!.tags[AGENT_ROLE.expiresTag]).toBe(AGENT_ROLE.noExpiry);
+    roles.get(ROLE("builder"))!.tags[AGENT_ROLE.expiresTag] = new Date(Date.now() - 1000).toISOString();
+    calls = [];
+    await expect(run(["role", "builder", "true"], {})).rejects.toThrow("expired");
+    expect(actions()).not.toContain("AssumeRole");
+  });
+
+  test("the same agent name in two projects gets two roles; revoking one leaves the other", async () => {
+    const run = await agentCmd();
+    await run(["add", "claude"], { key: ["cache"] });
+    const other = await mkdtemp(path.join(os.tmpdir(), "sikrets-other-"));
+    try {
+      await Bun.write(path.join(other, "sikrets.json"), JSON.stringify({ project: "blog", vault: "aws" }));
+      const resource: Resource = { name: "cache", recipe: "anthropic/api-key", provider: "anthropic", strategy: "manual", inputs: {}, dependsOn: {}, envKeys: ["CACHE_TOKEN"], outputs: {}, applied: true, createdAt: new Date().toISOString() };
+      await state.upsert(other, resource);
+      process.chdir(other);
+      await run(["add", "claude"], { key: ["cache"] });
+      expect(roles.has(ROLE("claude", "blog"))).toBe(true);
+      expect(roles.get(ROLE("claude", "blog"))!.tags[AGENT_ROLE.projectTag]).toBe("blog");
+      process.chdir(root);
+      await run(["revoke", "claude"], {});
+      expect(roles.has(ROLE("claude"))).toBe(false);
+      const blog = JSON.parse(Object.values(roles.get(ROLE("claude", "blog"))!.policies)[0]!);
+      expect(blog.Statement[0].Resource).toEqual([`arn:aws:ssm:${REGION}:${ACCOUNT}:parameter/sikrets/blog/CACHE_TOKEN`]);
+    } finally {
+      process.chdir(root);
+      await rm(other, { recursive: true, force: true });
+    }
+  });
+
+  test("a role from before roles were per project is taken over by its project, and left alone by others", async () => {
+    const legacy = (agent: string, project: string) => {
+      const vault = { Version: "2012-10-17", Statement: [{ Effect: "Allow", Action: ["ssm:GetParameter"], Resource: [`arn:aws:ssm:${REGION}:${ACCOUNT}:parameter/sikrets/${project}/CACHE_TOKEN`] }] };
+      const allow = { Version: "2012-10-17", Statement: [{ Effect: "Allow", Action: ["s3:GetObject"], Resource: "*" }] };
+      const name = `${AGENT_ROLE.namePrefix}${agent}`;
+      roles.set(name, { name, path: AGENT_ROLE.path, arn: `arn:aws:iam::${ACCOUNT}:role${AGENT_ROLE.path}${name}`, boundary: BOUNDARY_ARN, tags: { [AGENT_ROLE.tag]: agent }, trust: "{}", policies: { [AGENT_ROLE.vaultPolicy]: JSON.stringify(vault), [AGENT_ROLE.allowPolicy]: JSON.stringify(allow) } });
+    };
+    legacy("reporter", PROJECT);
+    legacy("someone", "blog");
+    // An agents.json record from before: no cloud identity state.
+    await Bun.write(path.join(root, ".sikrets/agents.json"), JSON.stringify([{ name: "reporter", scope: ["cache"], createdAt: new Date().toISOString() }, { name: "someone", scope: ["cache"], createdAt: new Date().toISOString() }]));
+
+    const file = path.join(root, "out.txt");
+    await (await import("./commands/run.ts")).run(["sh", "-c", `printf %s "$CACHE_TOKEN" > ${file}`], { agent: "reporter" });
+    expect(await Bun.file(file).text()).toBe(CACHE_VALUE);
+    expect(roles.has("sikrets-agent-reporter")).toBe(false);
+    const migrated = roles.get(ROLE("reporter"))!;
+    expect(JSON.parse(migrated.policies[POL.allow]!).Statement[0].Action).toEqual(["s3:GetObject"]); // carried over
+    expect((await stored("reporter")).cloudIdentity?.status).toBe("ready");
+
+    // blog's old role isn't this project's: untouched.
+    await (await import("./commands/run.ts")).run(["true"], { agent: "someone" });
+    expect(roles.has("sikrets-agent-someone")).toBe(true);
+  });
+});
+
+describe("stack status", () => {
+  const status = async () => {
+    await (await cloudCmd())(["status"], { provider: "aws", json: true });
+    return lastJson();
+  };
+  const recorded = async () => (await Bun.file(stateFile()).json()).status;
+
+  test("a failed first create is recorded as failed, and disconnect removes it", async () => {
+    server.reload({
+      async fetch(req) {
+        const text = await req.text();
+        const params = new URLSearchParams(text);
+        const action = params.get("Action")!;
+        calls.push({ action, params, signer: USER.id });
+        const res = aws(action, params, USER.id);
+        if (action === "CreateStack") [...stacks.values()][0]!.failOnCreate = true;
+        return res;
+      },
+    });
+    await expect(connect()).rejects.toThrow("ROLLBACK_COMPLETE");
+    expect(await recorded()).toBe("failed");
+    await expect(connect()).rejects.toThrow("sikrets cloud disconnect --yes");
+    expect(await status()).toMatchObject({ status: "failed", detail: "ROLLBACK_COMPLETE" });
+    await (await cloudCmd())(["disconnect"], { yes: true, json: true });
+    expect(lastJson()).toMatchObject({ deleted: STACK });
+    expect([...stacks.values()][0]!.status).toBe("DELETE_COMPLETE");
+    expect(await Bun.file(stateFile()).exists()).toBe(false);
+  });
+
+  test("disconnect --stack removes a Sikrets stack that isn't recorded here, and refuses one that isn't ours", async () => {
+    await connect();
+    await (await import("./core/fs.ts")).remove(stateFile());
+    await expect((await cloudCmd())(["disconnect"], { yes: true })).rejects.toThrow("--stack NAME");
+    await (await cloudCmd())(["disconnect"], { yes: true, stack: STACK, json: true });
+    expect([...stacks.values()][0]!.status).toBe("DELETE_COMPLETE");
+
+    stacks.set("x", { id: "arn:aws:cloudformation:us-east-1:111122223333:stack/theirs/uuid", name: "theirs", status: "CREATE_COMPLETE", params: { VaultPath: "/x/", AgentRolePath: "/x/" }, template: "", capabilities: [], tags: {}, describesUntilDone: 0 });
+    await expect((await cloudCmd())(["disconnect"], { yes: true, stack: "theirs" })).rejects.toThrow("isn't a Sikrets stack");
+  });
+
+  test("a no-op update after a failed update leaves a usable, rolled-back stack instead of throwing", async () => {
+    await connect();
+    [...stacks.values()][0]!.status = "UPDATE_ROLLBACK_COMPLETE";
+    await connect({ json: true });
+    expect(lastJson()).toMatchObject({ action: "unchanged", status: "rolled-back", cfnStatus: "UPDATE_ROLLBACK_COMPLETE", keyArn: KEY_ARN });
+    await awsProject(); // the vault still works
+  });
+
+  test("connecting a second stack is refused while the first exists; allowed once it's gone", async () => {
+    await connect();
+    await expect(connect({ stack: "second" })).rejects.toThrow(`Already connected to stack ${STACK}`);
+    expect(stacks.size).toBe(1);
+    [...stacks.values()][0]!.status = "DELETE_COMPLETE"; // deleted in the console
+    await connect({ stack: "second", json: true });
+    expect(lastJson()).toMatchObject({ action: "created", stackName: "second" });
+  });
+
+  test("a stack deleted outside Sikrets is reported as such, by status and by commands that need it", async () => {
+    await connect();
+    await awsProject();
+    await (await agentCmd())(["add", "reporter"], { key: ["cache"] });
+    [...stacks.values()][0]!.status = "DELETE_COMPLETE";
+    roles.clear();
+    await expect((await import("./commands/run.ts")).run(["true"], { agent: "reporter" })).rejects.toThrow("deleted outside Sikrets");
+    expect(await status()).toMatchObject({ status: "deleted-outside" });
+    // Revoking still works: the role went with the stack.
+    await (await agentCmd())(["revoke", "reporter"], {});
+    expect((await (await import("./core/agents.ts")).agents.find(root, "reporter"))!.cloudIdentity?.status).toBe("removed");
+    await (await cloudCmd())(["disconnect"], { yes: true, json: true });
+    expect(lastJson()).toMatchObject({ forgotten: true });
+    expect(await Bun.file(stateFile()).exists()).toBe(false);
+  });
+
+  test("a settle timeout leaves 'creating' on disk; the next command checks CloudFormation and carries on", async () => {
+    const { deployStack } = await import("./cloud/aws-stack.ts");
+    server.reload({
+      async fetch(req) {
+        const params = new URLSearchParams(await req.text());
+        const action = params.get("Action")!;
+        const res = aws(action, params, USER.id);
+        if (action === "CreateStack") [...stacks.values()][0]!.describesUntilDone = 1_000;
+        return res;
+      },
+    });
+    await expect(deployStack({ region: REGION, stackName: STACK, log: () => {}, pollMs: 1, timeoutMs: 20 })).rejects.toThrow("Timed out");
+    expect(await recorded()).toBe("creating");
+    await expect((await import("./cloud/aws-stack.ts")).connectedStack()).rejects.toThrow("is creating");
+    [...stacks.values()][0]!.describesUntilDone = 0;
+    const s = await (await import("./cloud/aws-stack.ts")).connectedStack();
+    expect(s).toMatchObject({ status: "ready", keyArn: KEY_ARN });
+  });
+
+  test("drift is reported, and a drifted stack stays usable", async () => {
+    await connect();
+    [...stacks.values()][0]!.drift = "DRIFTED";
+    expect(await status()).toMatchObject({ status: "drifted", name: STACK });
+    await awsProject();
+  });
+
+  test("a state file from before statuses were recorded loads as ready", async () => {
+    await connect();
+    const { status: _, cfnStatus: __, checkedAt: ___, ...old } = await Bun.file(stateFile()).json();
+    await Bun.write(stateFile(), JSON.stringify(old));
+    expect(await (await import("./cloud/aws-stack.ts")).connectedStack()).toMatchObject({ status: "ready" });
   });
 });
 

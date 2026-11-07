@@ -60,12 +60,26 @@ export interface Deployment {
 /** What an agent may use: the vault secrets in its scope, until `expiresAt`, plus extra cloud permissions. */
 export interface AgentGrant {
   name: string;
-  project?: string;
+  /** Identities are per project: the same agent name in two projects gets two. */
+  project: string;
   /** Vault keys; undefined keeps what the identity has. */
   keys?: string[];
   expiresAt?: string;
-  /** Extra provider permissions (AWS: ACTION[,ACTION]=RESOURCE); undefined keeps what it has. */
+  /** Extra provider permissions (AWS: ACTION[,ACTION]=RESOURCE), usable until `expiresAt`; undefined keeps what it has. */
   allow?: string[];
+}
+
+/** Where the stack is (see aws-stack.ts StackStatus); `name` is unset when none is recorded. */
+export interface StackSummary {
+  provider: CloudId;
+  name?: string;
+  status: string;
+  /** The cloud's own status word, e.g. CloudFormation's UPDATE_ROLLBACK_COMPLETE. */
+  detail?: string;
+  account?: string;
+  region?: string;
+  /** What to do about it, when it isn't usable. */
+  hint?: string;
 }
 
 export interface AgentIdentity {
@@ -86,18 +100,29 @@ export interface TemporaryCredentials {
 export interface CloudProvider {
   id: CloudId;
   name: string;
+  /** A stack is recorded here, in any state (usable or not). */
   connected(): Promise<boolean>;
+  /** Asks the cloud where the recorded stack is now, and records the answer. */
+  status(o?: { profile?: string }): Promise<StackSummary>;
   deploy(o: DeployOptions): Promise<Deployment>;
   /** A console link that deploys the stack, for someone without the CLI. */
   deployLink(o: DeployOptions & { templateUrl: string }): Promise<string>;
-  /** Removes every agent identity, then the stack. */
-  teardown(o: { profile?: string; log: (message: string) => void }): Promise<{ name: string; agentIdentities: string[]; kept: string[] }>;
+  /**
+   * Removes every agent identity, then the stack, in any state but mid-change. `name` targets a
+   * stack that isn't recorded here (one whose first deploy failed elsewhere). A stack that's already
+   * gone is just forgotten (`forgotten`).
+   */
+  teardown(o: { profile?: string; name?: string; region?: string; log: (message: string) => void }): Promise<{ name: string; agentIdentities: string[]; kept: string[]; forgotten: boolean }>;
   /** The secret store for one project; `as` reads with an agent's temporary credentials instead of yours. */
   secretStore(project: string, o?: { as?: TemporaryCredentials }): Promise<SecretStore>;
+  /** Throws if --allow values aren't valid for this cloud, before anything is called. */
+  checkAllow(allow: readonly string[]): void;
   /** Creates or updates the agent's identity under the stack's permissions boundary (or the cloud's equivalent). */
   ensureAgentIdentity(grant: AgentGrant): Promise<AgentIdentity>;
-  /** Deletes it (or, for one the stack owns, strips what Sikrets granted). False if there was none. */
-  removeAgentIdentity(name: string): Promise<boolean>;
-  /** Short-lived credentials for the agent's identity. */
-  issueCredentials(agent: string, o: { seconds: number; identity?: AgentIdentity; profile?: string }): Promise<TemporaryCredentials>;
+  /** Deletes the project's identity for it (or, for one the stack owns, strips what Sikrets granted). Idempotent; false if there was none. */
+  removeAgentIdentity(project: string, name: string): Promise<boolean>;
+  /** The project's identity for the agent as the cloud has it, with its expiry. Undefined if none. */
+  describeAgentIdentity(project: string, name: string): Promise<{ id: string; expiresAt?: string } | undefined>;
+  /** Short-lived credentials for the agent's identity in this project. */
+  issueCredentials(project: string, agent: string, o: { seconds: number; identity?: AgentIdentity; profile?: string }): Promise<TemporaryCredentials>;
 }

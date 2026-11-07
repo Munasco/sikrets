@@ -14,6 +14,19 @@ import { AGENT_NAME, ENV, FILES, PROJECT_DIR } from "../constants.ts";
 /** Stored lifecycle: an agent is active until revoked, and a revocation is final. */
 export type AgentState = { status: "active" } | { status: "revoked"; revokedAt: string };
 
+/**
+ * The agent's cloud identity, with a cloud vault only (AWS: its IAM role). Each cloud call is
+ * recorded as intent first, so a crash in the middle leaves a state the next run resumes from:
+ * pending (add started, role not confirmed) → ready → removing (revoke started) → removed.
+ */
+export type IdentityStatus = "pending" | "ready" | "removing" | "removed";
+export interface CloudIdentity {
+  status: IdentityStatus;
+  /** AWS: the role ARN, once known. */
+  id?: string;
+  at: string;
+}
+
 export type Agent = {
   /** One id per generation: re-adding an expired name appends a new generation, never edits the old one. */
   id: string;
@@ -22,6 +35,7 @@ export type Agent = {
   scope: string[];
   createdAt: string;
   expiresAt?: string;
+  cloudIdentity?: CloudIdentity;
 } & AgentState;
 
 /** What older agents.json files hold: no id, and revocation only as a timestamp. */
@@ -49,6 +63,26 @@ export function transition(a: Agent, to: "revoked", at = new Date().toISOString(
   return { ...a, status: "revoked", revokedAt: at };
 }
 
+const IDENTITY_MOVES: Record<IdentityStatus, readonly IdentityStatus[]> = {
+  pending: ["pending", "ready", "removing"],
+  ready: ["ready", "removing"],
+  removing: ["removing", "removed"],
+  removed: [],
+};
+
+/**
+ * The only way an agent's cloud identity state changes. Throws on an illegal move: a removed
+ * identity never comes back, and a revoked agent's identity can only be removed. A record from
+ * before identities were tracked (none stored) may move anywhere.
+ */
+export function identityTransition(a: Agent, to: IdentityStatus, id?: string, at = new Date().toISOString()): Agent {
+  const from = a.cloudIdentity?.status;
+  if (from && !IDENTITY_MOVES[from].includes(to)) throw new Error(`Agent "${a.name}"'s cloud identity is ${from}; it can't become ${to}`);
+  if (a.status === "revoked" && (to === "pending" || to === "ready")) throw new Error(`Agent "${a.name}" was revoked; its cloud identity can only be removed`);
+  const keep = id ?? a.cloudIdentity?.id;
+  return { ...a, cloudIdentity: { status: to, ...(keep ? { id: keep } : {}), at } };
+}
+
 /** Latest generation per name wins; older generations stay in the file as the audit trail. */
 const latest = (all: readonly Agent[], name: string) => all.findLast((a) => a.name === name);
 
@@ -72,22 +106,45 @@ export const agents = {
    * still holding SIKRETS_AGENT=<name> must never get access back). An expired name is renewed as
    * a new generation; the old record stays.
    */
-  add(root: string, a: Pick<Agent, "name" | "scope" | "expiresAt">, now = Date.now()): Promise<Agent> {
+  add(root: string, a: Pick<Agent, "name" | "scope" | "expiresAt"> & { cloud?: boolean }, now = Date.now()): Promise<Agent> {
     return agents.update(root, (all) => {
       const prev = latest(all, a.name);
       if (prev && prev.status === "revoked") throw new Error(`Agent "${a.name}" was revoked at ${prev.revokedAt}; revoked names stay revoked. Pick a new name`);
+      const at = new Date(now).toISOString();
+      const fields = { name: a.name, scope: a.scope, ...(a.expiresAt ? { expiresAt: a.expiresAt } : {}) };
+      // An add that stopped before its cloud identity was confirmed never granted anything: finish it.
+      if (prev && prev.cloudIdentity?.status === "pending") {
+        const { expiresAt: _, ...base } = prev;
+        const resumed: Agent = { ...base, ...fields, cloudIdentity: { status: "pending", at } };
+        return { next: all.map((x) => (x === prev ? resumed : x)), result: resumed };
+      }
       if (prev && agentStatus(prev, now) === "active") throw new Error(`Agent "${a.name}" already exists. Revoke it and add one under a new name to change its scope`);
-      const agent: Agent = { id: crypto.randomUUID(), name: a.name, scope: a.scope, createdAt: new Date(now).toISOString(), ...(a.expiresAt ? { expiresAt: a.expiresAt } : {}), status: "active" };
+      // With a cloud vault the record is written (pending) before the identity is created, so a crash can't orphan it.
+      const agent: Agent = { id: crypto.randomUUID(), ...fields, createdAt: at, status: "active", ...(a.cloud ? { cloudIdentity: { status: "pending" as const, at } } : {}) };
       return { next: [...all, agent], result: agent };
     });
   },
-  /** Revokes the latest generation of `name`. Idempotent: `already` is set when it was revoked before. */
-  revoke(root: string, name: string): Promise<{ agent: Agent; already: boolean }> {
+  /** Moves one generation's cloud identity (see identityTransition), re-read under the lock. */
+  setIdentity(root: string, id: string, to: IdentityStatus, identity?: string): Promise<Agent> {
+    return agents.update(root, (all) => {
+      const prev = all.find((a) => a.id === id);
+      if (!prev) throw new Error(`No agent with id ${id}`);
+      const next = identityTransition(prev, to, identity);
+      return { next: all.map((a) => (a === prev ? next : a)), result: next };
+    });
+  },
+  /**
+   * Revokes the latest generation of `name`. Idempotent: `already` is set when it was revoked before.
+   * With `cloud`, the identity is marked removing in the same write, so the caller (and any re-run)
+   * knows the cloud identity still has to go.
+   */
+  revoke(root: string, name: string, o: { cloud?: boolean } = {}): Promise<{ agent: Agent; already: boolean }> {
     return agents.update<{ agent: Agent; already: boolean }>(root, (all) => {
       const prev = latest(all, name);
       if (!prev) throw new Error(`No agent named "${name}"`);
       if (prev.status === "revoked") return { next: all, result: { agent: prev, already: true } };
-      const revoked = transition(prev, "revoked");
+      const marked = o.cloud && prev.cloudIdentity?.status !== "removed" ? identityTransition(prev, "removing") : prev;
+      const revoked = transition(marked, "revoked");
       return { next: all.map((a) => (a === prev ? revoked : a)), result: { agent: revoked, already: false } };
     });
   },
@@ -132,7 +189,7 @@ export async function authorize(root: string, name: string, offers: readonly Off
  * How long a credential handed to `a` may live: `wanted` seconds, cut to when the agent expires.
  * Throws when the agent expires before `min` seconds (the shortest credential the provider issues).
  */
-export function leaseSeconds(a: Agent | undefined, wanted: number, min: number, now = Date.now()): number {
+export function leaseSeconds(a: Pick<Agent, "name" | "expiresAt"> | undefined, wanted: number, min: number, now = Date.now()): number {
   if (!a?.expiresAt) return wanted;
   const left = Math.floor((Date.parse(a.expiresAt) - now) / 1000);
   if (left < min) throw new Error(`Agent "${a.name}" expires ${until(a.expiresAt, now)}, before the shortest credential (${Math.ceil(min / 60)}m) would; it gets none`);

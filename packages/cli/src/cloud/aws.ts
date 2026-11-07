@@ -2,22 +2,28 @@ import { sessionEnv, type AwsCredentials } from "../core/aws-session.ts";
 import { ssmParams } from "../core/vault.ts";
 import {
   agentCredentials,
-  agentRoleName,
+  agentRoleArn,
   connectedStack,
-  deleteAgentRole,
   deleteStack,
   deployStack,
+  describeAgentRole,
   ensureAgentRole,
   externalId,
+  findStack,
   iamClient,
   loadStack,
   parseAllow,
   quickCreateUrl,
+  refreshStack,
+  removeAgentRole,
   stackClientConfig,
+  stackProblem,
+  usable,
   vaultStatements,
+  type StackState,
 } from "./aws-stack.ts";
 import type { CloudProvider, Deployment } from "./types.ts";
-import { AGENT_ROLE, AWS_SESSION, AWS_STACK, SSM_PREFIX } from "../constants.ts";
+import { AWS_SESSION, AWS_STACK, SSM_PREFIX } from "../constants.ts";
 
 // AWS: a CloudFormation stack (packages/stack/sikrets.yaml). The secret store is SSM Parameter
 // Store under the stack's KMS key, an agent identity is an IAM role under the stack's permissions
@@ -26,11 +32,41 @@ import { AGENT_ROLE, AWS_SESSION, AWS_STACK, SSM_PREFIX } from "../constants.ts"
 
 const region = (r?: string) => r || Bun.env.AWS_REGION || AWS_SESSION.defaultRegion;
 
+/**
+ * Runs `fn` against the connected stack. If AWS refuses, checks whether the stack itself is the
+ * reason (deleted outside Sikrets, or mid-change), and says that instead of the raw error.
+ */
+async function onStack<T>(fn: (s: StackState) => Promise<T>): Promise<T> {
+  const s = await connectedStack();
+  try {
+    return await fn(s);
+  } catch (e) {
+    const now = await refreshStack(s).catch(() => undefined);
+    if (now && !usable(now.status)) throw new Error(stackProblem(now));
+    throw e;
+  }
+}
+
 export const aws: CloudProvider = {
   id: "aws",
   name: "AWS",
 
   connected: async () => (await loadStack()) !== null,
+
+  async status(o = {}) {
+    const recorded = await loadStack();
+    if (!recorded) return { provider: "aws", status: "not-deployed", hint: "Deploy one: sikrets cloud connect --provider aws" };
+    const r = await refreshStack(recorded, o);
+    return {
+      provider: "aws",
+      name: r.stackName,
+      status: r.status,
+      ...(r.cfnStatus ? { detail: r.cfnStatus } : {}),
+      account: r.account,
+      region: r.region,
+      ...(usable(r.status) ? {} : { hint: stackProblem(r) }),
+    };
+  },
 
   async deploy(o) {
     const current = await loadStack();
@@ -79,9 +115,16 @@ export const aws: CloudProvider = {
   },
 
   async teardown(o) {
-    const s = await connectedStack();
-    const { agentRoles } = await deleteStack(s, { ...(o.profile ? { profile: o.profile } : {}), log: o.log });
-    return { name: s.stackName, agentIdentities: agentRoles, kept: [`audit log group ${s.auditLogGroup}`, "the trail bucket", "the KMS key, scheduled for deletion in 30 days (cancel that in KMS to read old parameters)"] };
+    const recorded = await loadStack();
+    // A stack that isn't recorded here (its first deploy failed elsewhere, say) can be named instead.
+    const s =
+      o.name && (!recorded || recorded.stackName !== o.name)
+        ? await findStack({ stackName: o.name, region: region(o.region ?? recorded?.region), ...(o.profile ? { profile: o.profile } : {}) })
+        : recorded;
+    if (!s) throw new Error("No Sikrets stack connected here; nothing to disconnect. To remove one by name: sikrets cloud disconnect --stack NAME --yes");
+    const { agentRoles, forgotten } = await deleteStack(s, { ...(o.profile ? { profile: o.profile } : {}), log: o.log });
+    const kept = forgotten ? [] : [`audit log group ${s.auditLogGroup ?? `for ${s.stackName}`}`, "the trail bucket", "the KMS key, scheduled for deletion in 30 days (cancel that in KMS to read old parameters)"];
+    return { name: s.stackName, agentIdentities: agentRoles, kept, forgotten };
   },
 
   async secretStore(project, o = {}) {
@@ -92,36 +135,52 @@ export const aws: CloudProvider = {
     return ssmParams(project, new SSMClient(credentials ? { region: s.region, credentials } : stackClientConfig(s)), s.keyArn);
   },
 
-  async ensureAgentIdentity(g) {
-    const s = await connectedStack();
-    const iam = await iamClient(stackClientConfig(s));
-    try {
-      const vault = g.keys && g.project ? vaultStatements(s, g.project, g.keys, g.expiresAt) : undefined;
-      const allow = g.allow ? parseAllow(g.allow) : undefined;
-      const role = await ensureAgentRole(iam, s, g.name, { ...(vault ? { vault } : {}), ...(allow ? { allow } : {}) });
-      return { id: role.arn, created: role.created };
-    } finally {
-      iam.destroy();
-    }
-  },
+  checkAllow: (allow) => void parseAllow(allow),
 
-  async removeAgentIdentity(name) {
+  ensureAgentIdentity: (g) =>
+    onStack(async (s) => {
+      const iam = await iamClient(stackClientConfig(s));
+      try {
+        const vault = g.keys ? vaultStatements(s, g.project, g.keys, g.expiresAt) : undefined;
+        const allow = g.allow ? parseAllow(g.allow, g.expiresAt) : undefined;
+        const role = await ensureAgentRole(iam, s, { project: g.project, agent: g.name, ...(g.expiresAt ? { expiresAt: g.expiresAt } : {}) }, { ...(vault ? { vault } : {}), ...(allow ? { allow } : {}) });
+        return { id: role.arn, created: role.created };
+      } finally {
+        iam.destroy();
+      }
+    }),
+
+  async removeAgentIdentity(project, name) {
     const s = await loadStack();
     if (!s) return false;
-    const iam = await iamClient(stackClientConfig(s));
+    // A stack that's gone took its roles with it: nothing left to remove.
+    const live = usable(s.status) ? s : await refreshStack(s).catch(() => s);
+    if (live.status === "deleted-outside" || live.status === "not-deployed") return false;
+    if (!usable(live.status)) throw new Error(stackProblem(live));
+    const iam = await iamClient(stackClientConfig(live as StackState));
     try {
-      // The stack owns the GitHub Actions role; only what Sikrets granted it is removed.
-      return await deleteAgentRole(iam, agentRoleName(name), { keepRole: name === AGENT_ROLE.githubAgent && Boolean(s.githubRoleArn) });
+      return await removeAgentRole(iam, live as StackState, project, name);
     } finally {
       iam.destroy();
     }
   },
 
-  async issueCredentials(agent, o) {
-    const s = await connectedStack();
-    const creds = await agentCredentials(s, { agent, seconds: o.seconds, ...(o.identity ? { roleArn: o.identity.id, fresh: o.identity.created } : {}), ...(o.profile ? { profile: o.profile } : {}) });
-    const role = o.identity?.id ?? `arn:${s.keyArn.split(":")[1]}:iam::${s.account}:role${s.agentRolePath}${agentRoleName(agent)}`;
-    const session = sessionEnv(creds, s.region, role);
-    return { env: session.env, expiresAt: session.expiresAt, identity: role, handle: creds };
-  },
+  describeAgentIdentity: (project, name) =>
+    onStack(async (s) => {
+      const iam = await iamClient(stackClientConfig(s));
+      try {
+        const r = await describeAgentRole(iam, project, name);
+        return r ? { id: r.arn, ...(r.expiresAt ? { expiresAt: r.expiresAt } : {}) } : undefined;
+      } finally {
+        iam.destroy();
+      }
+    }),
+
+  issueCredentials: (project, agent, o) =>
+    onStack(async (s) => {
+      const creds = await agentCredentials(s, { project, agent, seconds: o.seconds, ...(o.identity ? { roleArn: o.identity.id, fresh: o.identity.created } : {}), ...(o.profile ? { profile: o.profile } : {}) });
+      const role = o.identity?.id ?? agentRoleArn(s, project, agent);
+      const session = sessionEnv(creds, s.region, role);
+      return { env: session.env, expiresAt: session.expiresAt, identity: role, handle: creds };
+    }),
 };

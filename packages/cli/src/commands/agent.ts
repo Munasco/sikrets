@@ -1,5 +1,6 @@
 import { agents, agentStatus, checkAgentName } from "../core/agents.ts";
 import { projectContext } from "../core/config.ts";
+import { isCloudVault } from "../core/vault.ts";
 import { state } from "../core/state.ts";
 import { after, until } from "../core/ttl.ts";
 import { log } from "../ui.ts";
@@ -43,13 +44,16 @@ export async function run(args: string[], opts: Record<string, unknown>) {
     const known = new Set([AWS_SESSION.profileScope, ...resources.flatMap((r) => [r.name, ...r.envKeys])]);
     const unknown = scope.filter((s) => !known.has(s));
     if (unknown.length) throw new Error(`Not in this project: ${unknown.join(", ")}. Use resource names or key names (see sikrets inventory)`);
-    // With a cloud vault, the agent's cloud identity comes first: no identity, no agent.
-    const expiresAt = typeof opts.expires === "string" ? after(opts.expires) : undefined;
-    const { syncAgentIdentity, list: allowList } = await import("./agent-role.ts");
     const { ctx } = await projectContext(root, { log: () => {} });
-    const role = await syncAgentIdentity(ctx, { id: "", name, scope, createdAt: new Date().toISOString(), status: "active", ...(expiresAt ? { expiresAt } : {}) }, allowList(opts.allow));
-    // Checked again under the lock: active names are refused, revoked names stay revoked.
-    const agent = await agents.add(root, { name, scope, ...(expiresAt ? { expiresAt } : {}) });
+    const cloud = isCloudVault(ctx.vault);
+    const allow = list(opts.allow);
+    if (!cloud && allow.length) throw new Error(`--allow needs a cloud vault (sikrets cloud connect, then "vault": "aws" in sikrets.json)`);
+    if (cloud) (await (await import("../cloud/index.ts")).cloudProvider(ctx.vault)).checkAllow(allow);
+    // Checked again under the lock: active names are refused, revoked names stay revoked. With a cloud
+    // vault the record is written first (identity pending), so a failure creating the identity leaves
+    // something the next `agent add` resumes, never a role nobody knows about.
+    const added = await agents.add(root, { name, scope, ...(typeof opts.expires === "string" ? { expiresAt: after(opts.expires) } : {}), cloud });
+    const { agent, role } = cloud ? await (await import("./agent-role.ts")).provisionIdentity(ctx, added, allow) : { agent: added, role: undefined };
     if (opts.json) return console.log(JSON.stringify({ ...agent, ...(role ? { identity: role.id } : {}) }));
     return log(
       opts,
@@ -58,11 +62,10 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   }
 
   if (sub === "revoke") {
-    const { agent, already } = await agents.revoke(root, name);
     const { ctx } = await projectContext(root, { log: () => {} });
-    const identityRemoved = await (await import("./agent-role.ts")).removeAgentIdentity(ctx, name);
+    const { agent, already, identityRemoved } = await (await import("./agent-role.ts")).revokeAgent(ctx, name);
     if (opts.json) return console.log(JSON.stringify({ ...agent, ...(identityRemoved ? { identityRemoved } : {}) }));
-    if (already && agent.status === "revoked") return log(opts, `${name} was already revoked at ${agent.revokedAt}.`);
+    if (already && !identityRemoved && agent.status === "revoked") return log(opts, `${name} was already revoked at ${agent.revokedAt}.`);
     return log(opts, `Revoked ${name}${identityRemoved ? " and removed its cloud identity" : ""}; other agents are unaffected. To replace the keys it saw: sikrets offboard ${name}`);
   }
 

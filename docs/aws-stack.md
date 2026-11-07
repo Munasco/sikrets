@@ -41,10 +41,14 @@ eval "$(sikrets agent role reporter --ttl 30m --env)"
 sikrets agent revoke reporter                       # deletes the role
 ```
 
-Each agent role is `sikrets-agent-<name>` under `/sikrets/agents/`, tagged `sikrets:agent=<name>`,
-carries the boundary, and can be assumed only by principals in your account (and the broker, if
-enabled). Its vault policy lists exactly the parameters in the agent's scope and stops working at
-the agent's expiry (`aws:CurrentTime`), even for credentials already issued. Credentials last 15
+Agents are per project, so their roles are too: each is `sikrets-agent-<name>-<project hash>` under
+`/sikrets/agents/`, tagged `sikrets:agent=<name>`, `sikrets:project=<project>` and
+`sikrets:expires-at`, carries the boundary, and can be assumed only by principals in your account
+(and the broker, if enabled). Its vault policy lists exactly the parameters in the agent's scope;
+it and the `--allow` policy stop working at the agent's expiry (`aws:CurrentTime`), even for
+credentials already issued, and no credential is issued past it. A role from before roles were per
+project (`sikrets-agent-<name>`) is taken over by the project whose secrets it reads, the next time
+that agent is used. Credentials last 15
 to 60 minutes (`--ttl`, default 15m); nobody ever gets a long-lived key for an agent.
 
 `--allow` takes `ACTION[,ACTION]=RESOURCE` (resource defaults to `*`, still capped by the
@@ -81,7 +85,13 @@ https://sikrets-stack-templates.s3.amazonaws.com/stack/v1/sikrets.yaml (the same
 sikrets cloud disconnect --yes
 ```
 
-Deletes every agent role first (the boundary can't be deleted while attached), then the stack.
+Deletes every agent role first (the boundary can't be deleted while attached), then the stack. It
+works in any state but mid-change, including a first create that failed (`ROLLBACK_COMPLETE`); a
+stack deleted in the console is just forgotten. `--stack NAME` removes a Sikrets stack that isn't
+recorded on this machine. `sikrets cloud status` asks CloudFormation where the stack is now:
+`ready`, `creating`, `updating`, `deleting`, `rolled-back` (an update failed; the last good version
+is back and usable), `drifted`, `failed` or `deleted-outside`. One stack is connected at a time:
+connecting another is refused until the first is disconnected.
 The audit log group and trail bucket are kept. The KMS key is scheduled for deletion in 30 days;
 cancel that in KMS if you still need to read the old parameters.
 
