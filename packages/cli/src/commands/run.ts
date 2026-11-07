@@ -2,7 +2,9 @@ import { providerEnv, toProcessEnv, type Env } from "../core/credentials.ts";
 import { projectContext } from "../core/config.ts";
 import { state } from "../core/state.ts";
 import { record } from "../core/activity.ts";
-import { openVault } from "../core/vault.ts";
+import { isCloudVault, openVault } from "../core/vault.ts";
+import { authorize, currentAgent } from "../core/agents.ts";
+import { recordUse } from "../core/usage.ts";
 
 // Runs a command with this project's values injected as environment variables. Nothing is written
 // to disk and nothing is printed; the child process is the only thing that sees the raw values.
@@ -11,11 +13,21 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   const root = process.cwd();
   const { resources } = await state.load(root);
   const { ctx } = await projectContext(root, { log: () => {} });
-  const vault = await openVault(ctx.project, ctx.vault);
+
+  // An agent gets only the keys in its scope, and none once revoked or expired.
+  const agent = currentAgent(opts);
+  if (agent && opts.providers) throw new Error("Agents don't get provider admin credentials; run that yourself");
+  const live = resources.filter((x) => x.applied);
+  const grant = agent ? await authorize(root, agent, live.flatMap((r) => r.envKeys.map((key) => ({ key, resource: r.name })))) : undefined;
+  const allowed = grant ? new Set(grant.keys) : undefined;
+  // In a cloud vault an agent's secrets are read with its own identity's temporary credentials, so
+  // the cloud enforces its scope too, and its audit log records the read as the agent's.
+  const as = grant && isCloudVault(ctx.vault) ? await (await import("./agent-role.ts")).agentVaultCredentials({ ...ctx, vault: ctx.vault }, grant.agent) : undefined;
+  const vault = await openVault(ctx.project, ctx.vault, { ...ctx, ...(as ? { as } : {}) });
 
   const env: Env = {};
-  for (const r of resources.filter((x) => x.applied)) {
-    for (const key of r.envKeys) {
+  for (const r of live) {
+    for (const key of r.envKeys.filter((k) => !allowed || allowed.has(k))) {
       const value = await vault.get(key);
       if (!value) throw new Error(`${key} is missing from the ${vault.name} vault; run sikrets apply`);
       env[key] = value;
@@ -23,6 +35,9 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   }
   // Provider admin credentials only on request, e.g. `sikrets run --providers -- terraform plan`.
   if (opts.providers) Object.assign(env, await providerEnv(resources.map((r) => r.provider)));
+
+  const program = args[0]!.split("/").at(-1)!;
+  await recordUse(ctx.project, { keys: Object.keys(env), via: "run", app: program, ...(agent ? { agent } : {}) });
 
   const started = Date.now();
   const proc = Bun.spawn(args, { env: { ...Bun.env, ...toProcessEnv(env) }, stdio: ["inherit", "inherit", "inherit"] });

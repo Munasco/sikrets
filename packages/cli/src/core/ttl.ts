@@ -16,3 +16,11 @@ export function until(iso: string, now = Date.now()): string {
   const text = abs >= UNITS.d ? `${Math.round(abs / UNITS.d)}d` : abs >= UNITS.h ? `${Math.round(abs / UNITS.h)}h` : `${Math.max(1, Math.round(abs / UNITS.m))}m`;
   return ms >= 0 ? `in ${text}` : `overdue by ${text}`;
 }
+
+/** "3d ago", "never". */
+export function ago(iso: string | undefined, now = Date.now()): string {
+  if (!iso) return "never";
+  const ms = Math.max(0, now - Date.parse(iso));
+  const text = ms >= UNITS.d ? `${Math.round(ms / UNITS.d)}d` : ms >= UNITS.h ? `${Math.round(ms / UNITS.h)}h` : `${Math.round(ms / UNITS.m)}m`;
+  return `${text} ago`;
+}

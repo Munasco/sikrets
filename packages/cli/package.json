@@ -13,6 +13,8 @@
     "test": "bun test --timeout 5000"
   },
   "dependencies": {
+    "@aws-sdk/client-cloudformation": "3.1156.0",
+    "@aws-sdk/client-iam": "3.1156.0",
     "@aws-sdk/client-ssm": "3.1156.0",
     "@aws-sdk/client-sts": "3.1156.0",
     "playwright-core": "1.56.1"

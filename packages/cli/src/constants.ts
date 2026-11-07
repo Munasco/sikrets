@@ -10,12 +10,18 @@ export const USER_AGENT = "sikrets-cli";
 export const ENV = {
   /** Overrides ~/.sikrets (connections, browser profiles, run logs). */
   configDir: "SIKRETS_CONFIG_DIR",
-  /** Overrides the project's vault for one run: "ssm" or "keychain". */
+  /** Overrides the project's vault for one run: "ssm", "keychain" or "aws". */
   vault: "SIKRETS_VAULT",
   /** Terraform-compatible binary to use instead of terraform/tofu on PATH. */
   terraform: "SIKRETS_TERRAFORM",
   /** Project name for the SDK when it can't infer one. */
   project: "SIKRETS_PROJECT",
+  /** Agent a command hands keys to (same as --agent); see `sikrets agent`. */
+  agent: "SIKRETS_AGENT",
+  /** Overrides the published stack template URL, for `sikrets cloud connect --link`. */
+  stackTemplateUrl: "SIKRETS_STACK_TEMPLATE_URL",
+  /** One project's derived key (base64), for deployed apps that read the ssm vault without a keychain. */
+  projectKey: "SIKRETS_PROJECT_KEY",
 } as const;
 
 // ── Files and folders ─────────────────────────────────────────────────────
@@ -30,7 +36,10 @@ export const FILES = {
   journal: "journal.json",
   activity: "activity.jsonl",
   connections: "connections.json",
+  agents: "agents.json",
 } as const;
+/** Folder under the user dir for per-project usage logs (local only, never in the project). */
+export const USAGE_DIR = "usage";
 export const IAC_DIR = "iac/terraform";
 
 // ── Defaults for sikrets.json ─────────────────────────────────────────────
@@ -60,6 +69,130 @@ export const SSM_PREFIX = "/sikrets";
 /** Tag applied to cloud resources Sikrets creates (and used to find them for cost). */
 export const MANAGED_BY_TAG = "sikrets";
 
+// ── Credential hygiene ────────────────────────────────────────────────────
+/** A key is stale when its current value is older than `olderThanDays` and unused for `unusedDays`. */
+export const STALE = { olderThanDays: 90, unusedDays: 30 } as const;
+
+export const AGENT_NAME = /^[a-z][a-z0-9-]{0,39}$/;
+
+/** Over-scope checks that cost at most one cheap request, keyed by the key's prefix. */
+export const SCOPES = {
+  github: {
+    /** Classic tokens report their scopes in X-OAuth-Scopes; fine-grained ones (github_pat_) don't. */
+    classicPrefixes: ["ghp_", "gho_", "ghu_"],
+    header: "x-oauth-scopes",
+    /** Scopes that reach far beyond one repo or grant admin rights. */
+    broad: ["repo", "workflow", "admin:org", "admin:repo_hook", "admin:org_hook", "admin:public_key", "admin:gpg_key", "admin:ssh_signing_key", "admin:enterprise", "delete_repo", "write:packages", "delete:packages", "user", "codespace"],
+  },
+  stripe: {
+    /** Secret keys can do anything on the account; restricted keys (rk_) carry only chosen permissions. */
+    secretPrefixes: ["sk_live_", "sk_test_"],
+    restrictedPrefixes: ["rk_live_", "rk_test_"],
+  },
+} as const;
+
+// ── Short-lived credentials ───────────────────────────────────────────────
+export const GITHUB = {
+  api: "https://api.github.com",
+  apiVersion: "2022-11-28",
+  accept: "application/vnd.github+json",
+  appSettings: "https://github.com/settings/apps",
+  /** App JWTs: backdated for clock drift, and under GitHub's 10-minute limit. */
+  jwtBackdateSeconds: 60,
+  jwtLifetimeSeconds: 540,
+  /** Installation tokens always live this long; GitHub can't issue shorter ones. */
+  tokenLifetimeSeconds: 3600,
+  /** Env vars an installation token is exported as. */
+  tokenEnv: ["GITHUB_TOKEN", "GH_TOKEN"],
+} as const;
+
+export const AWS_SESSION = {
+  minMinutes: 15,
+  maxMinutes: 60,
+  defaultDuration: "60m",
+  defaultRegion: "us-east-1",
+  roleSessionName: "sikrets",
+  /** Agent scope that grants sessions from the connected AWS profile (not a stored key). */
+  profileScope: "aws-profile",
+  securityCredentials: "https://console.aws.amazon.com/iam/home#/security_credentials",
+} as const;
+
+// ── Self-hosted Sikrets in your cloud account (src/cloud) ────────────────
+export const CLOUD = {
+  defaultProvider: "aws",
+} as const;
+
+// ── Sikrets stack in your AWS account (packages/stack/sikrets.yaml) ───────
+export const AWS_STACK = {
+  defaultName: "sikrets",
+  /** Public copy of packages/stack/sikrets.yaml (published by packages/stack/publish.sh). */
+  templateBucket: "sikrets-stack-templates",
+  templateKey: "stack/v1/sikrets.yaml",
+  templateUrl: "https://sikrets-stack-templates.s3.amazonaws.com/stack/v1/sikrets.yaml",
+  /** CloudFormation template parameters, by name. */
+  params: {
+    vaultPath: "VaultPath",
+    agentRolePath: "AgentRolePath",
+    githubRepository: "GitHubRepository",
+    createGitHubProvider: "CreateGitHubOidcProvider",
+    trustedAccount: "TrustedAccountId",
+    externalId: "ExternalId",
+  },
+  /** CloudFormation template outputs, by name. */
+  outputs: {
+    key: "KeyArn",
+    vaultPath: "VaultPath",
+    boundary: "AgentBoundaryArn",
+    managerPolicy: "AgentManagerPolicyArn",
+    agentRolePath: "AgentRolePath",
+    eventBus: "EventBusName",
+    eventBusArn: "EventBusArn",
+    auditLogGroup: "AuditLogGroupName",
+    brokerRole: "BrokerRoleArn",
+    githubRole: "GitHubActionsRoleArn",
+  },
+  /** The template names the GitHub Actions role, so CloudFormation needs the named-IAM acknowledgement. */
+  capabilities: ["CAPABILITY_NAMED_IAM"],
+  /** Stack tags (also on the resources CloudFormation creates). */
+  managedByTag: "sikrets:managed-by",
+  /** Where the stack's outputs are recorded, under the user dir. No secrets. */
+  stateFile: "aws-stack.json",
+  /** Keychain account (under the aws provider) holding the optional broker's external ID. */
+  externalIdAccount: (region: string, stack: string) => `external-id:${region}:${stack}`,
+  externalIdBytes: 24,
+  /** `--trust-account none` turns the cross-account broker off again. */
+  noBroker: "none",
+  pollMs: 5_000,
+  timeoutMs: 30 * 60_000,
+  quickCreate: (region: string) => `https://console.aws.amazon.com/cloudformation/home?region=${region}#/stacks/quickcreate`,
+} as const;
+
+export const AGENT_ROLE = {
+  path: "/sikrets/agents/",
+  namePrefix: "sikrets-agent-",
+  /** Every agent role is tagged sikrets:agent=<name>; the manager policy refuses to create one without it. */
+  tag: "sikrets:agent",
+  /** Agents are per project, so each role carries its project (tag, and a hash in its name). */
+  projectTag: "sikrets:project",
+  projectHashLength: 8,
+  /** When the agent expires (ISO time), or noExpiry; read by `agent role` for agents outside this folder. */
+  expiresTag: "sikrets:expires-at",
+  noExpiry: "never",
+  /** Inline policies, suffixed per project: the vault secrets in the agent's scope, and extra AWS actions from --allow. */
+  vaultPolicy: "sikrets-vault",
+  allowPolicy: "sikrets-allow",
+  maxSessionSeconds: 3600,
+  defaultTtl: "15m",
+  sessionName: (agent: string) => `sikrets-${agent}`,
+  /** The agent role the stack creates for GitHub Actions when GitHubRepository is set. */
+  githubAgent: "github-actions",
+  /** Services the boundary denies outright; refused up front with a clearer message. */
+  deniedServices: ["iam", "sts", "organizations", "account", "sso", "identitystore"],
+  /** A new role can take a few seconds to become assumable. */
+  assumeRetries: 6,
+  assumeRetryMs: 2_000,
+} as const;
+
 // ── Providers ─────────────────────────────────────────────────────────────
 export const PROVIDER_URLS = {
   upstash: {
@@ -74,4 +207,111 @@ export const PROVIDER_URLS = {
   },
   openai: { login: "https://platform.openai.com/login" },
   x: { login: "https://x.com/i/flow/login" },
+} as const;
+
+// ── Recovery ──────────────────────────────────────────────────────────────
+export const RECOVERY = {
+  /** Per-user file holding the wrapped data key (never the key or the code). */
+  file: "recovery.json",
+  /** Keychain slot for this device's copy of the data key. */
+  dataKeyProvider: "datakey",
+  dataKeyAccount: "default",
+  /** Lock file (under the user folder) held while creating the data key. */
+  dataKeyLock: "datakey",
+  dataKeyBytes: 32,
+  /** Random bytes in a recovery code (160 bits), before the checksum group. */
+  codeBytes: 20,
+  /** Crockford base32: no I, L, O or U, so codes survive being read aloud or handwritten. */
+  alphabet: "0123456789ABCDEFGHJKMNPQRSTVWXYZ",
+  groupSize: 4,
+  checksumChars: 4,
+  sharePrefix: "S",
+  shares: 3,
+  threshold: 2,
+  /** Argon2id per RFC 9106's second recommendation (64 MiB, 3 passes). scrypt is the fallback. */
+  argon2: { memoryKiB: 65_536, passes: 3, parallelism: 4 },
+  scrypt: { N: 131_072, r: 8, p: 1, maxmem: 256 * 1024 * 1024 },
+  saltBytes: 16,
+  ivBytes: 12,
+  /** Bound into every wrap as AES-GCM associated data. */
+  aad: "sikrets-recovery-v1",
+  fingerprintLabel: "sikrets-datakey-fingerprint",
+} as const;
+
+// ── Client-side encryption ────────────────────────────────────────────────
+export const ENVELOPE = {
+  /** Every value written to a remote vault starts with this; anything else is legacy plaintext. */
+  prefix: "sk1:",
+  /** Matches any envelope version, so a newer one fails loudly instead of being read as plaintext. */
+  versionPattern: /^sk(\d+):/,
+  /** HKDF from the data key to one project's key: a deployed app holds that, never the data key. */
+  hkdfSalt: "sikrets-project-key",
+  hkdfInfo: (project: string) => `sikrets-project-v1|${project}`,
+  /** Bound into every value as AES-GCM associated data, with the full parameter name. */
+  aad: (name: string) => `sikrets-value-v1|${name}`,
+  ivBytes: 12,
+  tagBytes: 16,
+} as const;
+/** sikrets.json "encryption" value that refuses legacy plaintext once a project is migrated. */
+export const ENCRYPTION_REQUIRED = "required";
+/** SSM names beside a project's values. Lowercase with a dot, so they never parse as a vault key. */
+export const SSM_META = {
+  /** Fingerprint of the data key this project's values are sealed with, created once (Overwrite: false). */
+  dataKeyMarker: "sikrets.datakey",
+  /** Suffix of the copy `migrate encrypt --purge-history` keeps while it recreates a parameter. */
+  stagedSuffix: ".sikrets-staged",
+} as const;
+
+// ── Backups ───────────────────────────────────────────────────────────────
+export const BACKUP = {
+  format: "sikrets-backup",
+  version: 1,
+  /** Default folder, under the per-user folder, so a backup never lands inside a repo by accident. */
+  dir: "backups",
+  extension: ".sikrets-backup",
+  /** Default file name: sikrets-<project>-<timestamp>.sikrets-backup */
+  fileName: (project: string, at: Date) => `sikrets-${project}-${at.toISOString().replace(/[:.]/g, "-")}.sikrets-backup`,
+  /** Matches only fileName()'s output for this project, so pruning never touches another project's files. */
+  filePattern: (project: string) => new RegExp(`^sikrets-${project}-\\d{4}-\\d{2}-\\d{2}T\\d{2}-\\d{2}-\\d{2}-\\d{3}Z\\.sikrets-backup$`),
+  /** HKDF info for the data-key mode, so a backup key never equals a project key. */
+  hkdfInfo: "sikrets-backup-v1",
+  aad: "sikrets-backup-v1",
+  minPassphrase: 12,
+  /** --keep default for --dir backups: older files in that folder are pruned. */
+  keep: 14,
+} as const;
+
+// ── Doorman (human approval before rotating) ──────────────────────────────
+export const APPROVALS_FILE = "approvals.json";
+/** Pending requests lapse after this long without a decision; a failed rotation gets a fresh window to retry. */
+export const APPROVAL_TTL = "24h";
+/** A rotation still marked running after this long, or whose process is gone, is recorded as failed. */
+export const APPROVAL_ROTATING_MAX_MS = 60 * 60_000;
+/** What a person is told. Generic on purpose: never the detection source. */
+export const APPROVAL_REASONS = {
+  exposed: "We think this key may be exposed",
+  expired: "This key is past its rotation date",
+  requested: "An agent asked to rotate this key",
+} as const;
+export const DOORMAN = {
+  title: "Sikrets",
+  /** Compiled Touch ID helpers are cached here, under the user folder. */
+  binDir: "bin",
+  helperName: "sikrets-touchid",
+  dialogTimeoutSeconds: 120,
+  approveButton: "Approve",
+  denyButton: "Deny",
+} as const;
+
+// ── Local state-file locks ────────────────────────────────────────────────
+// A lock sits next to a file another sikrets process may write at the same time (core/lock.ts).
+export const LOCK = {
+  suffix: ".lock",
+  /** How long to wait for another sikrets process to finish with a file. */
+  waitMs: 10_000,
+  retryMs: 25,
+  /** Live while its holder runs; past this age it is assumed abandoned even if the holder looks alive. */
+  ceilingMs: 6 * 60 * 60 * 1000,
+  /** A lock with no readable holder (torn by a crash mid-write) is broken after this long. */
+  tornMs: 5_000,
 } as const;
