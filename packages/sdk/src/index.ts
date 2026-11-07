@@ -6,16 +6,19 @@
 //
 // Resolution, in order:
 //   1. The environment already holds the real value (under `sikrets run`, or injected in prod) → use it.
-//   2. It holds a stand-in, or nothing → fetch the real value from the project's vault with the
-//      app's own credentials (an IAM role in production, your AWS profile locally). The CLI seals
-//      values on the client, so opening them also takes the project key: SIKRETS_PROJECT_KEY in a
-//      deployment (`sikrets env pull --project-key`), else the user's data key on this device, found
-//      in the same order as the CLI (see datakey.ts). Plaintext from the vault is refused, as the
-//      CLI does: seal it with `sikrets seal --apply`.
+//   2. It holds a stand-in, or nothing → fetch the sealed value. From the Sikrets server when one
+//      is configured (SIKRETS_SERVER, sikrets.json, or the one `sikrets login` saved), signed with
+//      this device's key, exactly where the CLI writes it (see server.ts). Only with no server at
+//      all: the legacy vault (SSM with the app's own AWS credentials, or the keychain), so a value
+//      rotated on the server is never served stale from an old SSM copy. Opening it takes the
+//      project key: SIKRETS_PROJECT_KEY in a deployment (`sikrets env pull --project-key`), else
+//      the user's data key on this device, found in the same order as the CLI (see datakey.ts).
+//      Plaintext is refused: move it to the server, sealed, with `sikrets migrate --apply`.
 // Values are cached briefly so a rotated key is picked up without a restart.
 
 import { createDecipheriv, hkdfSync } from "node:crypto";
 import { loadDataKey } from "./datakey.ts";
+import { configuredServer, serverFetch } from "./server.ts";
 import { DEFAULT_TTL_MS, DEFAULT_VAULT, ENV, ENVELOPE, KEY_PATTERN, keychainVaultService, SSM_PREFIX, STAND_IN_PATTERN } from "./constants.ts";
 
 export type VaultName = "ssm" | "keychain";
@@ -23,7 +26,11 @@ export type VaultName = "ssm" | "keychain";
 export interface SikretsOptions {
   /** Project name used for vault paths; defaults to SIKRETS_PROJECT, then the working directory's name. */
   readonly project?: string;
-  /** Vault backend; defaults to SIKRETS_VAULT, then "ssm". */
+  /** Sikrets server to read from; defaults to SIKRETS_SERVER, sikrets.json, then the server `sikrets login` saved. */
+  readonly server?: string;
+  /** How server requests are made (tests). */
+  readonly serverFetch?: typeof fetch;
+  /** Legacy vault, read only when no server is configured; defaults to SIKRETS_VAULT, then "ssm". */
   readonly vault?: VaultName;
   /** Base64 project key for sealed values; defaults to SIKRETS_PROJECT_KEY, then the keychain data key. */
   readonly projectKey?: string;
@@ -88,7 +95,7 @@ async function projectKeyFor(project: string, given: string | undefined): Promis
  */
 async function openSealed(project: string, key: string, stored: string | undefined, given: string | undefined): Promise<string | undefined> {
   if (!stored) return stored;
-  if (!ENVELOPE.versionPattern.test(stored)) throw new Error("stored unencrypted, so it isn't trusted; seal it with: sikrets seal --apply");
+  if (!ENVELOPE.versionPattern.test(stored)) throw new Error("stored unencrypted, so it isn't trusted; move it to the server, sealed: sikrets migrate --apply");
   if (!stored.startsWith(ENVELOPE.prefix)) throw new Error("written by a newer Sikrets; update @sikrets/sdk");
   const k = await projectKeyFor(project, given);
   const raw = Buffer.from(stored.slice(ENVELOPE.prefix.length), "base64");
@@ -140,7 +147,23 @@ export function createSikrets(opts: SikretsOptions = {}): Sikrets {
   const ttl = opts.ttlMs ?? DEFAULT_TTL_MS;
   const now = opts.now ?? Date.now;
   const vault = (opts.vault ?? (env[ENV.vault] as VaultName | undefined) ?? DEFAULT_VAULT) satisfies VaultName;
-  const fetchValue = opts.fetch ?? vaultFetch(vault, () => opts.projectKey ?? env[ENV.projectKey]);
+  const given = () => opts.projectKey ?? env[ENV.projectKey];
+  // Decided once, on first use: the server if one is configured, else the legacy vault.
+  let source: Promise<{ where: string; read: (project: string, key: string) => Promise<string | undefined> }> | undefined;
+  const pick = () =>
+    (source ??= (async () => {
+      if (opts.fetch) return { where: "configured vault", read: opts.fetch };
+      const server = await configuredServer(opts.server, env);
+      if (server) {
+        const read = serverFetch(server, opts.serverFetch);
+        return { where: `server ${server}`, read: async (project: string, key: string) => openSealed(project, key, await read(project, key), given()) };
+      }
+      return { where: `${vault} vault`, read: vaultFetch(vault, given) };
+    })().catch((error) => {
+      source = undefined;
+      throw error;
+    }));
+  const fetchValue = async (project: string, key: string) => (await pick()).read(project, key);
   let project: string | undefined = opts.project;
   const cache = new Map<string, { value: string; until: number }>();
   const inflight = new Map<string, Promise<string>>();
@@ -159,7 +182,7 @@ export function createSikrets(opts: SikretsOptions = {}): Sikrets {
       // Backend errors describe permissions or connectivity; they don't contain secret values.
       throw new SikretsError("vault", key, error instanceof Error ? error.message : "vault unavailable");
     }
-    if (!value) throw new SikretsError("not-found", key, `not in the ${opts.fetch ? "configured" : vault} vault for project "${project}"`);
+    if (!value) throw new SikretsError("not-found", key, `not in the ${(await pick()).where} for project "${project}"`);
     if (isStandIn(value)) throw new SikretsError("vault", key, "the vault returned a stand-in instead of a real value");
     cache.set(key, { value, until: now() + ttl });
     return value;

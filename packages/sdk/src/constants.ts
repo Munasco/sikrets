@@ -1,6 +1,6 @@
 // Fixed values the SDK relies on. Kept in step with packages/cli/src/constants.ts.
 
-export const ENV = { project: "SIKRETS_PROJECT", vault: "SIKRETS_VAULT", projectKey: "SIKRETS_PROJECT_KEY" } as const;
+export const ENV = { project: "SIKRETS_PROJECT", vault: "SIKRETS_VAULT", projectKey: "SIKRETS_PROJECT_KEY", server: "SIKRETS_SERVER" } as const;
 export const DEFAULT_VAULT = "ssm" as const;
 export const DEFAULT_TTL_MS = 5 * 60_000;
 export const STAND_IN_PATTERN = /^sk-sikrets-[A-Za-z0-9]{32}$/;
@@ -17,6 +17,8 @@ export const DEVICE = {
   dir: "device",
   metaFile: "device.json",
   agreementKey: "agreement.key",
+  signingKey: "signing.key",
+  sessionFile: "session.json",
   dataKeyFile: "datakey.json",
   /** Stable link to the CLI's compiled Secure Enclave helper, relative to the user folder. */
   helper: "bin/sikrets-device",
@@ -34,4 +36,15 @@ export const ENVELOPE = {
   aad: (project: string, key: string) => `sikrets-value-v1|${SSM_PREFIX}/${project}/${key}`,
   ivBytes: 12,
   tagBytes: 16,
+} as const;
+
+/** The Sikrets server's API, as the CLI speaks it (packages/cli/src/constants.ts DEVICE_AUTH, SERVER). */
+export const SERVER_API = {
+  configFile: "sikrets.json",
+  environment: "dev",
+  value: (project: string, environment: string, name: string) => `/v1/projects/${encodeURIComponent(project)}/environments/${encodeURIComponent(environment)}/values/${encodeURIComponent(name)}`,
+  proofHeader: "sikrets-device-proof",
+  proofType: "sikrets-device-proof+jwt",
+  alg: "ES256",
+  nonceBytes: 16,
 } as const;

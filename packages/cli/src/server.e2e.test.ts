@@ -5,9 +5,10 @@ import os from "node:os";
 import path from "node:path";
 import { legacy, type SsmClient } from "./commands/migrate.ts";
 import { startLocal } from "./commands/server.ts";
-import { readSession, writeSession } from "./core/device-auth.ts";
+import { readSession, savedServer, transport, writeSession } from "./core/device-auth.ts";
 import { projectKey, sealValue } from "./core/envelope.ts";
-import { ensureDataKey } from "./core/datakey.ts";
+import { ensureDataKey, loadDataKey } from "./core/datakey.ts";
+import { thisDevice } from "./core/device.ts";
 import { Secret } from "./core/secret.ts";
 import { resolveServer, serverFlag } from "./core/server.ts";
 import { openVault } from "./core/vault.ts";
@@ -65,9 +66,13 @@ describe("which server", () => {
   test("--server, then SIKRETS_SERVER, then sikrets.json, then the saved one, then ours", async () => {
     delete process.env[ENV.server];
     expect(await resolveServer({})).toBe(SERVER.defaultUrl);
-    await writeSession({ version: 1, server: "http://saved.test", deviceId: "dev_x", user: "u", certificate: "c", kind: "software", hardwareBound: false, signedInAt: new Date().toISOString() });
-    expect(await resolveServer({})).toBe("http://saved.test");
     expect(await resolveServer({ server: "https://project.test/" })).toBe("https://project.test");
+    await writeSession({ version: 1, server: "https://saved.test", deviceId: "dev_x", user: "u", certificate: "c", kind: "software", hardwareBound: false, signedInAt: new Date().toISOString() });
+    expect(await resolveServer({})).toBe("https://saved.test");
+    expect(await resolveServer({ server: "https://saved.test/" })).toBe("https://saved.test");
+    // A committed sikrets.json never quietly wins over the server you signed in to.
+    await expect(resolveServer({ server: "https://project.test/" })).rejects.toThrow("--server https://project.test or --server https://saved.test");
+    expect(await resolveServer({ server: "https://project.test" }, "https://project.test")).toBe("https://project.test");
     process.env[ENV.server] = "http://env.test";
     expect(await resolveServer({ server: "https://project.test" })).toBe("http://env.test");
     serverFlag.value = "http://flag.test";
@@ -76,6 +81,48 @@ describe("which server", () => {
     serverFlag.value = undefined;
     process.env[ENV.server] = "not a url";
     await expect(resolveServer({})).rejects.toThrow(`${ENV.server} must be a URL`);
+  });
+
+  test("sikrets.json's server must be https, unless it's on this machine", async () => {
+    delete process.env[ENV.server];
+    await expect(resolveServer({ server: "http://project.test" })).rejects.toThrow("must be https");
+    expect(await resolveServer({ server: "http://localhost:4873" })).toBe("http://localhost:4873");
+  });
+
+  test("only a server on this machine is signed in to without sikrets login", async () => {
+    const { connect } = await import("./core/server.ts");
+    const remote = "http://remote.test";
+    const auto = (await import("./testing/device-server.ts")).inProcessServer(remote, { autoApprove: "you@localhost" });
+    const original = transport.fetch;
+    transport.fetch = (input, init) => (input.startsWith(`${remote}/`) ? auto.fetch(input, init) : original(input, init));
+    try {
+      await expect(connect(remote)).rejects.toThrow(`Run: sikrets login --server ${remote}`);
+    } finally {
+      transport.fetch = original;
+      auto.stop();
+    }
+  });
+
+  test("logout revokes the key for good; the next login makes new device keys and keeps the data key", async () => {
+    const key = await ensureDataKey();
+    await (await command("login")).run([], { "no-browser": true });
+    const first = (await readSession(TEST_SERVER))!;
+    const oldKey = (await thisDevice()).signingPublicKey.toString("base64");
+    await (await command("logout")).run([], {});
+    expect(await readSession(TEST_SERVER)).toBeUndefined();
+    await (await command("login")).run([], { "no-browser": true });
+    const second = (await readSession(TEST_SERVER))!;
+    expect(second.deviceId).not.toBe(first.deviceId);
+    expect((await thisDevice()).signingPublicKey.toString("base64")).not.toBe(oldKey);
+    expect((await loadDataKey())!.equals(key)).toBe(true);
+  });
+
+  test("login to a project's own server doesn't change the saved server for other projects", async () => {
+    delete process.env[ENV.server];
+    await Bun.write(path.join(root, "sikrets.json"), JSON.stringify({ project: "demo", server: TEST_SERVER }));
+    await (await command("login")).run([], { "no-browser": true });
+    expect(await readSession(TEST_SERVER)).toBeDefined();
+    expect(await savedServer()).toBeUndefined();
   });
 
   test("commands follow it: sikrets.json's server is used for the project's vault", async () => {
@@ -123,6 +170,24 @@ describe("sikrets server, end to end", () => {
     expect(bytes).toContain("API_KEY");
     expect(bytes).toContain("sk1:");
     for (const v of [REAL, OTHER]) expect(bytes).not.toContain(v);
+  });
+
+  test("the SDK reads through the server it's signed in to, never an old SSM copy", async () => {
+    delete process.env[ENV.server];
+    const server = await startLocal({ port: 0, dataDir: data });
+    running = server;
+    await (await command("login")).run([], { server: server.url, "no-browser": true });
+    const vault = await openVault("demo", server.url);
+    await vault.put("API_KEY", Secret.of(REAL));
+    const { createSikrets } = await import("../../sdk/src/index.ts");
+    // No SIKRETS_SERVER: the server `sikrets login` saved is the one read; vault "ssm" (no AWS here) is never touched.
+    const sdk = createSikrets({ env: { API_KEY: "sk-sikrets-AAAAbbbbCCCCddddEEEEffffGGGGhhhh" }, project: "demo", vault: "ssm" });
+    expect(await sdk.get("API_KEY")).toBe(REAL);
+    // Rotated on the server: the SDK sees the new value (after its cache), not a pre-migration copy.
+    await vault.put("API_KEY", Secret.of(OTHER));
+    sdk.clear();
+    expect(await sdk.get("API_KEY")).toBe(OTHER);
+    await expect(createSikrets({ env: {}, project: "demo" }).get("MISSING_KEY")).rejects.toThrow(`not in the server ${server.url}`);
   });
 
   test("`sikrets server` as its own process: answers, signs this device in on first use, stops on Ctrl-C", async () => {
@@ -242,6 +307,41 @@ describe("sikrets migrate", () => {
     expect((await vault.get("API_KEY"))?.reveal()).toBe(REAL);
     expect(keychain.get("dev.sikrets.vault.demo/API_KEY")).toBe(REAL);
     expect(printed()).not.toContain(REAL);
+  });
+
+  test("a sealed value that doesn't open with this device's key is never uploaded", async () => {
+    await ensureDataKey();
+    const { randomBytes } = await import("node:crypto");
+    ssm.set("/sikrets/demo/FOREIGN_KEY", sealValue(projectKey(randomBytes(32), "demo"), "demo", "FOREIGN_KEY", REAL)); // another data key
+    ssm.set("/sikrets/demo/MOVED_KEY", sealValue(projectKey(await ensureDataKey(), "demo"), "demo", "OTHER_NAME", REAL)); // copied from another name
+    await (await command("migrate")).run([], { apply: true, json: true });
+    expect(JSON.parse(out.at(-1)!).items).toEqual([
+      { name: "FOREIGN_KEY", action: "unreadable" },
+      { name: "MOVED_KEY", action: "unreadable" },
+    ]);
+    expect(await (await openVault("demo")).list()).toEqual([]);
+  });
+
+  test("a value written on the server while migrate runs is kept, not overwritten", async () => {
+    const sealed = await legacyValues();
+    const vault = await openVault("demo");
+    const { testServer } = await import("./testing/preload.ts");
+    const scope = { account: "you@localhost", project: "demo", environment: SERVER.environment };
+    // The server's list is read before the uploads; a rotation lands in between.
+    const list = testServer().store.listValues.bind(testServer().store);
+    const rotated = sealValue(projectKey(await ensureDataKey(), "demo"), "demo", "SEALED_KEY", "rotated-meanwhile");
+    let once = true;
+    spyOn(testServer().store, "listValues").mockImplementation(async (sc) => {
+      const before = await list(sc);
+      if (once) await testServer().store.putValue(scope, { name: "SEALED_KEY", value: rotated, updatedAt: new Date().toISOString(), updatedBy: "dev_other" });
+      once = false;
+      return before;
+    });
+    await (await command("migrate")).run([], { apply: true, json: true });
+    const report = JSON.parse(out.at(-1)!);
+    expect(report.items).toContainEqual({ name: "SEALED_KEY", action: "on-server" });
+    expect((await vault.get("SEALED_KEY"))?.reveal()).toBe("rotated-meanwhile");
+    expect((await testServer().store.getValue(scope, "SEALED_KEY"))?.value).not.toBe(sealed);
   });
 
   test("nothing to move, and a bad --from, are explained", async () => {
