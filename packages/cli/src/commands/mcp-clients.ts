@@ -57,14 +57,21 @@ export async function run(args: string[], opts: Record<string, unknown>, store: 
   if (sub === "rm" || sub === "revoke") {
     if (!name) throw new Error("Usage: sikrets mcp clients rm <name>");
     if (!(await store.remove(name))) throw new Error(`No client named "${name}"`);
-    return out({ name, removed: true }, `Removed "${name}". Its token stops working on its next request.`);
+    return out({ name, removed: true }, `Removed "${name}" and its login grants. Its token stops working on its next request.`);
   }
   if (sub !== "ls") throw new Error(`Unknown clients subcommand "${sub}". ${USAGE}`);
 
   const clients = await store.list();
   // Names and dates only; hashes stay in the file.
-  const rows = clients.map((c) => ({ name: c.name, kind: c.kind, createdAt: c.createdAt, lastUsedAt: c.lastUsedAt ?? null }));
+  const rows = clients.map((c) => ({
+    name: c.name,
+    kind: c.kind,
+    createdAt: c.createdAt,
+    lastUsedAt: c.lastUsedAt ?? null,
+    // OAuth apps lapse when their refresh token does; bearer tokens last until removed.
+    expiresAt: c.kind === "oauth" && c.refreshExpiresAt ? new Date(c.refreshExpiresAt).toISOString() : null,
+  }));
   if (opts.json) return console.log(JSON.stringify(rows));
   if (!rows.length) return console.log(`No clients yet. Add one with: sikrets mcp clients add <name>`);
-  for (const r of rows) console.log(`  ${r.name.padEnd(28)} ${r.kind.padEnd(6)} added ${r.createdAt.slice(0, 10)}${r.lastUsedAt ? `, last used ${r.lastUsedAt.slice(0, 16).replace("T", " ")}` : ""}`);
+  for (const r of rows) console.log(`  ${r.name.padEnd(28)} ${r.kind.padEnd(6)} added ${r.createdAt.slice(0, 10)}${r.lastUsedAt ? `, last used ${r.lastUsedAt.slice(0, 16).replace("T", " ")}` : ""}${r.expiresAt ? `, lapses ${r.expiresAt.slice(0, 10)} unless used` : ""}`);
 }

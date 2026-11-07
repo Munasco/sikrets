@@ -1,7 +1,8 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { rename } from "node:fs/promises";
 import path from "node:path";
-import { readJson, writePrivate } from "./fs.ts";
+import { readJson, withFileLock, writePrivateAtomic } from "./fs.ts";
+import { revokeIdentity } from "./logins/grants.ts";
+import type { AgentIdentity } from "./logins/identity.ts";
 import { Secret } from "./secret.ts";
 import { configDir } from "../store.ts";
 import { MCP_HTTP } from "../constants.ts";
@@ -69,11 +70,23 @@ export function checkClientName(name: string) {
   return name;
 }
 
-/** A readable, unique agent name from an app's self-chosen name, e.g. "ChatGPT" → "chatgpt-3f2a". */
+/**
+ * A readable agent name from an app's self-chosen name, e.g. "ChatGPT" → "chatgpt-3f2a9c01b7d4".
+ * The suffix is long enough that an app can't re-register its way into another client's name.
+ */
 export function agentNameFor(clientName: string, clientId: string) {
   const slug = clientName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32) || "oauth-app";
-  return `${slug}-${hashToken(clientId).slice(0, 4)}`;
+  return `${slug}-${hashToken(clientId).slice(0, MCP_HTTP.oauth.nameHashChars)}`;
 }
+
+/**
+ * The identity login grants are bound to. It includes when the client was created, so a client
+ * removed and added again under the same name starts with no grants.
+ */
+export const clientIdentity = (c: Pick<Client, "name" | "createdAt">): AgentIdentity => ({ name: c.name, id: `mcp-client:${c.name}:${c.createdAt}` });
+
+/** An OAuth client whose refresh token has expired can never be used again. */
+export const isDead = (c: Client, now: number) => c.kind === "oauth" && (c.refreshExpiresAt ?? 0) <= now && (c.accessExpiresAt ?? 0) <= now;
 
 export function clientStore(opts: { dir?: string; tokens?: TokenVault } = {}) {
   const file = () => path.join(opts.dir ?? configDir(), MCP_HTTP.clientsFile);
@@ -82,21 +95,21 @@ export function clientStore(opts: { dir?: string; tokens?: TokenVault } = {}) {
     const r = await readJson<Partial<Registry>>(file(), {});
     return { clients: r.clients ?? [], registrations: r.registrations ?? [] };
   };
-  // Write a private temp file, then rename over the old one, so a reader never sees half a file.
-  const save = async (r: Registry) => {
-    const tmp = `${file()}.${process.pid}.${randomBytes(4).toString("hex")}.tmp`;
-    await writePrivate(tmp, JSON.stringify(r, null, 2) + "\n");
-    await rename(tmp, file());
-  };
-  // Writes are serialized so two requests can't lose each other's update.
+  // Every write holds the file's lock (shared with other sikrets processes, e.g. `clients rm`)
+  // from the read to the atomic rename, so no writer puts back what another removed. Dead OAuth
+  // clients are dropped on the way.
   let queue: Promise<unknown> = Promise.resolve();
   const update = <T>(fn: (r: Registry) => T | Promise<T>): Promise<T> => {
-    const next = queue.then(async () => {
-      const r = await load();
-      const out = await fn(r);
-      await save(r);
-      return out;
-    });
+    const next = queue.then(() =>
+      withFileLock(file(), async () => {
+        const r = await load();
+        const out = await fn(r);
+        const t = Date.now();
+        r.clients = r.clients.filter((c) => !isDead(c, t));
+        await writePrivateAtomic(file(), JSON.stringify(r, null, 2) + "\n");
+        return out;
+      }),
+    );
     queue = next.catch(() => undefined);
     return next;
   };
@@ -110,11 +123,19 @@ export function clientStore(opts: { dir?: string; tokens?: TokenVault } = {}) {
     async add(name: string): Promise<Secret> {
       checkClientName(name);
       const token = newToken(MCP_HTTP.tokenPrefix.bearer);
-      await update(async (r) => {
-        if (r.clients.some((c) => c.name === name)) throw new Error(`A client named "${name}" already exists. Remove it first: sikrets mcp clients rm ${name}`);
-        await tokens.set(name, token.reveal());
-        r.clients.push({ name, kind: "token", createdAt: new Date().toISOString(), tokenHash: hashToken(token.reveal()) });
-      });
+      let stored = false;
+      try {
+        await update(async (r) => {
+          if (r.clients.some((c) => c.name === name)) throw new Error(`A client named "${name}" already exists. Remove it first: sikrets mcp clients rm ${name}`);
+          await tokens.set(name, token.reveal());
+          stored = true;
+          r.clients.push({ name, kind: "token", createdAt: new Date().toISOString(), tokenHash: hashToken(token.reveal()) });
+        });
+      } catch (error) {
+        // The registry wasn't saved: don't leave a token in the keychain that no client owns.
+        if (stored) await tokens.delete(name).catch(() => undefined);
+        throw error;
+      }
       return token;
     },
 
@@ -125,7 +146,7 @@ export function clientStore(opts: { dir?: string; tokens?: TokenVault } = {}) {
       return value && matches(value, client.tokenHash) ? Secret.of(value) : undefined;
     },
 
-    /** Revokes a client (and forgets its OAuth registration). True when there was one. */
+    /** Revokes a client, forgets its OAuth registration, and takes back its login grants. True when there was one. */
     async remove(name: string): Promise<boolean> {
       const removed = await update((r) => {
         const client = r.clients.find((c) => c.name === name);
@@ -134,8 +155,10 @@ export function clientStore(opts: { dir?: string; tokens?: TokenVault } = {}) {
         if (client.clientId) r.registrations = r.registrations.filter((g) => g.clientId !== client.clientId);
         return client;
       });
-      if (removed?.kind === "token") await tokens.delete(name).catch(() => undefined);
-      return Boolean(removed);
+      if (!removed) return false;
+      if (removed.kind === "token") await tokens.delete(name).catch(() => undefined);
+      await revokeIdentity(clientIdentity(removed).id);
+      return true;
     },
 
     /** The client a bearer token belongs to, if it is current. Reads the file every time, so a removal takes effect at once. */

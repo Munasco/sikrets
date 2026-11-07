@@ -6,8 +6,10 @@ import path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { createHttpHandler, serveHttp, type HttpOptions } from "./commands/mcp-http.ts";
-import { clientStore, type TokenVault } from "./core/mcp-clients.ts";
+import { clientIdentity, clientStore, type TokenVault } from "./core/mcp-clients.ts";
+import { addGrant, listGrants } from "./core/logins/grants.ts";
 import { Secret } from "./core/secret.ts";
+import { ENV } from "./constants.ts";
 
 const KEY = "fake-test-secret-0123456789abcdef";
 const env = { STRIPE_KEY: Secret.of(KEY), REGION: "eu-west-1" };
@@ -24,10 +26,14 @@ const memoryVault = (): TokenVault => ({
 
 beforeEach(async () => {
   root = await mkdtemp(path.join(os.tmpdir(), "sikrets-mcp-http-"));
+  Bun.env[ENV.configDir] = root; // login grants live here too
   vault = new Map();
   store = clientStore({ dir: root, tokens: memoryVault() });
 });
-afterEach(() => rm(root, { recursive: true, force: true }));
+afterEach(async () => {
+  delete Bun.env[ENV.configDir];
+  await rm(root, { recursive: true, force: true });
+});
 
 const handler = (extra: Partial<HttpOptions> = {}) =>
   createHttpHandler({ root, allow: [], loadEnv: async () => env, host: "127.0.0.1", port: 7787, store, log: () => undefined, ...extra });
@@ -187,9 +193,67 @@ describe("sikrets mcp --http --oauth", () => {
     expect((await h.fetch(form({ grant_type: "refresh_token", refresh_token: tokens.refresh_token, client_id: clientId }))).status).toBe(400);
 
     const [client] = await store.list();
-    expect(client!.name).toMatch(/^chatgpt-[0-9a-f]{4}$/);
+    expect(client!.name).toMatch(/^chatgpt-[0-9a-f]{12}$/);
     await store.remove(client!.name);
     expect((await call(refreshed.access_token)).status).toBe(401);
+  });
+
+  async function tokensFor(h: ReturnType<typeof oauth>) {
+    const { clientId } = await registerAndAuthorize(h);
+    const location = new URL(
+      (await h.fetch(req(`/authorize?${new URLSearchParams({ response_type: "code", client_id: clientId, redirect_uri: redirect, code_challenge: challenge, code_challenge_method: "S256" })}`))).headers.get("location")!,
+    );
+    const res = await h.fetch(tokenForm({ grant_type: "authorization_code", code: location.searchParams.get("code")!, client_id: clientId, redirect_uri: redirect, code_verifier: verifier }));
+    return { clientId, res, tokens: res.status === 200 ? ((await res.json()) as { access_token: string; refresh_token: string }) : undefined };
+  }
+  const tokenForm = (p: Record<string, string>) => req("/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(p).toString() });
+
+  test("two refreshes with the same token: exactly one wins", async () => {
+    const h = oauth();
+    const { clientId, tokens } = await tokensFor(h);
+    const statuses = await Promise.all([1, 2, 3].map(() => h.fetch(tokenForm({ grant_type: "refresh_token", refresh_token: tokens!.refresh_token, client_id: clientId })).then((r) => r.status)));
+    expect(statuses.sort()).toEqual([200, 400, 400]);
+  });
+
+  test("a removed client can't refresh its way back", async () => {
+    const h = oauth();
+    const { clientId, tokens } = await tokensFor(h);
+    const [client] = await store.list();
+    await store.remove(client!.name);
+    // Its registration went with it, so the app is unknown now.
+    expect((await h.fetch(tokenForm({ grant_type: "refresh_token", refresh_token: tokens!.refresh_token, client_id: clientId }))).status).toBe(401);
+    expect(await store.list()).toEqual([]);
+  });
+
+  test("an OAuth app never takes over an existing client's name", async () => {
+    const h = oauth();
+    const { clientId } = await registerAndAuthorize(h);
+    // Someone made a bearer client with exactly the name this app would get.
+    const { agentNameFor } = await import("./core/mcp-clients.ts");
+    await store.add(agentNameFor("ChatGPT", clientId));
+    const location = new URL(
+      (await h.fetch(req(`/authorize?${new URLSearchParams({ response_type: "code", client_id: clientId, redirect_uri: redirect, code_challenge: challenge, code_challenge_method: "S256" })}`))).headers.get("location")!,
+    );
+    const res = await h.fetch(tokenForm({ grant_type: "authorization_code", code: location.searchParams.get("code")!, client_id: clientId, redirect_uri: redirect, code_verifier: verifier }));
+    expect(res.status).toBe(500);
+    const clients = await store.list();
+    expect(clients.map((c) => c.kind)).toEqual(["token"]);
+  });
+
+  test("OAuth clients whose refresh token expired are pruned", async () => {
+    let t = Date.now();
+    const h = handler({ oauth: true, publicUrl: PUBLIC, approveConnect: async () => true, now: () => t });
+    await tokensFor(h as ReturnType<typeof oauth>);
+    expect(await store.list()).toHaveLength(1);
+    t += 31 * 24 * 60 * 60 * 1000;
+    const realNow = Date.now;
+    Date.now = () => t;
+    try {
+      await store.add("cursor");
+    } finally {
+      Date.now = realNow;
+    }
+    expect((await store.list()).map((c) => c.name)).toEqual(["cursor"]);
   });
 
   test("a denied approval sends access_denied and issues nothing", async () => {
@@ -228,4 +292,73 @@ describe("sikrets mcp --http with the MCP SDK client", () => {
       stop();
     }
   });
+});
+
+describe("sikrets mcp --http: client lifecycle", () => {
+  test("a removal from another process isn't undone by the server's concurrent writes", async () => {
+    // Two stores on one file stand in for the server and the `clients rm` CLI: separate queues.
+    const other = clientStore({ dir: root, tokens: memoryVault() });
+    for (let round = 0; round < 5; round++) {
+      await store.add(`c${round}`);
+      await Promise.all([store.touch(`c${round}`), other.remove(`c${round}`), store.touch(`c${round}`), store.touch(`c${round}`)]);
+      expect((await store.list()).map((c) => c.name)).not.toContain(`c${round}`);
+    }
+  });
+
+  test("removing a client takes back its login grants; a new client with the same name starts with none", async () => {
+    await store.add("cursor");
+    const [first] = await store.list();
+    await addGrant("github", "https://github.com", clientIdentity(first!));
+    await store.remove("cursor");
+    expect(await listGrants()).toEqual([]);
+    await store.add("cursor");
+    const [second] = await store.list();
+    expect(clientIdentity(second!).id).not.toBe(clientIdentity(first!).id);
+  });
+
+  const pidIn = async (file: string) => {
+    for (let i = 0; i < 200 && !(await Bun.file(file).exists()); i++) await Bun.sleep(20);
+    return Number((await Bun.file(file).text()).trim());
+  };
+  const alive = (pid: number) => {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const runSleeper = (pids: string) => ({ name: "run_with_secrets", arguments: { command: ["/bin/sh", "-c", `echo $$ > ${pids}; exec sleep 60`] } });
+
+  test("closing the SSE stream stops the running command and writes nothing more", async () => {
+    const token = (await store.add("cursor")).reveal();
+    const pids = path.join(root, "pids");
+    const res = await handler().fetch(rpc("tools/call", runSleeper(pids), { ...auth(token), accept: "application/json, text/event-stream" }));
+    const pid = await pidIn(pids);
+    expect(alive(pid)).toBe(true);
+    await res.body!.cancel();
+    for (let i = 0; i < 100 && alive(pid); i++) await Bun.sleep(20);
+    expect(alive(pid)).toBe(false);
+  }, 10_000);
+
+  test("notifications/cancelled over HTTP stops the command it names", async () => {
+    const token = (await store.add("cursor")).reveal();
+    const h = handler();
+    const pids = path.join(root, "pids");
+    const call = new Request(`${BASE}/mcp`, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json", host: "127.0.0.1:7787", ...auth(token) },
+      body: JSON.stringify({ jsonrpc: "2.0", id: "run-7", method: "tools/call", params: runSleeper(pids) }),
+    });
+    const pending = h.fetch(call);
+    const pid = await pidIn(pids);
+    const cancel = new Request(`${BASE}/mcp`, {
+      method: "POST",
+      headers: { "content-type": "application/json", host: "127.0.0.1:7787", ...auth(token) },
+      body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/cancelled", params: { requestId: "run-7" } }),
+    });
+    expect((await h.fetch(cancel)).status).toBe(202);
+    expect((await pending).status).toBe(202);
+    expect(alive(pid)).toBe(false);
+  }, 10_000);
 });

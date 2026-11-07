@@ -151,7 +151,7 @@ These apps connect from their own servers, so `127.0.0.1` means nothing to them.
 
    When an app connects, **your Mac shows a Sikrets dialog** naming the app and where it returns to. You approve it, then confirm with Touch ID. Nobody on the internet can approve it for you. On other operating systems the answer is always "deny".
 
-   Approved apps show up in `sikrets mcp clients` as, for example, `chatgpt-3f2a`. Remove one with `sikrets mcp clients rm chatgpt-3f2a`.
+   Approved apps show up in `sikrets mcp clients` as, for example, `chatgpt-3f2a9c01b7d4`. Remove one with `sikrets mcp clients rm chatgpt-3f2a9c01b7d4`; that also takes back its login grants.
 
 #### ChatGPT
 

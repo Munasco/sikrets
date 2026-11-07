@@ -131,6 +131,8 @@ export const MCP_HTTP = {
     accessTtlSeconds: 60 * 60,
     refreshTtlSeconds: 30 * 24 * 60 * 60,
     maxRegistrations: 50,
+    /** Hex characters of hash(client_id) in an OAuth app's agent name (48 bits). */
+    nameHashChars: 12,
     scopes: ["sikrets", "offline_access"],
   },
 } as const;

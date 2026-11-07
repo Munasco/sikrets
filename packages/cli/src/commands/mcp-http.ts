@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { agentNameFor, clientStore, hashToken, matches, newToken, type Client, type ClientStore, type Registration } from "../core/mcp-clients.ts";
+import { agentNameFor, clientIdentity, clientStore, hashToken, matches, newToken, type ClientStore, type Registration } from "../core/mcp-clients.ts";
 import { askOnMac } from "../core/logins/approve.ts";
 import { createServer, type ServerOptions } from "./mcp.ts";
 import { MCP_HTTP } from "../constants.ts";
@@ -203,27 +203,42 @@ export function createHttpHandler(opts: HttpOptions) {
     log(`sikrets mcp: ${allowed ? "approved" : "denied"} OAuth app "${reg.clientName}" as ${agent}`);
     if (!allowed) return back({ error: "access_denied" });
     const code = newToken(MCP_HTTP.tokenPrefix.code).reveal();
+    for (const [k, c] of codes) if (c.expiresAt < now()) codes.delete(k); // codes nobody came back for
     codes.set(hashToken(code), { clientId: reg.clientId, redirectUri, challenge, expiresAt: now() + MCP_HTTP.oauth.codeTtlSeconds * 1000 });
     return back({ code });
   }
 
-  async function issue(reg: Registration, existing?: Client) {
+  const tokenPair = (access: string, refresh: string) =>
+    json({ access_token: access, token_type: "Bearer", expires_in: MCP_HTTP.oauth.accessTtlSeconds, refresh_token: refresh, scope: MCP_HTTP.oauth.scopes.join(" ") });
+
+  /**
+   * Issues a token pair. "code": after an approval, for this app's client (created if new).
+   * "refresh": only if the presented refresh token is still the client's current one, checked and
+   * rotated in the same locked update, so two refreshes can't both win and a removed client stays removed.
+   */
+  async function issue(reg: Registration, grant: { kind: "code" } | { kind: "refresh"; presented: string }) {
     const access = newToken(MCP_HTTP.tokenPrefix.access);
     const refresh = newToken(MCP_HTTP.tokenPrefix.refresh);
     const t = now();
-    await store.update((r) => {
-      let c = r.clients.find((x) => x.clientId === reg.clientId) ?? existing;
-      if (!c || !r.clients.includes(c)) {
-        c = { name: agentNameFor(reg.clientName, reg.clientId), kind: "oauth", createdAt: new Date(t).toISOString(), clientId: reg.clientId };
-        r.clients = r.clients.filter((x) => x.name !== c!.name);
+    const outcome = await store.update((r): "ok" | "invalid" | "taken" => {
+      let c = r.clients.find((x) => x.clientId === reg.clientId);
+      if (grant.kind === "refresh") {
+        if (!c || !matches(grant.presented, c.refreshHash) || (c.refreshExpiresAt ?? 0) <= t) return "invalid";
+      } else if (!c) {
+        const name = agentNameFor(reg.clientName, reg.clientId);
+        // Never take over another client's name (and with it, its login grants).
+        if (r.clients.some((x) => x.name === name)) return "taken";
+        c = { name, kind: "oauth", createdAt: new Date(t).toISOString(), clientId: reg.clientId };
         r.clients.push(c);
       }
       c.accessHash = hashToken(access.reveal());
       c.accessExpiresAt = t + MCP_HTTP.oauth.accessTtlSeconds * 1000;
       c.refreshHash = hashToken(refresh.reveal());
       c.refreshExpiresAt = t + MCP_HTTP.oauth.refreshTtlSeconds * 1000;
+      return "ok";
     });
-    return json({ access_token: access.reveal(), token_type: "Bearer", expires_in: MCP_HTTP.oauth.accessTtlSeconds, refresh_token: refresh.reveal(), scope: MCP_HTTP.oauth.scopes.join(" ") });
+    if (outcome === "ok") return tokenPair(access.reveal(), refresh.reveal());
+    return outcome;
   }
 
   async function token(req: Request, ip: string) {
@@ -252,13 +267,13 @@ export function createHttpHandler(opts: HttpOptions) {
       if (!code || code.clientId !== reg.clientId || code.expiresAt < now()) return fail("invalid_grant", "Unknown or expired code");
       if (form.get("redirect_uri") && form.get("redirect_uri") !== code.redirectUri) return fail("invalid_grant", "redirect_uri doesn't match");
       if (s256(form.get("code_verifier") ?? "") !== code.challenge) return fail("invalid_grant", "PKCE verification failed");
-      return issue(reg);
+      const issued = await issue(reg, { kind: "code" });
+      if (issued === "taken") return oauthError("server_error", "Another client already has this app's name; remove it first", 500);
+      return issued === "invalid" ? fail("invalid_grant", "Unknown or expired code") : issued;
     }
     if (grant === "refresh_token") {
-      const presented = form.get("refresh_token") ?? "";
-      const client = (await store.list()).find((c) => c.clientId === reg.clientId && matches(presented, c.refreshHash) && (c.refreshExpiresAt ?? 0) > now());
-      if (!client) return fail("invalid_grant", "Unknown, expired or revoked refresh token");
-      return issue(reg, client);
+      const issued = await issue(reg, { kind: "refresh", presented: form.get("refresh_token") ?? "" });
+      return issued instanceof Response ? issued : fail("invalid_grant", "Unknown, expired or revoked refresh token");
     }
     return oauthError("unsupported_grant_type", "Use authorization_code or refresh_token");
   }
@@ -291,34 +306,77 @@ export function createHttpHandler(opts: HttpOptions) {
     }
     if (Array.isArray(msg) || !msg || typeof msg !== "object") return json({ jsonrpc: "2.0", id: null, error: { code: -32600, message: "Send one JSON-RPC message per request" } }, 400);
     const m = msg as { method?: unknown; id?: unknown; params?: { name?: unknown } };
-    // Notifications and responses get 202 and no body.
-    if (typeof m.method !== "string" || m.id === undefined) return new Response(null, { status: 202 });
+    // The token decides who this is, not the name the app reports. Servers are per identity, so a
+    // client removed and re-added under the same name gets a fresh one.
+    const who = clientIdentity(client);
+    sweepServers();
+    let server = servers.get(who.id);
+    if (!server) servers.set(who.id, (server = createServer({ ...opts, agent: client.name, identify: async () => who })));
+    // Notifications (e.g. notifications/cancelled, which stops a running command) and responses get 202 and no body.
+    if (typeof m.method !== "string" || m.id === undefined) {
+      if (typeof m.method === "string") void server.handle(msg as Parameters<typeof server.handle>[0]).catch(() => undefined);
+      return new Response(null, { status: 202 });
+    }
 
-    // The token decides who this is, not the name the app reports.
-    let server = servers.get(client.name);
-    if (!server) servers.set(client.name, (server = createServer({ ...opts, agent: client.name })));
     log(`sikrets mcp: ${client.name} ${m.method}${m.method === "tools/call" && typeof m.params?.name === "string" ? ` ${m.params.name}` : ""}`);
-    const reply = server.handle(msg as Parameters<typeof server.handle>[0]);
+    // The request's own signal: the app hanging up (or closing the stream below) stops its command.
+    const stop = new AbortController();
+    req.signal.addEventListener("abort", () => stop.abort(), { once: true });
+    const reply = server.handle(msg as Parameters<typeof server.handle>[0], stop.signal).catch(
+      (): Awaited<ReturnType<typeof server.handle>> => ({ jsonrpc: "2.0", id: (m.id as string | number | null) ?? null, error: { code: -32603, message: "Internal error" } }),
+    );
 
     // A tool call can take minutes (a test run, an approval prompt): stream it as SSE with
     // keep-alive comments so tunnels don't time out. Everything else is a plain JSON answer.
     if (m.method === "tools/call" && req.headers.get("accept")?.includes("text/event-stream")) {
       const enc = new TextEncoder();
       let timer: ReturnType<typeof setInterval> | undefined;
+      let open = true;
       const stream = new ReadableStream<Uint8Array>({
         start(controller) {
-          timer = setInterval(() => controller.enqueue(enc.encode(": keep-alive\n\n")), MCP_HTTP.keepAliveMs);
+          const send = (text: string) => {
+            if (!open) return;
+            try {
+              controller.enqueue(enc.encode(text));
+            } catch {
+              open = false;
+            }
+          };
+          timer = setInterval(() => send(": keep-alive\n\n"), MCP_HTTP.keepAliveMs);
           void reply.then((r) => {
             clearInterval(timer);
-            controller.enqueue(enc.encode(`event: message\ndata: ${JSON.stringify(r)}\n\n`));
-            controller.close();
+            if (r) send(`event: message\ndata: ${JSON.stringify(r)}\n\n`);
+            if (open) controller.close();
+            open = false;
           });
         },
-        cancel: () => clearInterval(timer),
+        // The app went away: stop its command, and write nothing more.
+        cancel: () => {
+          open = false;
+          clearInterval(timer);
+          stop.abort();
+        },
       });
       return new Response(stream, { headers: { "content-type": "text/event-stream", "cache-control": "no-store" } });
     }
-    return json(await reply);
+    const r = await reply;
+    if (!r) return new Response(null, { status: 202 }); // cancelled meanwhile
+    return json(r);
+  }
+
+  // Once a minute, let go of servers whose client no longer exists (removed, or OAuth expired).
+  let swept = 0;
+  function sweepServers() {
+    if (now() - swept < 60_000) return;
+    swept = now();
+    void store.list().then((clients) => {
+      const live = new Set(clients.map((c) => clientIdentity(c).id));
+      for (const [id, server] of servers)
+        if (!live.has(id)) {
+          server.close();
+          servers.delete(id);
+        }
+    });
   }
 
   async function fetch(req: Request, ip = "unknown"): Promise<Response> {
