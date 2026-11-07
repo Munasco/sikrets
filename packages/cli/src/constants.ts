@@ -30,6 +30,8 @@ export const FILES = {
   journal: "journal.json",
   activity: "activity.jsonl",
   connections: "connections.json",
+  /** Per-user (never committed): last characters of replaced keys awaiting revocation. */
+  revokeHints: "revoke-hints.json",
 } as const;
 export const IAC_DIR = "iac/terraform";
 
