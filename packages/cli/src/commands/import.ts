@@ -2,7 +2,7 @@ import path from "node:path";
 import { record } from "../core/activity.ts";
 import { projectContext } from "../core/config.ts";
 import { detectFormat, FORMAT_NAMES, fromManager, keyName, parseExport, type ImportEntry, type ImportFormat } from "../core/import.ts";
-import { saveExternalKeys } from "../core/keys.ts";
+import { assertNotPending, externalKeys, importExternalKeys } from "../core/keys.ts";
 import { openVault } from "../core/vault.ts";
 import { managers } from "../managers/index.ts";
 import { confirm, log } from "../ui.ts";
@@ -33,6 +33,8 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   }
   if (typeof opts.prefix === "string") entries = entries.map((e) => ({ ...e, key: keyName(opts.prefix as string, e.key) }));
   if (!entries.length) throw new Error(`Found nothing to import in ${source}`);
+  // Never copy over a key, or from an item, whose rotated value hasn't been written back yet.
+  assertNotPending(await externalKeys(root), entries.map((e) => e.key), entries.flatMap((e) => (e.ref ? [e.ref] : [])));
 
   const vault = await openVault(ctx.project, ctx.vault);
   const existing = new Set<string>();
@@ -44,9 +46,11 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   if (ctx.dryRun) return opts.json ? console.log(JSON.stringify({ dryRun: true, ...summary })) : undefined;
   if (!opts.yes && process.stdin.isTTY && !(await confirm("Import these?"))) return say("Cancelled; nothing changed.");
 
-  for (const e of entries) await vault.put(e.key, e.value);
   const now = new Date().toISOString();
-  await saveExternalKeys(root, entries.map((e) => ({ key: e.key, source: fromFile ? label : m!.id, ...(e.ref ? { ref: e.ref } : {}), addedAt: now })));
+  const records = entries.map((e) => ({ key: e.key, source: fromFile ? label : m!.id, ...(e.ref ? { ref: e.ref, sync: { state: "synced" as const, at: now } } : {}), addedAt: now }));
+  await importExternalKeys(root, records, async () => {
+    for (const e of entries) await vault.put(e.key, e.value);
+  });
   await record(root, { kind: "import", detail: `${entries.length} from ${label}`, keys: entries.map((e) => e.key) });
 
   if (opts.json) console.log(JSON.stringify(summary));

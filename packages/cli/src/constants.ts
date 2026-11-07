@@ -43,7 +43,6 @@ export const FILES = {
 /** Folder under the user dir for per-project usage logs (local only, never in the project). */
 export const USAGE_DIR = "usage";
 export const IAC_DIR = "iac/terraform";
-
 // ── Defaults for sikrets.json ─────────────────────────────────────────────
 export const DEFAULTS = {
   vault: "ssm",
@@ -242,6 +241,8 @@ export const PASSWORD_MANAGERS = {
     binEnv: ENV.bw,
     /** Env var the bw CLI reads its unlocked session from. */
     sessionEnv: "BW_SESSION",
+    /** Where bw points when no self-hosted server is configured. */
+    defaultServer: "https://vault.bitwarden.com",
     /** Env var we hand the master password through, so it never appears in argv. */
     passwordEnv: "SIKRETS_BW_PASSWORD",
     /** Where bw keeps its config and encrypted cache; set it to isolate a test run. */
@@ -270,10 +271,14 @@ export const IMPORT = {
 } as const;
 
 // ── Local state-file locks ────────────────────────────────────────────────
+// A `<file>.lock` beside a state file another sikrets process (CLI or desktop) may write too.
 export const LOCK = {
+  suffix: ".lock",
   /** How long to wait for another sikrets process to finish with a file. */
   waitMs: 10_000,
   retryMs: 25,
-  /** A lock older than this is assumed abandoned even if its pid looks alive. */
-  staleMs: 30_000,
+  /** A lock whose holder can't be read (torn by a crash mid-write) is broken after this long. */
+  unreadableMs: 30_000,
+  /** A live holder keeps its lock this long at most (a long import); past it, it's assumed hung. */
+  maxHoldMs: 30 * 60_000,
 } as const;

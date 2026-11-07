@@ -2,7 +2,7 @@ import { record } from "../core/activity.ts";
 import { projectContext } from "../core/config.ts";
 import { providerEnv } from "../core/credentials.ts";
 import { Secret } from "../core/secret.ts";
-import { writeBack } from "../core/keys.ts";
+import { markPending, writeBack } from "../core/keys.ts";
 import { state, type Resource } from "../core/state.ts";
 import { after } from "../core/ttl.ts";
 import { openVault } from "../core/vault.ts";
@@ -76,6 +76,8 @@ export async function run(args: string[], opts: Record<string, unknown>) {
     rotated.set(`${envPrefix(res.name)}_${spec.env}`, secret);
     if (typeof value === "string") outputs[key] = value;
   }
+  // Linked password manager items now hold the old value: record that before anything else can fail.
+  await markPending(root, [...rotated.keys()]);
   const now = new Date().toISOString();
   await state.upsert(root, { ...res, outputs, lastRotatedAt: now, rotateBy: after(config.rotateEvery) });
   await record(root, { kind: "rotate", detail: `${r.id} ${res.name}`, keys });
