@@ -5,6 +5,7 @@ import path from "node:path";
 import { Secret } from "./secret.ts";
 import { detectFormat, fromManager, keyName, parseCsv, parseExport, type ImportEntry } from "./import.ts";
 import { externalKeys } from "./keys.ts";
+import { previewDigest } from "../commands/import.ts";
 
 // Every value below is fake. Each fixture follows the real export's header and shape.
 
@@ -236,5 +237,20 @@ describe("sikrets import", () => {
     expect(output.join("\n")).toContain("+ LEGACY_API_KEY");
     await run([".env"], { "dry-run": true });
     expect(output.join("\n")).toContain("~ API_KEY  replaces the current value");
+  });
+});
+
+describe("preview digest", () => {
+  const entries = [
+    { key: "A", item: "a", ref: "bw://1/password" },
+    { key: "B", item: "b" },
+  ];
+
+  test("is the same for the same list, and changes when the list or the replaced set does", () => {
+    const d = previewDigest(entries, new Set(["A"]));
+    expect(previewDigest([...entries], new Set(["A"]))).toBe(d);
+    expect(previewDigest([...entries, { key: "C", item: "c" }], new Set(["A"]))).not.toBe(d); // an item added after the preview
+    expect(previewDigest(entries.map((e) => ({ ...e, key: `BW_${e.key}` })), new Set(["A"]))).not.toBe(d); // another prefix
+    expect(previewDigest(entries, new Set(["A", "B"]))).not.toBe(d); // B now exists and would be replaced unannounced
   });
 });

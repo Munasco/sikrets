@@ -222,6 +222,7 @@ export const commands: CommandSpec[] = [
     options: [
       { name: "format", type: "string", argument: "FORMAT", description: "Skip detection: dotenv, apple, chrome, firefox, 1password-csv, bitwarden-csv, bitwarden-json, 1pux" },
       { name: "prefix", type: "string", argument: "PREFIX", description: "Prepend to every imported key name" },
+      { name: "expect", type: "string", argument: "DIGEST", description: "Import only if the list still matches this --dry-run --json digest" },
       dryRunOption,
       yesOption,
       jsonOption,
