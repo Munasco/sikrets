@@ -52,8 +52,15 @@ export class ApiError extends Error {
   }
 }
 
+/** Called when the gateway says the login is gone (401), so the page can go back to the code gate. */
+let signedOut: () => void = () => {};
+export const onSignedOut = (cb: () => void) => {
+  signedOut = cb;
+};
+
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(path, { ...init, headers: { "content-type": "application/json", ...init.headers } });
+  if (res.status === 401 && path !== "/api/login") signedOut();
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
     throw new ApiError(res.status, body.error ?? body.message ?? `Error ${res.status}`);
@@ -83,23 +90,41 @@ export interface OcEvent {
   data: Record<string, unknown> & { sessionID?: string };
 }
 
-/** opencode's event stream (only this caller's sessions; the gateway filters it). Reconnects. */
-export function subscribe(onEvent: (ev: OcEvent) => void, onState: (live: boolean) => void): () => void {
+/**
+ * opencode's event stream (only this caller's sessions; the gateway filters it). Reconnects.
+ * `onState(true, true)` means it came back after a drop: events in between are lost, so resync.
+ * EventSource can't see the status code, so after a drop it asks /api/me and stops if signed out.
+ */
+export function subscribe(onEvent: (ev: OcEvent) => void, onState: (live: boolean, reconnected: boolean) => void): () => void {
   let source: EventSource | undefined;
   let closed = false;
+  let dropped = false;
   let retry: ReturnType<typeof setTimeout> | undefined;
+  const reopen = () =>
+    api.me().then(
+      (me) => {
+        if (closed) return;
+        if (!me.authed) return signedOut();
+        open();
+      },
+      () => !closed && (retry = setTimeout(reopen, 2000)),
+    );
   const open = () => {
     source = new EventSource("/api/event");
-    source.onopen = () => onState(true);
+    source.onopen = () => {
+      onState(true, dropped);
+      dropped = false;
+    };
     source.onmessage = (m) => {
       try {
         onEvent(JSON.parse(m.data) as OcEvent);
       } catch {}
     };
     source.onerror = () => {
-      onState(false);
+      dropped = true;
+      onState(false, false);
       source?.close();
-      if (!closed) retry = setTimeout(open, 2000);
+      if (!closed) retry = setTimeout(reopen, 2000);
     };
   };
   open();
