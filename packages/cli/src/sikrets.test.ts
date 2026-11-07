@@ -335,10 +335,11 @@ describe("rotate", () => {
   });
 
   test("Terraform resources are refused with guidance", async () => {
+    await Bun.write(path.join(root, "sikrets.json"), JSON.stringify({ project: "demo" }));
     await applyPlan("add", (await planAdd(request({ recipe: "aws/vpc", name: "main" }), ctx)).changes, ctx);
     const { state: st } = await import("./core/state.ts");
     const [vpc] = (await st.load(root)).resources;
-    await st.upsert(root, { ...vpc!, applied: true });
+    await st.upsert(ctx, { ...vpc!, applied: true });
     const { run } = await import("./commands/rotate.ts");
     const cwd = process.cwd();
     process.chdir(root);
@@ -394,10 +395,50 @@ describe("get", () => {
     expect(res).toBeDefined();
     expect(res!.name).toBe("redis");
     expect(res!.applied).toBe(true);
-    expect(res!.rotateBy).toBeString();
-    const ttlMs = Date.parse(res!.rotateBy!) - Date.now();
+    expect(res!.expires).toBe("24h");
+    const ttlMs = Date.parse(res!.expiresAt!) - Date.now();
     expect(ttlMs).toBeGreaterThan(23 * 3_600_000);
     expect(ttlMs).toBeLessThanOrEqual(24 * 3_600_000 + 5000);
+  });
+
+  test("an expired resource is deleted at the provider by the next get or status --personal", async () => {
+    const { run } = await import("./commands/get.ts");
+    const quiet = spyOn(console, "log").mockImplementation(() => {});
+    const quietErr = spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await run(["upstash/redis"], { name: "short", expires: "1m" });
+      await run(["upstash/redis"], { name: "keep", expires: "never" });
+      expect(Object.keys(databases).sort()).toEqual(["db_keep", "db_short"]);
+      const { personalDir } = await import("./core/config.ts");
+      const { state: st } = await import("./core/state.ts");
+      const s = await st.load(personalDir());
+      expect(s.resources.find((r) => r.name === "keep")!.expiresAt).toBeUndefined();
+      // An hour later:
+      const short = s.resources.find((r) => r.name === "short")!;
+      await st.upsert({ root: personalDir(), project: "orphans" }, { ...short, expiresAt: new Date(Date.now() - 1000).toISOString() });
+      const status = await import("./commands/status.ts");
+      await status.run([], { personal: true, json: true });
+      expect(Object.keys(databases)).toEqual(["db_keep"]);
+      expect((await st.load(personalDir())).resources.map((r) => r.name)).toEqual(["keep"]);
+    } finally {
+      quiet.mockRestore();
+      quietErr.mockRestore();
+    }
+  });
+
+  test("rotate --personal rotates a get resource", async () => {
+    const quiet = spyOn(console, "log").mockImplementation(() => {});
+    const quietErr = spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { run } = await import("./commands/get.ts");
+      await run(["upstash/redis"], { name: "rot" });
+      const rotate = await import("./commands/rotate.ts");
+      await rotate.run(["rot"], { personal: true, yes: true });
+    } finally {
+      quiet.mockRestore();
+      quietErr.mockRestore();
+    }
+    expect(keychain.get("dev.sikrets.vault.orphans/ROT_REDIS_REST_TOKEN")).toBe("tok_rotated_value");
   });
 
   test("--real prints actual secrets", async () => {

@@ -5,16 +5,19 @@ import { record } from "../core/activity.ts";
 import { applyPlan, printPlan } from "../core/plan.ts";
 import { envValues } from "../core/standin.ts";
 import { state } from "../core/state.ts";
-import { parseDuration } from "../core/ttl.ts";
+import { sweepExpired } from "../core/sweep.ts";
+import { after, parseDuration } from "../core/ttl.ts";
+import { DEFAULTS } from "../constants.ts";
 import { openVault } from "../core/vault.ts";
 import { recipe } from "../recipes/index.ts";
 import { log } from "../ui.ts";
 import { readSecretInput } from "./secret-input.ts";
 
 // `sikrets get <provider/service>`:
-// Standalone resource minting outside any project. Credentials live in ~/.sikrets/orphans,
-// default to a 24-hour TTL, and print KEY=value pairs on stdout. All progress goes to stderr
-// so $(sikrets get …) captures clean values.
+// Standalone resource minting outside any project. Credentials live in ~/.sikrets/orphans and
+// print KEY=value pairs on stdout; all progress goes to stderr so $(sikrets get …) captures clean
+// values. Each resource expires (default 24h, --expires to change): the next `get` or
+// `status --personal` after that deletes it at the provider, like `rollback --personal` would.
 export async function run(args: string[], opts: Record<string, unknown>) {
   if (!args[0]) throw new Error("Usage: sikrets get <provider/service>");
   const r = recipe(args[0]);
@@ -28,6 +31,7 @@ export async function run(args: string[], opts: Record<string, unknown>) {
     log: (m) => log(opts, m),
   });
 
+  if (!ctx.dryRun) await sweepExpired(ctx);
   const { resources } = await state.load(ctx.root);
   const vault = await openVault(ctx.project, ctx.vault);
 
@@ -63,8 +67,8 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   const unknown = Object.keys(inputs).filter((k) => !(k in r.inputs));
   if (unknown.length) throw new Error(`${r.id} has no input ${unknown.join(", ")}. Inputs: ${Object.keys(r.inputs).join(", ") || "none"}`);
 
-  const ttl = typeof opts.ttl === "string" ? opts.ttl : "24h";
-  parseDuration(ttl);
+  const expires = typeof opts.expires === "string" ? opts.expires : DEFAULTS.getExpires;
+  if (expires !== "never") parseDuration(expires);
 
   const plan = await planAdd(
     {
@@ -76,14 +80,19 @@ export async function run(args: string[], opts: Record<string, unknown>) {
         throw new Error(`${question} Dependencies cannot be prompted in get; add them first or use sikrets add`);
       },
       envFile: config.env,
-      rotateEvery: ttl,
+      rotateEvery: config.rotateEvery,
       secret: (prompt) => readSecretInput(opts, prompt),
     },
     ctx,
   );
 
+  // Only the requested resource expires; dependencies planned for it may be shared later.
+  const created = plan.resources.find((x) => x.name === name) ?? plan.resources[0]!;
+  if (expires !== "never") Object.assign(created, { expires, expiresAt: after(expires) });
+
   if (ctx.dryRun) {
     printPlan(plan.changes, ctx);
+    if (created.expiresAt) ctx.log(`  Deleted after ${expires} (${created.expiresAt})`);
     if (opts.json) {
       console.log(
         JSON.stringify({
@@ -97,7 +106,6 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   }
 
   await applyPlan(`get ${r.id}`, plan.changes, ctx);
-  const created = plan.resources.find((x) => x.name === name) ?? plan.resources[0]!;
   const values = await envValues(vault, [{ ...created, applied: true }], Boolean(opts.real));
   await record(ctx.root, { kind: "get", detail: `${r.id} ${name}`, keys: [...values.keys()], real: Boolean(opts.real) });
   output(values, Boolean(opts.json));

@@ -50,6 +50,7 @@ export const commands: CommandSpec[] = [
       { name: "email", type: "string", argument: "EMAIL", description: "Sign in for me with this email (password is prompted)" },
       { name: "password-stdin", type: "boolean", description: "Read the password from stdin instead of prompting" },
       { name: "renew", type: "boolean", description: "Mint a fresh API key even if one is already stored" },
+      { name: "revoked", type: "boolean", description: "You revoked the old API keys connect listed; stop listing them" },
       { name: "profile", type: "string", argument: "PROFILE", description: "AWS only: which AWS CLI profile to use" },
       jsonOption,
     ],
@@ -79,7 +80,7 @@ export const commands: CommandSpec[] = [
     options: [
       { name: "name", type: "string", argument: "NAME", description: "Resource name (reused if it exists)" },
       { name: "real", type: "boolean", short: "r", description: "Print real secrets instead of stand-ins" },
-      { name: "ttl", type: "string", argument: "DURATION", description: "How long before rotation is due (default: 24h)" },
+      { name: "expires", type: "string", argument: "DURATION", description: "Delete it after this long, e.g. 2h or 7d, or never (default: 24h)" },
       { name: "set", type: "string", multiple: true, argument: "KEY=VALUE", description: "Set a recipe input, e.g. --set region=eu-west-1" },
       { name: "value-stdin", type: "boolean", description: "Manual recipes: read a credential from stdin" },
       dryRunOption,
@@ -87,7 +88,7 @@ export const commands: CommandSpec[] = [
     ],
     examples: [
       "sikrets get upstash/redis",
-      "sikrets get upstash/redis --name cache",
+      "sikrets get upstash/redis --name cache --expires 2h",
       "sikrets get upstash/redis --real",
       "sikrets get upstash/redis --json",
     ],
@@ -136,6 +137,8 @@ export const commands: CommandSpec[] = [
     arguments: [{ name: "resource", required: true }],
     options: [
       { name: "value-stdin", type: "boolean", description: "Manual recipes: read the replacement credential from stdin" },
+      { name: "revoked", type: "boolean", description: "Manual recipes: you revoked the replaced key in the dashboard; stop reminding" },
+      { name: "personal", type: "boolean", description: "Target resources in ~/.sikrets (outside any project, from sikrets get)" },
       dryRunOption,
       yesOption,
       jsonOption,
