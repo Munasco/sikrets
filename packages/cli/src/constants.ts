@@ -100,6 +100,8 @@ export const GITHUB = {
   /** App JWTs: backdated for clock drift, and under GitHub's 10-minute limit. */
   jwtBackdateSeconds: 60,
   jwtLifetimeSeconds: 540,
+  /** Installation tokens always live this long; GitHub can't issue shorter ones. */
+  tokenLifetimeSeconds: 3600,
   /** Env vars an installation token is exported as. */
   tokenEnv: ["GITHUB_TOKEN", "GH_TOKEN"],
 } as const;
@@ -296,10 +298,14 @@ export const DOORMAN = {
 } as const;
 
 // ── Local state-file locks ────────────────────────────────────────────────
+// A lock sits next to a file another sikrets process may write at the same time (core/lock.ts).
 export const LOCK = {
+  suffix: ".lock",
   /** How long to wait for another sikrets process to finish with a file. */
   waitMs: 10_000,
   retryMs: 25,
-  /** A lock older than this is assumed abandoned even if its pid looks alive. */
-  staleMs: 30_000,
+  /** Live while its holder runs; past this age it is assumed abandoned even if the holder looks alive. */
+  ceilingMs: 6 * 60 * 60 * 1000,
+  /** A lock with no readable holder (torn by a crash mid-write) is broken after this long. */
+  tornMs: 5_000,
 } as const;

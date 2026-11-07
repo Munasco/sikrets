@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { ensureGitignore } from "./files.ts";
 import { readJson } from "./fs.ts";
-import { alive, withLock, writeAtomic } from "./lock.ts";
+import { running, self, withLock, writeAtomic } from "./lock.ts";
 import { after } from "./ttl.ts";
 import { APPROVAL_REASONS, APPROVAL_ROTATING_MAX_MS, APPROVAL_TTL, APPROVALS_FILE, PROJECT_DIR } from "../constants.ts";
 
@@ -38,7 +38,7 @@ export interface ApprovalRequest {
   decidedAt?: string;
   decidedBy?: DecidedBy;
   /** While rotating: which process runs the rotation and since when, so a crash can be detected. */
-  rotation?: { pid: number; startedAt: string };
+  rotation?: { pid: number; start?: string; startedAt: string };
   rotatedAt?: string;
   /** Why the last rotation failed. */
   error?: string;
@@ -72,7 +72,7 @@ export function transition(req: ApprovalRequest, event: Event, opts: Opts = {}):
   const { rotation: _, error: __, ...rest } = req;
   switch (event) {
     case "approve":
-      return { ...rest, status: to, decidedAt: at, decidedBy: opts.by, rotation: { pid: process.pid, startedAt: at } };
+      return { ...rest, status: to, decidedAt: at, decidedBy: opts.by, rotation: { ...self(), startedAt: at } };
     case "deny":
       return { ...rest, status: to, decidedAt: at, decidedBy: opts.by };
     case "rotated":
@@ -89,7 +89,7 @@ export function settle(r: ApprovalRequest, now = new Date()): ApprovalRequest {
   if (isOpen(r) && Date.parse(r.expiresAt) <= now.getTime()) return transition(r, "expire", { now });
   if (r.status === "rotating") {
     const since = Date.parse(r.rotation?.startedAt ?? r.decidedAt ?? r.createdAt);
-    const gone = !r.rotation || (r.rotation.pid !== process.pid && !alive(r.rotation.pid));
+    const gone = !r.rotation || !running(r.rotation);
     if (gone || now.getTime() - since > APPROVAL_ROTATING_MAX_MS) return transition(r, "fail", { now, error: "the rotation was interrupted; check the key, then approve again or deny" });
   }
   return r;

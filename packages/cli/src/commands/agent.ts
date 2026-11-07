@@ -1,4 +1,4 @@
-import { agents, agentStatus, checkAgentName, type Agent } from "../core/agents.ts";
+import { agents, agentStatus, checkAgentName } from "../core/agents.ts";
 import { projectContext } from "../core/config.ts";
 import { state } from "../core/state.ts";
 import { after, until } from "../core/ttl.ts";
@@ -27,7 +27,7 @@ export async function run(args: string[], opts: Record<string, unknown>) {
     if (!rows.length) return console.log("No agents yet. Add one: sikrets agent add <name> --key <resource>");
     const w = Math.max(...rows.map((r) => r.name.length), 4);
     for (const r of rows) {
-      const when = r.status === "revoked" ? `revoked ${r.revokedAt!.slice(0, 10)}` : r.expiresAt ? (r.status === "expired" ? "expired" : `expires ${until(r.expiresAt)}`) : "no expiry";
+      const when = r.status === "revoked" && "revokedAt" in r ? `revoked ${r.revokedAt.slice(0, 10)}` : r.expiresAt ? (r.status === "expired" ? "expired" : `expires ${until(r.expiresAt)}`) : "no expiry";
       console.log(`${r.name.padEnd(w)}  ${r.status.padEnd(8)} ${when.padEnd(18)} ${r.scope.join(", ")}`);
     }
     return;
@@ -35,22 +35,21 @@ export async function run(args: string[], opts: Record<string, unknown>) {
 
   if (!name) throw new Error(`Usage: sikrets agent ${sub} <name>`);
   checkAgentName(name);
-  const existing = all.find((a) => a.name === name);
 
   if (sub === "add") {
-    if (existing && agentStatus(existing) === "active") throw new Error(`Agent "${name}" already exists. Revoke it first to change its scope`);
     const scope = list(opts.key);
     if (!scope.length) throw new Error(`Give ${name} at least one key: sikrets agent add ${name} --key <resource or KEY_NAME>`);
     const { resources } = await state.load(root);
     const known = new Set([AWS_SESSION.profileScope, ...resources.flatMap((r) => [r.name, ...r.envKeys])]);
     const unknown = scope.filter((s) => !known.has(s));
     if (unknown.length) throw new Error(`Not in this project: ${unknown.join(", ")}. Use resource names or key names (see sikrets inventory)`);
-    const agent: Agent = { name, scope, createdAt: new Date().toISOString(), ...(typeof opts.expires === "string" ? { expiresAt: after(opts.expires) } : {}) };
     // With a cloud vault, the agent's cloud identity comes first: no identity, no agent.
+    const expiresAt = typeof opts.expires === "string" ? after(opts.expires) : undefined;
     const { syncAgentIdentity, list: allowList } = await import("./agent-role.ts");
     const { ctx } = await projectContext(root, { log: () => {} });
-    const role = await syncAgentIdentity(ctx, agent, allowList(opts.allow));
-    await agents.save(root, all.filter((a) => a.name !== name).concat(agent));
+    const role = await syncAgentIdentity(ctx, { id: "", name, scope, createdAt: new Date().toISOString(), status: "active", ...(expiresAt ? { expiresAt } : {}) }, allowList(opts.allow));
+    // Checked again under the lock: active names are refused, revoked names stay revoked.
+    const agent = await agents.add(root, { name, scope, ...(expiresAt ? { expiresAt } : {}) });
     if (opts.json) return console.log(JSON.stringify({ ...agent, ...(role ? { identity: role.id } : {}) }));
     return log(
       opts,
@@ -59,13 +58,11 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   }
 
   if (sub === "revoke") {
-    if (!existing) throw new Error(`No agent named "${name}"`);
-    if (existing.revokedAt) return log(opts, `${name} was already revoked at ${existing.revokedAt}.`);
-    const revoked = { ...existing, revokedAt: new Date().toISOString() };
-    await agents.save(root, all.map((a) => (a.name === name ? revoked : a)));
+    const { agent, already } = await agents.revoke(root, name);
     const { ctx } = await projectContext(root, { log: () => {} });
     const identityRemoved = await (await import("./agent-role.ts")).removeAgentIdentity(ctx, name);
-    if (opts.json) return console.log(JSON.stringify({ ...revoked, ...(identityRemoved ? { identityRemoved } : {}) }));
+    if (opts.json) return console.log(JSON.stringify({ ...agent, ...(identityRemoved ? { identityRemoved } : {}) }));
+    if (already && agent.status === "revoked") return log(opts, `${name} was already revoked at ${agent.revokedAt}.`);
     return log(opts, `Revoked ${name}${identityRemoved ? " and removed its cloud identity" : ""}; other agents are unaffected. To replace the keys it saw: sikrets offboard ${name}`);
   }
 
