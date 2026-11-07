@@ -1,12 +1,20 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import path from "node:path";
 import { configDir, keychain } from "../store.ts";
-import { withLock } from "./lock.ts";
-import { RECOVERY } from "../constants.ts";
+import { deviceDir, thisDevice, type DataKeyWrap } from "./device.ts";
+import { readJson, remove } from "./fs.ts";
+import { withLock, writeAtomic } from "./lock.ts";
+import { DEVICE, RECOVERY } from "../constants.ts";
 
-// The vault data key: one random 256-bit key per user, kept in the OS keychain. It is the single
-// key that client-side encryption hangs off, so it is also the one thing recovery has to protect.
-// seal/open are AES-256-GCM with a fresh IV per value; the server only ever sees their output.
+// The vault data key: one random 256-bit key per user. It is the single key that client-side
+// encryption hangs off, so it is also the one thing recovery has to protect. On each device it is
+// stored wrapped to that device's key-agreement key (see device.ts), so the file is useless
+// anywhere else. seal/open are AES-256-GCM with a fresh IV per value; the server only ever sees
+// their output.
+//
+// Earlier versions kept the key raw in the OS keychain. That copy is still read, but only when no
+// wrapped key exists (the SDK reads in the same order), and a read never moves it: wrapping it to
+// software keys in a file would be a downgrade made on a read path.
 
 const { dataKeyProvider: PROVIDER, dataKeyAccount: ACCOUNT } = RECOVERY;
 
@@ -19,12 +27,31 @@ export interface Sealed {
 const b64 = (b: Uint8Array) => Buffer.from(b).toString("base64");
 const unb64 = (s: string) => Buffer.from(s, "base64");
 
+export const dataKeyFile = () => path.join(deviceDir(), DEVICE.dataKeyFile);
+
+const readWrapped = () => readJson<DataKeyWrap | undefined>(dataKeyFile(), undefined);
+
+/** Throws DeviceMismatchError when the wrapped key on disk belongs to another device. */
 export async function loadDataKey(): Promise<Buffer | undefined> {
-  const stored = await keychain.get(PROVIDER, ACCOUNT);
-  return stored ? unb64(stored) : undefined;
+  const wrapped = await readWrapped();
+  if (wrapped) return (await thisDevice()).unwrap(wrapped);
+  const raw = await keychain.get(PROVIDER, ACCOUNT);
+  return raw ? unb64(raw) : undefined;
 }
 
-export const saveDataKey = (key: Uint8Array) => keychain.set(PROVIDER, ACCOUNT, b64(key));
+/**
+ * Wraps the key to this device, checks the wrap opens to the same key, then replaces any earlier
+ * wrapped key in one rename: there is never a moment with no key on disk.
+ */
+export async function saveDataKey(key: Uint8Array) {
+  const device = await thisDevice();
+  const wrapped = device.wrap(key, fingerprint(key));
+  if (!sameKey(await device.unwrap(wrapped), key)) throw new Error("Wrapping the data key for this device didn't round-trip; nothing changed");
+  await writeAtomic(dataKeyFile(), JSON.stringify(wrapped, null, 2) + "\n", 0o600);
+}
+
+/** Drops this device's wrapped copy. */
+export const forgetDataKey = () => remove(dataKeyFile());
 
 /**
  * Creates this device's data key on first use. Under a lock, so two first runs at once can't each

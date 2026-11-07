@@ -9,12 +9,14 @@
 //   2. It holds a stand-in, or nothing → fetch the real value from the project's vault with the
 //      app's own credentials (an IAM role in production, your AWS profile locally). The CLI seals
 //      values on the client, so opening them also takes the project key: SIKRETS_PROJECT_KEY in a
-//      deployment (`sikrets env pull --project-key`), else the user's data key from the keychain.
-//      Plaintext from the vault is refused, as the CLI does: seal it with `sikrets seal --apply`.
+//      deployment (`sikrets env pull --project-key`), else the user's data key on this device, found
+//      in the same order as the CLI (see datakey.ts). Plaintext from the vault is refused, as the
+//      CLI does: seal it with `sikrets seal --apply`.
 // Values are cached briefly so a rotated key is picked up without a restart.
 
 import { createDecipheriv, hkdfSync } from "node:crypto";
-import { DATA_KEY, DEFAULT_TTL_MS, DEFAULT_VAULT, ENV, ENVELOPE, KEY_PATTERN, keychainVaultService, SSM_PREFIX, STAND_IN_PATTERN } from "./constants.ts";
+import { loadDataKey } from "./datakey.ts";
+import { DEFAULT_TTL_MS, DEFAULT_VAULT, ENV, ENVELOPE, KEY_PATTERN, keychainVaultService, SSM_PREFIX, STAND_IN_PATTERN } from "./constants.ts";
 
 export type VaultName = "ssm" | "keychain";
 
@@ -68,16 +70,16 @@ function defaultProject(env: SikretsOptions["env"]): string {
 
 const bunSecrets = () => (globalThis as { Bun?: { secrets: { get(o: { service: string; name: string }): Promise<string | null> } } }).Bun?.secrets;
 
-/** This project's key: the one given (a deployment), else derived from the keychain data key. */
+/** This project's key: the one given (a deployment), else derived from this device's data key. */
 async function projectKeyFor(project: string, given: string | undefined): Promise<Buffer> {
   if (given) {
     const k = Buffer.from(given, "base64");
     if (k.length !== 32) throw new Error(`${ENV.projectKey} isn't a project key (expected 32 bytes, base64)`);
     return k;
   }
-  const dataKey = await bunSecrets()?.get(DATA_KEY);
+  const dataKey = await loadDataKey(bunSecrets());
   if (!dataKey) throw new Error(`the value is encrypted on the client and this process has no key: set ${ENV.projectKey} (sikrets env pull --project-key), run under \`sikrets run\`, or restore your data key (sikrets recovery restore)`);
-  return Buffer.from(hkdfSync("sha256", Buffer.from(dataKey, "base64"), ENVELOPE.hkdfSalt, ENVELOPE.hkdfInfo(project), 32));
+  return Buffer.from(hkdfSync("sha256", dataKey, ENVELOPE.hkdfSalt, ENVELOPE.hkdfInfo(project), 32));
 }
 
 /**

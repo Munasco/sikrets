@@ -1,8 +1,5 @@
-import { createHash } from "node:crypto";
-import path from "node:path";
-import { configDir } from "../store.ts";
 import { confirm } from "../ui.ts";
-import { privateDir } from "./fs.ts";
+import { swiftHelper } from "./swift.ts";
 import { reasonText, type Answer, type ApprovalRequest } from "./approvals.ts";
 import touchIdSource from "../native/touchid.swift" with { type: "text" };
 import { DOORMAN, REVEAL } from "../constants.ts";
@@ -15,20 +12,7 @@ import { DOORMAN, REVEAL } from "../constants.ts";
 export const promptText = (req: ApprovalRequest) => `${reasonText(req.reason)}. Rotate "${req.resource}" now? The old key will stop working.`;
 
 /** Builds the Touch ID helper once per source version. Undefined when swiftc isn't installed. */
-async function touchIdHelper(): Promise<string | undefined> {
-  const hash = createHash("sha256").update(touchIdSource).digest("hex").slice(0, 12);
-  const dir = path.join(configDir(), DOORMAN.binDir);
-  const bin = path.join(dir, `${DOORMAN.helperName}-${hash}`);
-  if (await Bun.file(bin).exists()) return bin;
-  if (!Bun.which("swiftc")) return undefined;
-  await privateDir(dir);
-  const src = `${bin}.swift`;
-  await Bun.write(src, touchIdSource);
-  const build = Bun.spawn(["swiftc", "-O", "-swift-version", "5", "-o", bin, src], { stdout: "ignore", stderr: "ignore" });
-  const ok = (await build.exited) === 0;
-  await Bun.file(src).delete();
-  return ok ? bin : undefined;
-}
+const touchIdHelper = () => swiftHelper(touchIdSource, DOORMAN.helperName);
 
 /** The helper's exit code (0 approved, 1 dismissed, 2 failed, 3 unavailable), or undefined when it can't be built. */
 async function touchIdCode(text: string): Promise<number | undefined> {

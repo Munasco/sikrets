@@ -211,6 +211,37 @@ export const commands: CommandSpec[] = [
     load: () => import("./recovery.ts"),
   },
   {
+    name: "login",
+    description: "Sign this device in: registers its key (Secure Enclave on a Mac) after you approve in the browser; requests are then signed by the device",
+    arguments: [],
+    options: [
+      { name: "server", type: "string", argument: "URL", description: "Sikrets server (default: SIKRETS_SERVER, else the last one used)" },
+      { name: "no-browser", type: "boolean", description: "Print the approval link instead of opening it" },
+      jsonOption,
+    ],
+    examples: ["sikrets login", "sikrets login --server http://127.0.0.1:4873 --no-browser"],
+    load: () => import("./login.ts"),
+  },
+  {
+    name: "logout",
+    description: "Revoke this device on the server and forget the sign-in (the device key stays, it also protects your vault)",
+    arguments: [],
+    options: [jsonOption],
+    examples: ["sikrets logout"],
+    load: () => import("./logout.ts"),
+  },
+  {
+    name: "devices",
+    description: "This device's key (hardware-bound or not) and every device signed in to your account; revoke one",
+    arguments: [
+      { name: "list|revoke", required: false },
+      { name: "id", required: false },
+    ],
+    options: [jsonOption],
+    examples: ["sikrets devices", "sikrets devices revoke dev_1a2b3c", "sikrets devices --json"],
+    load: () => import("./devices.ts"),
+  },
+  {
     name: "unlock",
     description: "Sign in to a password manager CLI (Bitwarden/Vaultwarden or 1Password) and keep the session in your keychain",
     arguments: [{ name: "manager", required: true }],

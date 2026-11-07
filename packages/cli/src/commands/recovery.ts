@@ -1,11 +1,14 @@
 import path from "node:path";
 import { ensureDataKey, fingerprint, loadDataKey, saveDataKey } from "../core/datakey.ts";
+import { readSession, retireSession } from "../core/device-auth.ts";
+import { DeviceMismatchError, replaceDevice, thisDevice } from "../core/device.ts";
 import { createRecord, isShare, markUsed, newCode, readRecord, recordState, recoveryFile, replaceRecord, secretFrom, unwrap, wrap, writeRecord, type RecoveryRecord } from "../core/recovery.ts";
 import { log, promptHidden, promptLine } from "../ui.ts";
 import { RECOVERY } from "../constants.ts";
 
 // sikrets recovery [status|setup|restore|rotate]. The code is shown exactly once, only to a person
 // at a terminal, and never written anywhere by Sikrets; only the wrapped data key is stored.
+// Restoring wraps the data key to this device's own key, so the result only opens here.
 
 export async function run(args: string[], opts: Record<string, unknown>) {
   const action = args[0] ?? "status";
@@ -23,6 +26,9 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   }
 }
 
+/** This device's data key, or undefined when it has none or only one wrapped for another device. */
+const usableDataKey = () => loadDataKey().catch((error) => (error instanceof DeviceMismatchError ? undefined : Promise.reject(error)));
+
 /** What `status` reports. Only "ok" means the code you hold restores this device's key. */
 export type RecoveryStatus = "not set up" | "no key on this device" | "mismatch" | "used" | "ok";
 
@@ -34,7 +40,7 @@ export function recoveryStatus(record: RecoveryRecord | undefined, key: Uint8Arr
 }
 
 async function status(opts: Record<string, unknown>) {
-  const [record, key] = [await readRecord(), await loadDataKey()];
+  const [record, key] = [await readRecord(), await usableDataKey()];
   const state = recoveryStatus(record, key);
   const out = {
     state,
@@ -94,11 +100,26 @@ async function restore(opts: Record<string, unknown>, say: (m: string) => void) 
   const secret = secretFrom(await readCodes(opts, record));
   say("Checking the code…");
   const key = await unwrap(record, secret);
-  const current = await loadDataKey();
-  if (current && fingerprint(current) !== record.fingerprint && !opts.force) throw new Error("This device already has a different data key. Re-run with --force to replace it");
-  const already = Boolean(current && fingerprint(current) === record.fingerprint);
+  const current = await loadDataKey().catch((error) => (error instanceof DeviceMismatchError ? error : Promise.reject(error)));
+  // A wrapped key copied from another device (or wrapped to keys this device has since lost).
+  if (current instanceof DeviceMismatchError && !opts.force) throw new Error("The data key here was wrapped for a different device. Re-run with --force to replace it");
+  if (current instanceof Buffer && fingerprint(current) !== record.fingerprint && !opts.force) throw new Error("This device already has a different data key. Re-run with --force to replace it");
+  const already = current instanceof Buffer && fingerprint(current) === record.fingerprint;
 
-  if (!already) await saveDataKey(key);
+  if (!already) {
+    // The new key is saved over the old one in one rename (never deleted first). Device keys copied
+    // from another Mac don't work in this one's Secure Enclave: new keys are made, the old folder is
+    // kept until the key is saved under them, and the old sign-in is recorded so the next
+    // `sikrets login` revokes it (its keys can't sign a revoke any more).
+    if (opts.force && !(await (await thisDevice()).works())) {
+      const old = await readSession();
+      await replaceDevice(() => saveDataKey(key));
+      if (old) {
+        await retireSession(old);
+        say(`This device's old keys didn't work here, so it has new ones. Run sikrets login: it signs in again and revokes ${old.deviceId}.`);
+      }
+    } else await saveDataKey(key);
+  }
   if (file !== recoveryFile()) await writeRecord(record);
   // The code has now been typed on a device; it stays usable, but status asks for a fresh one.
   await markUsed(record.id);

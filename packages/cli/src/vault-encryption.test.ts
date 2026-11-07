@@ -5,6 +5,7 @@ import path from "node:path";
 import { readActivity } from "./core/activity.ts";
 import { clipboard } from "./core/clipboard.ts";
 import { ensureDataKey, loadDataKey } from "./core/datakey.ts";
+import { resetDevice } from "./core/device.ts";
 import { native } from "./core/doorman.ts";
 import { envelopeKind, openValue, projectKey, sealValue } from "./core/envelope.ts";
 import { Secret } from "./core/secret.ts";
@@ -185,7 +186,7 @@ describe("sealed vault", () => {
     const vault = await openVault("demo", "keychain");
     await vault.put("API_KEY", Secret.of(REAL));
     expect(await loadDataKey()).toBeDefined();
-    keychain.delete("dev.sikrets.datakey/default");
+    await resetDevice(); // a new device: no device keys, no wrapped data key
     await expect(vault.get("API_KEY")).rejects.toThrow("sikrets recovery restore");
     // Nor does it mint a fresh key next to sealed values it can't open.
     await expect(vault.put("API_KEY", Secret.of(REAL))).rejects.toThrow("sikrets recovery restore");
@@ -194,7 +195,7 @@ describe("sealed vault", () => {
 
   test("ssm: a new device refuses to write while the project holds sealed values", async () => {
     await (await openVault("demo", "ssm", { ssm: fakeSsm })).put("API_KEY", Secret.of(REAL));
-    keychain.delete("dev.sikrets.datakey/default");
+    await resetDevice(); // a new device: no device keys, no wrapped data key
     await expect((await openVault("demo", "ssm", { ssm: fakeSsm })).put("OTHER_KEY", Secret.of(REAL))).rejects.toThrow("sikrets recovery restore");
   });
 
@@ -336,7 +337,7 @@ describe("sikrets seal", () => {
   test("ssm: two fresh devices can't both create a data key for one project", async () => {
     await (await openVault("demo", "ssm", { ssm: fakeSsm })).put("API_KEY", Secret.of(REAL)); // device A claims the marker
     expect(ssm.get(ssmName("demo", "sikrets.datakey"))).toBeDefined();
-    keychain.delete("dev.sikrets.datakey/default");
+    await resetDevice(); // device B: no device keys, no data key
     ssm.delete(ssmName("demo", "API_KEY")); // nothing sealed for B to see, only the marker
     await expect((await openVault("demo", "ssm", { ssm: fakeSsm })).put("OTHER_KEY", Secret.of(REAL))).rejects.toThrow("sikrets recovery restore");
     expect(await loadDataKey()).toBeUndefined();
@@ -359,7 +360,7 @@ describe("deployed apps", () => {
     await (await command("env")).run(["pull"], { "project-key": true });
     const env = Object.fromEntries((await Bun.file(path.join(root, ".env")).text()).split("\n").filter((l) => l.includes("=")).map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1).replace(/^"|"$/g, "")]));
     expect(env.SIKRETS_PROJECT_KEY).toBeDefined();
-    keychain.delete("dev.sikrets.datakey/default"); // a server: no data key
+    await resetDevice(); // a server: no device keys, no data key
     const { createSikrets } = await import("../../sdk/src/index.ts");
     expect(await createSikrets({ env: { SIKRETS_PROJECT_KEY: env.SIKRETS_PROJECT_KEY }, project: "demo", vault: "keychain" }).get("ANTHROPIC_API_KEY")).toBe(REAL);
     await expect(createSikrets({ env: {}, project: "demo", vault: "keychain" }).get("ANTHROPIC_API_KEY")).rejects.toThrow("SIKRETS_PROJECT_KEY");

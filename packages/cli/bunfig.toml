@@ -1,0 +1,4 @@
+[test]
+# Device keys in tests are software keys in each test's temp config dir unless a test injects a
+# fake Secure Enclave, so no test ever runs the real helper or shows a dialog.
+preload = ["./src/testing/preload.ts"]

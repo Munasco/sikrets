@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { mkdtemp, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { ensureDataKey, fingerprint, loadDataKey, open, saveDataKey, seal } from "./core/datakey.ts";
+import { dataKeyFile, ensureDataKey, fingerprint, loadDataKey, open, saveDataKey, seal } from "./core/datakey.ts";
+import { resetDevice } from "./core/device.ts";
 import { createRecord, decodeCode, deriveKey, encodeCode, markUsed, newCode, readRecord, recordState, recoveryFile, replaceRecord, secretFrom, unwrap, wrap, writeRecord, WrongCodeError } from "./core/recovery.ts";
 import { recoveryStatus } from "./commands/recovery.ts";
 import { combine, split } from "./core/shamir.ts";
@@ -26,11 +27,13 @@ afterEach(async () => {
 });
 
 describe("data key", () => {
-  test("is created once, kept in the keychain, and seals values", async () => {
+  test("is created once, kept wrapped to this device, and seals values", async () => {
     const key = await ensureDataKey();
     expect(key.length).toBe(32);
     expect((await ensureDataKey()).equals(key)).toBe(true);
-    expect([...keychain.keys()]).toEqual(["dev.sikrets.datakey/default"]);
+    expect([...keychain.keys()]).toEqual([]);
+    expect((await stat(dataKeyFile())).mode & 0o777).toBe(0o600);
+    expect(await Bun.file(dataKeyFile()).text()).not.toContain(key.toString("base64"));
     const sealed = seal(key, Buffer.from("hello"), "ctx");
     expect(open(key, sealed, "ctx").toString()).toBe("hello");
     expect(() => open(key, sealed, "other ctx")).toThrow();
@@ -90,7 +93,7 @@ describe("wrap and restore", () => {
     await writeRecord(await wrap(dataKey, secret, { split: true }));
     expect((await stat(recoveryFile())).mode & 0o777).toBe(0o600);
 
-    keychain.clear(); // the laptop is gone
+    await resetDevice(); // the laptop is gone: a new device has its own keys and no data key
     expect(await loadDataKey()).toBeUndefined();
     const record = (await readRecord())!;
     await saveDataKey(await unwrap(record, secretFrom([shown[2]!, shown[0]!])));
