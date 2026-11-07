@@ -1,6 +1,7 @@
 import path from "node:path";
 import { writeJson } from "../core/fs.ts";
 import { configDir } from "../store.ts";
+import { classify } from "./drift.ts";
 import { describeTarget, type Driver, type Target } from "./driver.ts";
 
 // Deterministic flows. Every step states what "done" looks like, so the runner can:
@@ -13,7 +14,7 @@ import { describeTarget, type Driver, type Target } from "./driver.ts";
 //     and record site changes so the flow gets fixed (see drift.ts).
 // The same inputs and the same page state always produce the same sequence of actions and outcome.
 
-export type FailureKind = "timeout" | "missing" | "unexpected-page" | "needs-human" | "driver" | "site-changed" | "signed-out";
+export type FailureKind = "timeout" | "missing" | "unexpected-page" | "unexpected-output" | "needs-human" | "driver" | "site-changed" | "signed-out";
 
 export const EXIT_CODES: Readonly<Record<FailureKind, number>> = {
   timeout: 20,
@@ -23,6 +24,7 @@ export const EXIT_CODES: Readonly<Record<FailureKind, number>> = {
   driver: 24,
   "site-changed": 25,
   "signed-out": 26,
+  "unexpected-output": 27,
 };
 
 export class FlowError extends Error {
@@ -80,9 +82,9 @@ export interface FlowOptions {
   readonly onDrift?: (d: { flow: string; step: string; url: string; message: string }) => Promise<unknown>;
 }
 
-/** The page's own output didn't have the expected shape (e.g. no key in the dialog): the site changed. */
+/** The page's own output didn't have the expected shape (e.g. no key in the dialog). A site change if still signed in. */
 export function expectOutput(value: string | undefined, pattern: RegExp, step: string): string {
-  if (value === undefined || !pattern.test(value)) throw new FlowError("site-changed", step, `the page no longer shows what this step reads (expected ${pattern})`);
+  if (value === undefined || !pattern.test(value)) throw new FlowError("unexpected-output", step, `the page no longer shows what this step reads (expected ${pattern})`);
   return value;
 }
 
@@ -154,10 +156,11 @@ export async function runFlow<S>(driver: Driver, steps: readonly Step<S>[], stat
       record.failure = "needs-human";
       await fail(step, "needs-human", `handed off after: ${lastMessage}`);
     }
-    // A missing element or a wrong page means the site changed if we're still signed in, and a
-    // lost session if we aren't. Without a signed-in check, the failure keeps its own kind.
-    if (opts.signedIn && (lastKind === "missing" || lastKind === "unexpected-page" || lastKind === "timeout")) {
-      lastKind = (await opts.signedIn(driver).catch(() => true)) ? "site-changed" : "signed-out";
+    // One rule (drift.ts classify): missing/unexpected while confirmed signed in is a site change,
+    // signed out a lost session; timeouts, driver errors and an unknown sign-in state keep their kind.
+    if (lastKind === "missing" || lastKind === "unexpected-page" || lastKind === "unexpected-output") {
+      const signedIn = opts.signedIn ? await opts.signedIn(driver).catch(() => undefined) : undefined;
+      lastKind = classify(lastKind, signedIn);
     }
     if (lastKind === "site-changed") {
       const onDrift = opts.onDrift ?? (async (d) => (await import("./drift.ts")).recordDrift(d));

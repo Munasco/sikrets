@@ -2,6 +2,8 @@ import { click, pause, type } from "../../browser/human.ts";
 import { promptHidden } from "../../ui.ts";
 import type { Page } from "playwright-core";
 import type { Provider, Step } from "../types.ts";
+import type { Evidence } from "../../browser/drift.ts";
+import { FlowError } from "../../browser/flow.ts";
 import { PROVIDER_URLS } from "../../constants.ts";
 
 // Upstash only needs the browser once: to mint a Developer API key. Everything after that
@@ -40,6 +42,19 @@ export const upstash: Provider = {
   mint: { key: "api-key", run: mintApiKey },
 };
 
+/**
+ * What a failure says about the page. A Playwright wait that timed out on a fully loaded page means
+ * the element isn't there; on a page still loading it's just slow. Anything else is the browser.
+ */
+export async function evidence(page: Pick<Page, "evaluate">, error: unknown): Promise<Evidence> {
+  if (error instanceof FlowError && (error.kind === "missing" || error.kind === "unexpected-page" || error.kind === "unexpected-output" || error.kind === "timeout")) return error.kind;
+  if (error instanceof Error && error.name === "TimeoutError") {
+    const ready = await page.evaluate(() => document.readyState).catch(() => undefined);
+    return ready === "complete" ? "missing" : "timeout";
+  }
+  return "driver";
+}
+
 async function mintApiKey(page: Page, report: Step): Promise<string> {
   let at = "";
   const step: Step = (m) => report((at = m));
@@ -58,13 +73,15 @@ async function mintApiKey(page: Page, report: Step): Promise<string> {
       const text = await page.getByRole("dialog").innerText({ timeout: 15_000 });
       const key = text.match(/[A-Za-z0-9_-]{30,}/g)?.sort((a, b) => b.length - a.length)[0];
       if (key) return key;
-      throw new Error("the dialog no longer shows a key");
+      throw new FlowError("unexpected-output", at, "the dialog no longer shows a key");
   } catch (error) {
-    // Still signed in but a step failed: Upstash's dashboard changed. Keep a record and offer an issue.
-    if (await upstash.isLoggedIn(page).catch(() => false)) {
-      const { driftIssueUrl, recordDrift } = await import("../../browser/drift.ts");
-      const d = await recordDrift({ flow: "upstash/api-key", step: at, url: page.url(), message: error instanceof Error ? error.message.split("\n")[0]! : String(error) });
-      report(`Upstash's dashboard looks different from what Sikrets expects. Report it (prefilled, nothing sent until you submit): ${driftIssueUrl(d)}`);
+    // Same rule as every flow (drift.ts classify): only a missing element or wrong output while
+    // confirmed signed in is a dashboard change. A slow page or a dead browser is not.
+    const { classify, driftIssueUrl, recordDrift } = await import("../../browser/drift.ts");
+    const kind = classify(await evidence(page, error), await upstash.isLoggedIn(page).catch(() => undefined));
+    if (kind === "site-changed") {
+      const { drift, report: first } = await recordDrift({ flow: "upstash/api-key", step: at, url: page.url(), message: error instanceof Error ? error.message.split("\n")[0]! : String(error) });
+      if (first) report(`Upstash's dashboard looks different from what Sikrets expects. Report it (prefilled, nothing sent until you submit): ${driftIssueUrl(drift)}`);
     }
   }
   step("Couldn't read the key automatically — create it in the window and paste it here");
