@@ -1,7 +1,8 @@
 import os from "node:os";
 import path from "node:path";
 import { configDir } from "../store.ts";
-import { deviceDir, pointToJwk, type Device, type DeviceKind } from "./device.ts";
+import { loadDataKey, saveDataKey } from "./datakey.ts";
+import { deviceDir, pointToJwk, replaceDevice, type Device, type DeviceKind } from "./device.ts";
 import { readJson, remove, writePrivate } from "./fs.ts";
 import { createProof } from "./proof.ts";
 import { DEVICE, DEVICE_AUTH } from "../constants.ts";
@@ -53,6 +54,8 @@ export class DeviceAuthError extends Error {
     readonly status: number,
     readonly code: string,
     message: string,
+    /** The server's reason, e.g. "key revoked". */
+    readonly reason?: string,
   ) {
     super(message);
   }
@@ -149,19 +152,37 @@ export async function revokeAll(client: DeviceClient, session: DeviceSession, id
 }
 
 /**
- * After a sign-in: revokes this key's earlier registrations on the same server, and any retired
- * ones, using the new session. What couldn't be revoked stays recorded for next time.
+ * After a sign-in: revokes the sign-ins left by this device's replaced keys, using the new session.
+ * This key's own earlier sign-ins need nothing: the server replaces them when the key signs in
+ * again (and revoking one would revoke the key, this sign-in included). What couldn't be revoked
+ * stays recorded for next time.
  */
-export async function revokeStale(client: DeviceClient, session: DeviceSession, previous: DeviceSession | undefined): Promise<DeviceSession> {
-  const same = previous && previous.server === session.server ? registrationsOf(previous) : [];
+export async function revokeStale(client: DeviceClient, session: DeviceSession, _previous?: DeviceSession): Promise<DeviceSession> {
   const all = await readRetired();
-  const retired = all.find((r) => r.server === session.server)?.ids ?? [];
-  const stale = [...new Set([...same, ...retired])].filter((id) => id !== session.deviceId);
-  const { failed } = await revokeAll(client, session, stale);
-  const left = retired.filter((id) => failed.includes(id));
-  await writeRetired([...all.filter((r) => r.server !== session.server), ...(left.length ? [{ server: session.server, ids: left }] : [])]);
-  return { ...session, registrations: [session.deviceId, ...failed.filter((id) => same.includes(id))] };
+  const retired = (all.find((r) => r.server === session.server)?.ids ?? []).filter((id) => id !== session.deviceId);
+  const { failed } = await revokeAll(client, session, retired);
+  await writeRetired([...all.filter((r) => r.server !== session.server), ...(failed.length ? [{ server: session.server, ids: failed }] : [])]);
+  return { ...session, registrations: [session.deviceId] };
 }
+
+/**
+ * New device keys for this device, with the data key re-wrapped to them (a server refuses the old
+ * key for good once it was revoked). Every sign-in made with the old keys is recorded so the next
+ * login to its server revokes it. The old keys are kept until the data key is saved under the new.
+ */
+export async function rotateDeviceKeys(): Promise<Device> {
+  const key = await loadDataKey();
+  const sessions = await allSessions();
+  const device = await replaceDevice(async (fresh) => {
+    if (key) await saveDataKey(key);
+    return fresh;
+  });
+  for (const s of sessions) await retireSession(s);
+  return device;
+}
+
+/** Every saved sign-in, on every server. */
+export const allSessions = async () => Object.values((await readSessions()).sessions);
 
 export interface ClientOptions {
   server: string;
@@ -211,8 +232,8 @@ export function deviceClient(opts: ClientOptions): DeviceClient {
     const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok) {
       const code = typeof data.error === "string" ? data.error : "error";
-      const reason = typeof data.reason === "string" ? `: ${data.reason}` : "";
-      throw new DeviceAuthError(res.status, code, `${base} refused the request (${res.status} ${code}${reason})`);
+      const reason = typeof data.reason === "string" ? data.reason : undefined;
+      throw new DeviceAuthError(res.status, code, `${base} refused the request (${res.status} ${code}${reason ? `: ${reason}` : ""})`, reason);
     }
     return data as T;
   }

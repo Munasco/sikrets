@@ -18,6 +18,14 @@ export interface Vault {
   put(key: string, value: Secret): Promise<void>;
   /** Stores an envelope sealed elsewhere for this project and key, as is (sikrets migrate). */
   putSealed(key: string, envelope: string): Promise<void>;
+  /**
+   * Create-only versions (sikrets migrate): false, and nothing written, when the server already
+   * holds a value under that name, so a value written there meanwhile is never overwritten.
+   */
+  create(key: string, value: Secret): Promise<boolean>;
+  createSealed(key: string, envelope: string): Promise<boolean>;
+  /** Opens an envelope for this project and key with this device's key; throws if it doesn't open. */
+  open(key: string, envelope: string): Promise<Secret>;
   get(key: string): Promise<Secret | undefined>;
   /** Whether a value is stored, without fetching or decrypting it. */
   has(key: string): Promise<boolean>;
@@ -77,23 +85,29 @@ export async function openVault(project: string, server?: string, opts: VaultOpt
     return projectKey(await ensureDataKey(), project);
   };
 
-  const upload = async (key: string, sealed: string) => {
+  const upload = async (key: string, sealed: string, ifAbsent = false): Promise<boolean> => {
     try {
-      await send("PUT", P.value(project, environment, key), { value: sealed });
+      await send("PUT", P.value(project, environment, key), { value: sealed, ...(ifAbsent ? { ifAbsent: true } : {}) });
     } catch (error) {
       if (error instanceof DeviceAuthError && error.code === "too_large") throw new Error(`${key} is too large to store once encrypted (${Buffer.byteLength(sealed)} bytes): ${error.message}`);
+      if (ifAbsent && error instanceof DeviceAuthError && error.status === 412) return false;
       throw error;
     }
     (await stored()).add(key);
+    return true;
+  };
+  const sealedOnly = (key: string, envelope: string) => {
+    if (envelopeKind(envelope) !== "sealed") throw new Error(`${key} isn't sealed; refusing to upload it as is`);
+    return envelope;
   };
 
   return {
     server: where,
-    put: async (key, value) => upload(checkKey(key), sealValue(await writeKey(), project, key, value.reveal())),
-    async putSealed(key, envelope) {
-      if (envelopeKind(envelope) !== "sealed") throw new Error(`${key} isn't sealed; refusing to upload it as is`);
-      await upload(checkKey(key), envelope);
-    },
+    put: async (key, value) => void (await upload(checkKey(key), sealValue(await writeKey(), project, key, value.reveal()))),
+    putSealed: async (key, envelope) => void (await upload(checkKey(key), sealedOnly(key, envelope))),
+    create: async (key, value) => upload(checkKey(key), sealValue(await writeKey(), project, key, value.reveal()), true),
+    createSealed: async (key, envelope) => upload(checkKey(key), sealedOnly(key, envelope), true),
+    open: async (key, envelope) => Secret.of(openValue(await readKey(), project, checkKey(key), envelope)),
     async get(key) {
       const found = await send<{ value: string } | undefined>("GET", P.value(project, environment, checkKey(key)), undefined, true);
       if (!found) return undefined;

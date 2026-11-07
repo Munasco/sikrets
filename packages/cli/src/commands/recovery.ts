@@ -1,6 +1,6 @@
 import path from "node:path";
 import { ensureDataKey, fingerprint, loadDataKey, saveDataKey } from "../core/datakey.ts";
-import { readSession, retireSession } from "../core/device-auth.ts";
+import { allSessions, retireSession } from "../core/device-auth.ts";
 import { DeviceMismatchError, replaceDevice, thisDevice } from "../core/device.ts";
 import { createRecord, isShare, markUsed, newCode, readRecord, recordState, recoveryFile, replaceRecord, secretFrom, unwrap, wrap, writeRecord, type RecoveryRecord } from "../core/recovery.ts";
 import { log, promptHidden, promptLine } from "../ui.ts";
@@ -112,12 +112,10 @@ async function restore(opts: Record<string, unknown>, say: (m: string) => void) 
     // kept until the key is saved under them, and the old sign-in is recorded so the next
     // `sikrets login` revokes it (its keys can't sign a revoke any more).
     if (opts.force && !(await (await thisDevice()).works())) {
-      const old = await readSession();
+      const old = await allSessions();
       await replaceDevice(() => saveDataKey(key));
-      if (old) {
-        await retireSession(old);
-        say(`This device's old keys didn't work here, so it has new ones. Run sikrets login: it signs in again and revokes ${old.deviceId}.`);
-      }
+      for (const s of old) await retireSession(s);
+      if (old.length) say(`This device's old keys didn't work here, so it has new ones. Run sikrets login: it signs in again and revokes ${old.map((s) => s.deviceId).join(", ")}.`);
     } else await saveDataKey(key);
   }
   if (file !== recoveryFile()) await writeRecord(record);

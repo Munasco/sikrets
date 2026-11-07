@@ -279,6 +279,8 @@ export const DEVICE_AUTH = {
   nonceBytes: 16,
   /** The token endpoint's answer while the person hasn't approved yet (RFC 8628 wording). */
   pending: "authorization_pending",
+  /** The reason a server gives for a device key it has revoked for good. */
+  keyRevoked: "key revoked",
   pollIntervalMs: 1000,
   approvalTimeoutMs: 5 * 60_000,
   userCodeChars: 8,
@@ -302,6 +304,8 @@ export const SERVER = {
   environment: "dev",
   /** A server that approves sign-ins itself (`sikrets server`) says so in /v1/info. */
   autoApproval: "auto",
+  /** Hosts that are this machine: the only ones signed in to without `sikrets login`, or allowed over http in sikrets.json. */
+  loopbackHosts: ["localhost", "127.0.0.1", "[::1]", "::1"],
 } as const;
 
 // `sikrets mcp`. Output is scrubbed of secret values before it reaches the agent; values shorter

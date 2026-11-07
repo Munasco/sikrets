@@ -1,9 +1,9 @@
 import { loadConfig } from "../core/config.ts";
-import { deviceClient, readSession, revokeStale, writeSession, type Approval } from "../core/device-auth.ts";
+import { DeviceAuthError, deviceClient, readSession, revokeStale, rotateDeviceKeys, writeSession, type Approval } from "../core/device-auth.ts";
 import { describeKind, thisDevice } from "../core/device.ts";
-import { resolveServer } from "../core/server.ts";
+import { chooseServer } from "../core/server.ts";
 import { log } from "../ui.ts";
-import { REVEAL } from "../constants.ts";
+import { DEVICE_AUTH, REVEAL } from "../constants.ts";
 
 // sikrets login: registers this device's signing key with the Sikrets server. A person approves
 // the sign-in in the browser; after that every request is signed by this device's key, so there
@@ -20,7 +20,10 @@ export const browser = {
 
 export async function run(_args: string[], opts: Record<string, unknown>) {
   const say = (m: string) => log(opts, m);
-  const server = await resolveServer(await loadConfig(process.cwd()), typeof opts.server === "string" ? opts.server : undefined);
+  const { url: server, source } = await chooseServer(await loadConfig(process.cwd()), typeof opts.server === "string" ? opts.server : undefined);
+  // A server named by this project's sikrets.json is signed in to for this project only: it
+  // doesn't become the saved server every other project uses.
+  const remember = source !== "project";
   const previous = await readSession(server);
   const device = await thisDevice();
 
@@ -29,13 +32,22 @@ export async function run(_args: string[], opts: Record<string, unknown>) {
     say(`Check the page shows ${userCode}.`);
     if (!opts["no-browser"]) browser.open(url);
   };
-  const client = deviceClient({ server, device });
-  const fresh = await client.login({ approve });
-  await writeSession(fresh); // signed in, whatever happens next
+  let client = deviceClient({ server, device });
+  let fresh;
+  try {
+    fresh = await client.login({ approve });
+  } catch (error) {
+    if (!(error instanceof DeviceAuthError && error.reason === DEVICE_AUTH.keyRevoked)) throw error;
+    // This key was revoked (a logout, or from another device) and the server won't take it again.
+    say("This device's key was revoked on that server, so it gets new keys (your data key is re-wrapped to them).");
+    client = deviceClient({ server, device: await rotateDeviceKeys() });
+    fresh = await client.login({ approve });
+  }
+  await writeSession(fresh, { remember }); // signed in, whatever happens next
   // This key's earlier sign-ins on this server (and ones left by replaced keys) are revoked now,
   // so the key isn't still accepted under an old id. Any that fail are kept, for logout or next login.
   const session = await revokeStale(client, fresh, previous);
-  await writeSession(session);
+  await writeSession(session, { remember });
   const left = (session.registrations ?? []).filter((id) => id !== session.deviceId);
   if (left.length) say(`Couldn't revoke the earlier sign-in${left.length > 1 ? "s" : ""} ${left.join(", ")}; sikrets logout will try again.`);
 

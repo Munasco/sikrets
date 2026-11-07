@@ -13,7 +13,8 @@ process.env[ENV.deviceKeys] = DEVICE.forceSoftware;
 // Every test gets a fresh, in-memory Sikrets server (the real one, packages/server) that approves
 // sign-ins itself, reached without a socket, and a throwaway user folder unless it sets its own.
 // Nothing leaves the process and nothing touches ~/.sikrets.
-export const TEST_SERVER = "http://sikrets.test";
+// On this machine (localhost), as `sikrets server` would be: the only kind signed in to without `sikrets login`.
+export const TEST_SERVER = "http://localhost:48730";
 let server = inProcessServer(TEST_SERVER, { autoApprove: DEFAULT_USER });
 let home: string | undefined;
 

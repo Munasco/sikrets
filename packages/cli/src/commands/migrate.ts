@@ -11,13 +11,14 @@ import { keychainVaultService, LEGACY_VAULTS, SSM_PREFIX } from "../constants.ts
 
 // sikrets migrate: moves values from where the CLI used to keep them (AWS SSM Parameter Store
 // under /sikrets/<project>/, or the OS keychain) to the Sikrets server. A dry run by default;
-// --apply uploads. Values already sealed (sk1:) go up exactly as they are; legacy plaintext is
-// sealed on this machine first. Names already on the server are left alone. The old copies stay
-// where they were. Only this command reads SSM, with your own AWS profile; names are printed,
-// never values.
+// --apply uploads. Values already sealed (sk1:) go up exactly as they are, once they are proven to
+// open with this device's key; legacy plaintext is sealed on this machine first. Every upload is
+// create-only, so a name already on the server (also one written there while this runs) is left
+// alone. The old copies stay where they were. A re-run checks everything again and picks up what
+// is left. Only this command reads SSM, with your own AWS profile; names are printed, never values.
 
 type Source = (typeof LEGACY_VAULTS)[number];
-type Action = "upload" | "seal-and-upload" | "on-server" | "newer-format";
+type Action = "upload" | "seal-and-upload" | "on-server" | "newer-format" | "unreadable";
 
 /** The one method of SSMClient migrate uses, so tests can pass a fake. */
 export interface SsmClient {
@@ -72,30 +73,37 @@ export async function run(_args: string[], opts: Record<string, unknown>) {
   const values = from === "ssm" ? await readSsm(ctx.project) : await readKeychain(root, ctx.project);
   const vault = await openVault(ctx.project, ctx.server);
   const onServer = new Set(await vault.list());
-  const items: { name: string; action: Action }[] = [...values]
-    .sort(([a], [b]) => (a < b ? -1 : 1))
-    .map(([name, value]) => {
-      if (onServer.has(name)) return { name, action: "on-server" };
+  // A sealed value that doesn't open with this device's key (another data key, another project,
+  // tampered) would land on the server unreadable and then be skipped forever as "on-server".
+  const opens = async (name: string, value: string) => vault.open(name, value).then(() => true, () => false);
+  const items: { name: string; action: Action }[] = [];
+  for (const [name, value] of [...values].sort(([a], [b]) => (a < b ? -1 : 1))) {
+    if (onServer.has(name)) items.push({ name, action: "on-server" });
+    else {
       const kind = envelopeKind(value);
-      return { name, action: kind === "sealed" ? "upload" : kind === "newer" ? "newer-format" : "seal-and-upload" };
-    });
+      items.push({ name, action: kind === "newer" ? "newer-format" : kind === "plain" ? "seal-and-upload" : (await opens(name, value)) ? "upload" : "unreadable" });
+    }
+  }
 
   let moved = 0;
   if (apply) {
-    for (const { name, action } of items) {
-      const value = values.get(name)!;
-      if (action === "upload") await vault.putSealed(name, value);
-      else if (action === "seal-and-upload") await vault.put(name, Secret.of(value));
+    for (const item of items) {
+      const value = values.get(item.name)!;
+      let created: boolean;
+      if (item.action === "upload") created = await vault.createSealed(item.name, value);
+      else if (item.action === "seal-and-upload") created = await vault.create(item.name, Secret.of(value));
       else continue;
-      moved++;
+      if (created) moved++;
+      else item.action = "on-server"; // written there meanwhile: theirs stays
     }
   }
 
   if (opts.json) return console.log(JSON.stringify({ project: ctx.project, from, server: vault.server, apply, moved, items }));
-  const label = { upload: "upload (already sealed)", "seal-and-upload": "seal here, then upload", "on-server": "skip: already on the server", "newer-format": "skip: written by a newer Sikrets" } as const;
+  const label = { upload: "upload (already sealed)", "seal-and-upload": "seal here, then upload", "on-server": "skip: already on the server", "newer-format": "skip: written by a newer Sikrets", unreadable: "skip: sealed with a key this device doesn't have (restore it, then run again)" } as const;
   if (!items.length) return say(`Nothing to migrate: no values for ${ctx.project} in the ${from} vault.`);
   say(`${apply ? "Migrating" : "Dry run — would migrate"} ${ctx.project} from the ${from} vault to ${vault.server}:`);
-  for (const { name, action } of items) say(`  ${action === "on-server" || action === "newer-format" ? "·" : apply ? "✓" : "+"} ${name}  ${label[action]}`);
+  const skipped = (a: Action) => a === "on-server" || a === "newer-format" || a === "unreadable";
+  for (const { name, action } of items) say(`  ${skipped(action) ? "·" : apply ? "✓" : "+"} ${name}  ${label[action]}`);
   if (!apply) return say(`Nothing changed. Run sikrets migrate${typeof opts.from === "string" ? ` --from ${from}` : ""} --apply to upload.`);
   say(`Moved ${moved} value(s). The ${from} copies are untouched; delete them once you've checked everything works.`);
 }
