@@ -1,0 +1,257 @@
+{
+  "resources": {
+    "xrp-hot-wallet": {
+      "allow": [
+        "transfer",
+        "sign"
+      ],
+      "requires_grant": true,
+      "destinations": [
+        "xrp-cold-storage",
+        "xrp-user-withdrawals"
+      ],
+      "approval_over": "$5m",
+      "ceilings": [
+        {
+          "window": "10m",
+          "max": "$10m"
+        },
+        {
+          "window": "1h",
+          "max": "$30m"
+        }
+      ],
+      "freeze_for": "24h"
+    },
+    "btc-hot-wallet": {
+      "allow": [
+        "transfer",
+        "sign"
+      ],
+      "requires_grant": true,
+      "destinations": [
+        "btc-cold-storage",
+        "btc-user-withdrawals"
+      ],
+      "approval_over": "$5m",
+      "ceilings": [
+        {
+          "window": "10m",
+          "max": "$10m"
+        },
+        {
+          "window": "1h",
+          "max": "$30m"
+        }
+      ],
+      "freeze_for": "24h"
+    },
+    "eth-hot-wallet-1": {
+      "allow": [
+        "transfer",
+        "sign"
+      ],
+      "requires_grant": true,
+      "destinations": [
+        "eth-cold-storage",
+        "eth-user-withdrawals"
+      ],
+      "approval_over": "$5m",
+      "ceilings": [
+        {
+          "window": "10m",
+          "max": "$10m"
+        },
+        {
+          "window": "1h",
+          "max": "$30m"
+        }
+      ],
+      "freeze_for": "24h"
+    },
+    "eth-hot-wallet-2": {
+      "allow": [
+        "transfer",
+        "sign"
+      ],
+      "requires_grant": true,
+      "destinations": [
+        "eth-cold-storage",
+        "eth-user-withdrawals"
+      ],
+      "approval_over": "$5m",
+      "ceilings": [
+        {
+          "window": "10m",
+          "max": "$10m"
+        },
+        {
+          "window": "1h",
+          "max": "$30m"
+        }
+      ],
+      "freeze_for": "24h"
+    },
+    "tron-hot-wallet": {
+      "allow": [
+        "transfer",
+        "sign"
+      ],
+      "requires_grant": true,
+      "destinations": [
+        "tron-cold-storage",
+        "tron-user-withdrawals"
+      ],
+      "approval_over": "$5m",
+      "ceilings": [
+        {
+          "window": "10m",
+          "max": "$10m"
+        },
+        {
+          "window": "1h",
+          "max": "$30m"
+        }
+      ],
+      "freeze_for": "24h"
+    },
+    "sol-hot-wallet": {
+      "allow": [
+        "transfer",
+        "sign"
+      ],
+      "requires_grant": true,
+      "destinations": [
+        "sol-cold-storage",
+        "sol-user-withdrawals"
+      ],
+      "approval_over": "$5m",
+      "ceilings": [
+        {
+          "window": "10m",
+          "max": "$10m"
+        },
+        {
+          "window": "1h",
+          "max": "$30m"
+        }
+      ],
+      "freeze_for": "24h"
+    },
+    "op-hot-wallet": {
+      "allow": [
+        "transfer",
+        "sign"
+      ],
+      "requires_grant": true,
+      "destinations": [
+        "op-cold-storage",
+        "op-user-withdrawals"
+      ],
+      "approval_over": "$5m",
+      "ceilings": [
+        {
+          "window": "10m",
+          "max": "$10m"
+        },
+        {
+          "window": "1h",
+          "max": "$30m"
+        }
+      ],
+      "freeze_for": "24h"
+    },
+    "arb-hot-wallet": {
+      "allow": [
+        "transfer",
+        "sign"
+      ],
+      "requires_grant": true,
+      "destinations": [
+        "arb-cold-storage",
+        "arb-user-withdrawals"
+      ],
+      "approval_over": "$5m",
+      "ceilings": [
+        {
+          "window": "10m",
+          "max": "$10m"
+        },
+        {
+          "window": "1h",
+          "max": "$30m"
+        }
+      ],
+      "freeze_for": "24h"
+    },
+    "avax-hot-wallet": {
+      "allow": [
+        "transfer",
+        "sign"
+      ],
+      "requires_grant": true,
+      "destinations": [
+        "avax-cold-storage",
+        "avax-user-withdrawals"
+      ],
+      "approval_over": "$5m",
+      "ceilings": [
+        {
+          "window": "10m",
+          "max": "$10m"
+        },
+        {
+          "window": "1h",
+          "max": "$30m"
+        }
+      ],
+      "freeze_for": "24h"
+    },
+    "base-hot-wallet": {
+      "allow": [
+        "transfer",
+        "sign"
+      ],
+      "requires_grant": true,
+      "destinations": [
+        "base-cold-storage",
+        "base-user-withdrawals"
+      ],
+      "approval_over": "$5m",
+      "ceilings": [
+        {
+          "window": "10m",
+          "max": "$10m"
+        },
+        {
+          "window": "1h",
+          "max": "$30m"
+        }
+      ],
+      "freeze_for": "24h"
+    },
+    "polygon-hot-wallet": {
+      "allow": [
+        "transfer",
+        "sign"
+      ],
+      "requires_grant": true,
+      "destinations": [
+        "polygon-cold-storage",
+        "polygon-user-withdrawals"
+      ],
+      "approval_over": "$5m",
+      "ceilings": [
+        {
+          "window": "10m",
+          "max": "$10m"
+        },
+        {
+          "window": "1h",
+          "max": "$30m"
+        }
+      ],
+      "freeze_for": "24h"
+    }
+  }
+}
