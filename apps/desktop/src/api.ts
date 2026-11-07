@@ -40,13 +40,19 @@ export interface Approval {
   id: string;
   resource: string;
   reason: "exposed" | "expired" | "requested";
-  status: "pending" | "approved" | "denied" | "expired" | "rotated" | "failed";
+  /** pending → rotating → rotated | failed; failed can be approved again, denied or expire. */
+  status: "pending" | "rotating" | "denied" | "expired" | "rotated" | "failed";
   createdAt: string;
   expiresAt: string;
   decidedAt?: string;
   decidedBy?: string;
   message?: string;
+  /** Why the last rotation failed. */
+  error?: string;
 }
+
+/** Requests a person can still act on. */
+export const needsAnswer = (a: Approval) => a.status === "pending" || a.status === "failed";
 
 export interface Login {
   name: string;
@@ -62,6 +68,7 @@ export interface Grant {
 }
 
 export interface Recovery {
+  state: "not set up" | "no key on this device" | "mismatch" | "used" | "ok";
   setUp: boolean;
   createdAt?: string;
   split?: boolean;
@@ -75,6 +82,23 @@ export interface ImportPreview {
   format: string;
   keys: string[];
   replaced: string[];
+  /** Pass back as --expect so the import is exactly this list. */
+  digest?: string;
+}
+
+export type ManagerId = "bitwarden" | "1password";
+
+export interface ManagerStatus {
+  manager: string;
+  state: "unauthenticated" | "locked" | "expired" | "unlocked";
+  account?: string;
+}
+
+export interface LinkedKey {
+  key: string;
+  ref: string;
+  /** pending: a rotated value hasn't been written back to the password manager yet. */
+  sync: { state: "synced"; at?: string } | { state: "pending"; since: string; error?: string };
 }
 
 export interface Status {
@@ -88,6 +112,8 @@ export interface Info {
   project: string | null;
   initialized: boolean;
   version: string;
+  /** The app's own settings file couldn't be read; the project choice was lost. */
+  settingsError?: string | null;
 }
 
 interface CliOut {
@@ -117,6 +143,7 @@ export async function info(): Promise<Info> {
   return invoke<Info>("info");
 }
 
+/** Asks for a folder and makes it the project. Null when cancelled; throws when it couldn't be saved. */
 export async function chooseProject(): Promise<string | null> {
   if (!inTauri) return null;
   const { open } = await import("@tauri-apps/plugin-dialog");
@@ -142,13 +169,21 @@ export const openTerminal = (args: string[]) => (inTauri ? invoke("open_terminal
 export const setPending = (count: number) => (inTauri ? invoke("set_pending", { count }) : Promise.resolve());
 
 export const agentView = {
-  show: (r: { x: number; y: number; width: number; height: number }) => (inTauri ? invoke("agent_show", r) : Promise.resolve()),
+  show: (r: { x: number; y: number; width: number; height: number }) => (inTauri ? invoke<void>("agent_show", r) : Promise.resolve()),
   hide: () => (inTauri ? invoke("agent_hide") : Promise.resolve()),
   reload: () => (inTauri ? invoke("agent_reload") : Promise.resolve()),
 };
 
-export async function onNavigate(cb: (route: string) => void): Promise<() => void> {
+/** Listens for the menu bar's "navigate" event. The returned stop works even before listen() resolves. */
+export function onNavigate(cb: (route: string) => void): () => void {
   if (!inTauri) return () => {};
-  const { listen } = await import("@tauri-apps/api/event");
-  return listen<string>("navigate", (e) => cb(e.payload));
+  let stopped = false;
+  let off: (() => void) | undefined;
+  import("@tauri-apps/api/event")
+    .then(({ listen }) => listen<string>("navigate", (e) => cb(e.payload)))
+    .then((f) => (stopped ? f() : (off = f)), () => {});
+  return () => {
+    stopped = true;
+    off?.();
+  };
 }

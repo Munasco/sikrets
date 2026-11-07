@@ -8,7 +8,8 @@ import { CONFIG_DIR_ENV, DATA_KEY, DEVICE, USER_DIR } from "./constants.ts";
 // Finds the user's data key the way the CLI stores it (packages/cli/src/core/datakey.ts and
 // device.ts): wrapped to this device's key-agreement key under ~/.sikrets/device. Software keys
 // are opened here; Secure Enclave keys through the helper the CLI built, so the private key never
-// leaves the Enclave. A raw key still in the keychain (from a CLI before device keys) is used as is.
+// leaves the Enclave. A raw key still in the keychain (from a CLI before device keys) is used as is,
+// but only when there is no wrapped key: the same order the CLI reads them in.
 
 interface Wrapped {
   recipient: string;
@@ -44,13 +45,14 @@ function run(bin: string, args: string[], input: string): Promise<string> {
 }
 
 export async function loadDataKey(secrets: Secrets | undefined): Promise<Buffer | undefined> {
-  const raw = await secrets?.get(DATA_KEY);
-  if (raw) return b64(raw);
-
   const root = process.env[CONFIG_DIR_ENV] || path.join(os.homedir(), USER_DIR);
   const dir = path.join(root, DEVICE.dir);
   const [meta, wrapped] = [await readJson<Meta>(path.join(dir, DEVICE.metaFile)), await readJson<Wrapped>(path.join(dir, DEVICE.dataKeyFile))];
-  if (!meta || !wrapped) return undefined;
+  if (!wrapped) {
+    const raw = await secrets?.get(DATA_KEY);
+    return raw ? b64(raw) : undefined;
+  }
+  if (!meta) throw new Error("the data key here is wrapped to device keys whose description is missing (run `sikrets recovery restore --force`)");
   const recipient = createHash("sha256").update(b64(meta.agreementPublicKey)).digest("hex").slice(0, DEVICE.thumbprintChars);
   if (wrapped.recipient !== recipient) throw new Error("the data key here was wrapped for a different device (run `sikrets recovery restore`)");
 

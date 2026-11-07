@@ -203,6 +203,57 @@ describe("agent identities", () => {
     expect(Date.parse(listed[1]!.expiresAt!) - Date.now()).toBeGreaterThan(6 * DAY);
   });
 
+  test("revocation is final: a revoked name can't be re-added, and its record stays", async () => {
+    await stored("anthropic", "anthropic/api-key", "sk-ant-api03-secretsecretsecret");
+    const agent = await command("agent");
+    await agent.run(["add", "reviewer"], { key: ["anthropic"] });
+    await agent.run(["revoke", "reviewer"], {});
+    await expect(agent.run(["add", "reviewer"], { key: ["anthropic"] })).rejects.toThrow("revoked names stay revoked");
+    await agent.run(["revoke", "reviewer"], {}); // idempotent
+    const { agents, authorize, transition } = await import("./core/agents.ts");
+    const all = await agents.load(root);
+    expect(all).toHaveLength(1);
+    expect(all[0]).toMatchObject({ name: "reviewer", status: "revoked", revokedAt: expect.any(String) });
+    expect(() => transition(all[0]!, "revoked")).toThrow("it can't become revoked");
+    await expect(authorize(root, "reviewer", [{ key: "ANTHROPIC_API_KEY", resource: "anthropic" }])).rejects.toThrow("was revoked");
+    // An old file that only has revokedAt still reads as revoked.
+    await agents.save(root, [{ name: "legacy", scope: ["anthropic"], createdAt: daysAgo(3), revokedAt: daysAgo(1) }]);
+    await expect(agent.run(["add", "legacy"], { key: ["anthropic"] })).rejects.toThrow("revoked names stay revoked");
+  });
+
+  test("an expired name is renewed as a new generation; the old record is kept", async () => {
+    await stored("anthropic", "anthropic/api-key", "sk-ant-api03-secretsecretsecret");
+    const { agents, authorize } = await import("./core/agents.ts");
+    await agents.save(root, [{ name: "ci", scope: ["anthropic"], createdAt: daysAgo(10), expiresAt: daysAgo(1) }]);
+    await (await command("agent")).run(["add", "ci"], { key: ["anthropic"], expires: "7d" });
+    const all = await agents.load(root);
+    expect(all.map((a) => a.name)).toEqual(["ci", "ci"]);
+    expect(all[0]!.id).not.toBe(all[1]!.id);
+    expect((await authorize(root, "ci", [{ key: "ANTHROPIC_API_KEY", resource: "anthropic" }])).keys).toEqual(["ANTHROPIC_API_KEY"]);
+  });
+
+  test("concurrent writers in other processes don't lose an add or a revoke", async () => {
+    const { agents } = await import("./core/agents.ts");
+    await agents.save(root, [{ name: "victim", scope: ["anthropic"], createdAt: daysAgo(1) }]);
+    const mod = path.join(import.meta.dir, "core/agents.ts");
+    const script = (i: number) =>
+      `const { agents } = await import(${JSON.stringify(mod)}); for (let n = 0; n < 5; n++) await agents.add(${JSON.stringify(root)}, { name: "w${i}-" + n, scope: ["anthropic"] });` +
+      (i === 0 ? ` await agents.revoke(${JSON.stringify(root)}, "victim");` : "");
+    const procs = [0, 1, 2, 3].map((i) => Bun.spawn([process.execPath, "-e", script(i)], { stdout: "ignore", stderr: "pipe" }));
+    expect(await Promise.all(procs.map((p) => p.exited))).toEqual([0, 0, 0, 0]);
+    const all = await agents.load(root);
+    expect(all).toHaveLength(21);
+    expect(all.find((a) => a.name === "victim")!.status).toBe("revoked");
+    expect(await Bun.file(path.join(root, ".sikrets/agents.json.lock")).exists()).toBe(false);
+  });
+
+  test("a lock left by a crashed process is taken over", async () => {
+    await Bun.write(path.join(root, ".sikrets/agents.json.lock"), JSON.stringify({ pid: 999_999_999, at: 0, token: "dead" }));
+    const { agents } = await import("./core/agents.ts");
+    await agents.add(root, { name: "after-crash", scope: ["anthropic"] });
+    expect((await agents.find(root, "after-crash"))!.status).toBe("active");
+  });
+
   test("unknown, expired and out-of-scope agents get nothing", async () => {
     await stored("anthropic", "anthropic/api-key", "sk-ant-api03-secretsecretsecret");
     const { agents, authorize } = await import("./core/agents.ts");
@@ -251,7 +302,7 @@ describe("offboard", () => {
     expect(fetched).toHaveLength(0);
     expect(await opened("demo", "CACHE_REDIS_REST_TOKEN")).toBe("tok_live_secret_value");
     const { agents } = await import("./core/agents.ts");
-    expect((await agents.find(root, "reviewer"))!.revokedAt).toBeUndefined();
+    expect((await agents.find(root, "reviewer"))!.status).toBe("active");
   });
 
   test("revokes the agent and rotates only its keys, through sikrets rotate", async () => {
@@ -260,10 +311,32 @@ describe("offboard", () => {
     expect(await opened("demo", "CACHE_REDIS_REST_TOKEN")).toBe("tok_rotated_value");
     expect(await opened("demo", "ANTHROPIC_API_KEY")).toBe("sk-ant-api03-secretsecretsecret"); // not the agent's
     const { agents } = await import("./core/agents.ts");
-    expect((await agents.find(root, "reviewer"))!.revokedAt).toBeString();
+    expect((await agents.find(root, "reviewer"))!.status).toBe("revoked");
     const { readActivity } = await import("./core/activity.ts");
     expect((await readActivity(root)).at(-1)).toMatchObject({ kind: "rotate", keys: ["CACHE_REDIS_REST_TOKEN"] });
     expect(printed()).not.toContain("tok_");
+  });
+
+  test("resumes after a failed rotation and never rotates a finished key again", async () => {
+    let calls = 0;
+    handler = (url, init) => {
+      if (url.pathname.startsWith("/v2/redis/reset-password")) calls++;
+      return calls === 1 ? new Response("{}", { status: 500 }) : upstash(url, init);
+    };
+    await (await command("offboard")).run(["reviewer"], { yes: true, json: true });
+    expect(JSON.parse(out.at(-1)!)).toMatchObject({ rotated: [], failed: [{ resource: "cache" }] });
+    const { agents } = await import("./core/agents.ts");
+    expect((await agents.find(root, "reviewer"))!.status).toBe("revoked"); // revoked before rotating
+    process.exitCode = 0;
+
+    await (await command("offboard")).run(["reviewer"], { yes: true, json: true });
+    expect(JSON.parse(out.at(-1)!)).toMatchObject({ rotate: ["cache"], rotated: ["cache"], failed: [] });
+    expect((await (await openVault("demo")).get("CACHE_REDIS_REST_TOKEN"))?.reveal()).toBe("tok_rotated_value");
+
+    await (await command("offboard")).run(["reviewer"], { yes: true, json: true });
+    expect(JSON.parse(out.at(-1)!)).toMatchObject({ rotate: [], done: ["cache"], rotated: [] });
+    expect(calls).toBe(2);
+    expect((await agents.load(root)).filter((a) => a.name === "reviewer")).toHaveLength(1);
   });
 
   test("a person's keys come from their own uses; failures don't stop the rest", async () => {
@@ -323,6 +396,14 @@ describe("github token", () => {
     await agents.save(root, [{ name: "bot", scope: ["anthropic"], createdAt: daysAgo(1) }]);
     await expect(github.run(["token"], { env: true, agent: "bot" })).rejects.toThrow('Agent "bot" may not use github-app');
     expect(fetched).toHaveLength(1);
+  });
+
+  test("an agent that expires within the token's hour gets no token", async () => {
+    notTTY();
+    const { agents } = await import("./core/agents.ts");
+    await agents.save(root, [{ name: "bot", scope: ["github-app"], createdAt: daysAgo(1), expiresAt: new Date(Date.now() + 30 * 60_000).toISOString() }]);
+    await expect((await command("github")).run(["token"], { env: true, agent: "bot" })).rejects.toThrow('Agent "bot" expires in 30m');
+    expect(fetched).toHaveLength(0);
   });
 
   test("the recipe accepts only an RSA private key", async () => {
@@ -399,6 +480,22 @@ describe("aws session", () => {
     await (await command("aws")).run(["session"], { env: true, agent: "deployer" });
     await agent.run(["revoke", "deployer"], {});
     await expect((await command("aws")).run(["session"], { env: true, agent: "deployer" })).rejects.toThrow("revoked");
+    expect(calls).toHaveLength(1);
+  });
+
+  test("an agent's session ends when the agent does", async () => {
+    notTTY();
+    const { agents } = await import("./core/agents.ts");
+    const inMinutes = (m: number) => new Date(Date.now() + m * 60_000).toISOString();
+    await agents.save(root, [
+      { name: "short", scope: ["aws-key"], createdAt: daysAgo(1), expiresAt: inMinutes(20) },
+      { name: "shorter", scope: ["aws-key"], createdAt: daysAgo(1), expiresAt: inMinutes(10) },
+    ]);
+    await (await command("aws")).run(["session"], { env: true, for: "60m", agent: "short" });
+    const seconds = Number(calls[0]!.get("DurationSeconds"));
+    expect(seconds).toBeLessThanOrEqual(1200);
+    expect(seconds).toBeGreaterThan(1100);
+    await expect((await command("aws")).run(["session"], { env: true, agent: "shorter" })).rejects.toThrow("before the shortest credential (15m)");
     expect(calls).toHaveLength(1);
   });
 

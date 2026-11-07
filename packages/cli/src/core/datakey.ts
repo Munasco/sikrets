@@ -1,8 +1,9 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import path from "node:path";
-import { keychain } from "../store.ts";
+import { configDir, keychain } from "../store.ts";
 import { deviceDir, thisDevice, type DataKeyWrap } from "./device.ts";
-import { readJson, remove, writePrivate } from "./fs.ts";
+import { readJson, remove } from "./fs.ts";
+import { withLock, writeAtomic } from "./lock.ts";
 import { DEVICE, RECOVERY } from "../constants.ts";
 
 // The vault data key: one random 256-bit key per user. It is the single key that client-side
@@ -11,8 +12,9 @@ import { DEVICE, RECOVERY } from "../constants.ts";
 // anywhere else. seal/open are AES-256-GCM with a fresh IV per value; the server only ever sees
 // their output.
 //
-// Earlier versions kept the key raw in the OS keychain. The first load wraps it, checks the wrap
-// opens to the same key, and only then deletes the raw copy.
+// Earlier versions kept the key raw in the OS keychain. That copy is still read, but only when no
+// wrapped key exists (the SDK reads in the same order), and a read never moves it: wrapping it to
+// software keys in a file would be a downgrade made on a read path.
 
 const { dataKeyProvider: PROVIDER, dataKeyAccount: ACCOUNT } = RECOVERY;
 
@@ -34,32 +36,35 @@ export async function loadDataKey(): Promise<Buffer | undefined> {
   const wrapped = await readWrapped();
   if (wrapped) return (await thisDevice()).unwrap(wrapped);
   const raw = await keychain.get(PROVIDER, ACCOUNT);
-  if (!raw) return undefined;
-  const key = unb64(raw);
-  // Best effort: if this device can't hold keys right now, keep using the raw copy and retry next time.
-  await saveDataKey(key).catch(() => {});
-  return key;
+  return raw ? unb64(raw) : undefined;
 }
 
-/** Wraps the key to this device and removes any raw keychain copy, once the wrap is proven to open. */
+/**
+ * Wraps the key to this device, checks the wrap opens to the same key, then replaces any earlier
+ * wrapped key in one rename: there is never a moment with no key on disk.
+ */
 export async function saveDataKey(key: Uint8Array) {
   const device = await thisDevice();
   const wrapped = device.wrap(key, fingerprint(key));
   if (!sameKey(await device.unwrap(wrapped), key)) throw new Error("Wrapping the data key for this device didn't round-trip; nothing changed");
-  await writePrivate(dataKeyFile(), JSON.stringify(wrapped, null, 2) + "\n");
-  if (await keychain.get(PROVIDER, ACCOUNT)) await keychain.delete(PROVIDER, ACCOUNT);
+  await writeAtomic(dataKeyFile(), JSON.stringify(wrapped, null, 2) + "\n", 0o600);
 }
 
-/** Drops this device's wrapped copy (restore --force replaces it). */
+/** Drops this device's wrapped copy. */
 export const forgetDataKey = () => remove(dataKeyFile());
 
-/** Creates this device's data key on first use. */
+/**
+ * Creates this device's data key on first use. Under a lock, so two first runs at once can't each
+ * make a key and leave values sealed under the one that lost.
+ */
 export async function ensureDataKey(): Promise<Buffer> {
-  const existing = await loadDataKey();
-  if (existing) return existing;
-  const key = randomBytes(RECOVERY.dataKeyBytes);
-  await saveDataKey(key);
-  return key;
+  return withLock(path.join(configDir(), RECOVERY.dataKeyLock), async () => {
+    const existing = await loadDataKey();
+    if (existing) return existing;
+    const key = randomBytes(RECOVERY.dataKeyBytes);
+    await saveDataKey(key);
+    return key;
+  });
 }
 
 /** Identifies a data key without revealing it, so restore can tell whether two devices share one. */

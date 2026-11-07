@@ -1,4 +1,4 @@
-import { authorize, currentAgent } from "../core/agents.ts";
+import { authorize, currentAgent, leaseSeconds } from "../core/agents.ts";
 import { awsSession, sessionSeconds } from "../core/aws-session.ts";
 import { projectContext } from "../core/config.ts";
 import { state, type Resource } from "../core/state.ts";
@@ -31,7 +31,7 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   const [sub, ...command] = args;
   if (sub !== "session") throw new Error(`Usage: ${USAGE} [--role ARN] [--for 30m] (--env | -- <command>)`);
   const root = process.cwd();
-  const seconds = sessionSeconds(typeof opts.for === "string" ? opts.for : AWS_SESSION.defaultDuration);
+  const wanted = sessionSeconds(typeof opts.for === "string" ? opts.for : AWS_SESSION.defaultDuration);
   const to = recipient(command, opts, USAGE);
   const { ctx } = await projectContext(root, { log: () => {} });
   const res = storedKey((await state.load(root)).resources, opts.key);
@@ -41,7 +41,9 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   const used = keyName ?? `${AWS_SESSION.profileScope}:${profile ?? "default"}`;
 
   const agent = currentAgent(opts);
-  if (agent) await authorize(root, agent, [res ? { key: keyName!, resource: res.name } : { key: used, resource: AWS_SESSION.profileScope }]);
+  const grant = agent ? await authorize(root, agent, [res ? { key: keyName!, resource: res.name } : { key: used, resource: AWS_SESSION.profileScope }]) : undefined;
+  // An agent's session never outlives the agent.
+  const seconds = leaseSeconds(grant?.agent, wanted, AWS_SESSION.minMinutes * 60);
   const key = res ? await (await openVault(ctx.project, ctx.server)).get(keyName!) : undefined;
   if (res && !key) throw new Error(`${keyName} is missing from the vault on ${ctx.server}; add the key again`);
 

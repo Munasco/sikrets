@@ -219,16 +219,29 @@ export function Toasts({ children }: { children: ReactNode }) {
 /** Bumped by ⌘R and after any change, so every screen reloads. */
 export const RefreshCtx = createContext<{ tick: number; refresh: () => void }>({ tick: 0, refresh: () => {} });
 
-export function useLoad<T>(load: () => Promise<T>, deps: unknown[] = []) {
+/**
+ * What a screen shows for one CLI read: loading, the data, or the error, never a mix. A reload
+ * (⌘R, after a change) keeps showing the last data while it runs; new inputs (deps) start blank,
+ * so a list never shows rows that belong to other inputs.
+ */
+export type Load<T> = { status: "loading"; previous?: T } | { status: "ready"; data: T } | { status: "error"; error: unknown };
+
+/** The rows to draw: the data, or the last data while reloading the same thing. */
+export const shown = <T,>(l: Load<T>): T | undefined => (l.status === "ready" ? l.data : l.status === "loading" ? l.previous : undefined);
+
+export function useLoad<T>(load: () => Promise<T>, deps: unknown[] = []): Load<T> & { reload: () => void } {
   const { tick } = useContext(RefreshCtx);
-  const [state, setState] = useState<{ data?: T; error?: unknown; loading: boolean }>({ loading: true });
+  const [state, setState] = useState<Load<T>>({ status: "loading" });
   const seq = useRef(0);
+  const depsKey = useRef<unknown[]>(deps);
   const run = useCallback(() => {
     const n = ++seq.current;
-    setState((s) => ({ ...s, loading: true }));
+    const sameInputs = depsKey.current.length === deps.length && depsKey.current.every((d, i) => Object.is(d, deps[i]));
+    depsKey.current = deps;
+    setState((s) => ({ status: "loading", previous: sameInputs ? shown(s) : undefined }));
     load().then(
-      (data) => n === seq.current && setState({ data, loading: false }),
-      (error) => n === seq.current && setState({ error, loading: false }),
+      (data) => n === seq.current && setState({ status: "ready", data }),
+      (error) => n === seq.current && setState({ status: "error", error }),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);

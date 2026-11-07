@@ -71,6 +71,9 @@ export function usageByKey(uses: readonly Use[]): Map<string, KeyUsage> {
   return out;
 }
 
-/** Keys a person (OS user, outside any agent) or an agent was handed. */
-export const touchedBy = (uses: readonly Use[], who: string): string[] =>
-  [...new Set(uses.filter((u) => u.agent === who || (!u.agent && u.user === who)).map((u) => u.key))];
+/** Per key `who` was handed: when they last got it. */
+export function lastTouchBy(uses: readonly Use[], who: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const u of uses) if (u.agent === who || (!u.agent && u.user === who)) if ((out.get(u.key) ?? "") < u.at) out.set(u.key, u.at);
+  return out;
+}

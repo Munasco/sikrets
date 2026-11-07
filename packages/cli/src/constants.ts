@@ -14,6 +14,8 @@ export const ENV = {
   terraform: "SIKRETS_TERRAFORM",
   /** Project name for the SDK when it can't infer one. */
   project: "SIKRETS_PROJECT",
+  /** One project's key (base64) for a deployed app's SDK, which has no keychain data key. */
+  projectKey: "SIKRETS_PROJECT_KEY",
   /** Agent a command hands keys to (same as --agent); see `sikrets agent`. */
   agent: "SIKRETS_AGENT",
   /** Bitwarden CLI command to run instead of `bw` (e.g. "bunx @bitwarden/cli"). */
@@ -47,7 +49,6 @@ export const FILES = {
 /** Folder under the user dir for per-project usage logs (local only, never in the project). */
 export const USAGE_DIR = "usage";
 export const IAC_DIR = "iac/terraform";
-
 // ── Defaults for sikrets.json ─────────────────────────────────────────────
 export const DEFAULTS = {
   envFile: ".env",
@@ -106,6 +107,8 @@ export const GITHUB = {
   /** App JWTs: backdated for clock drift, and under GitHub's 10-minute limit. */
   jwtBackdateSeconds: 60,
   jwtLifetimeSeconds: 540,
+  /** Installation tokens always live this long; GitHub can't issue shorter ones. */
+  tokenLifetimeSeconds: 3600,
   /** Env vars an installation token is exported as. */
   tokenEnv: ["GITHUB_TOKEN", "GH_TOKEN"],
 } as const;
@@ -144,6 +147,8 @@ export const RECOVERY = {
   /** Keychain slot for this device's copy of the data key. */
   dataKeyProvider: "datakey",
   dataKeyAccount: "default",
+  /** Lock file (under the user folder) held while creating the data key. */
+  dataKeyLock: "datakey",
   dataKeyBytes: 32,
   /** Random bytes in a recovery code (160 bits), before the checksum group. */
   codeBytes: 20,
@@ -196,8 +201,10 @@ export const REVEAL = {
 
 // ── Doorman (human approval before rotating) ──────────────────────────────
 export const APPROVALS_FILE = "approvals.json";
-/** Pending requests lapse after this long without a decision. */
+/** Pending requests lapse after this long without a decision; a failed rotation gets a fresh window to retry. */
 export const APPROVAL_TTL = "24h";
+/** A rotation still marked running after this long, or whose process is gone, is recorded as failed. */
+export const APPROVAL_ROTATING_MAX_MS = 60 * 60_000;
 /** What a person is told. Generic on purpose: never the detection source. */
 export const APPROVAL_REASONS = {
   exposed: "We think this key may be exposed",
@@ -232,6 +239,10 @@ export const DEVICE = {
   /** Compiled Secure Enclave helper (under DOORMAN.binDir), plus a stable link the SDK runs. */
   helperName: "sikrets-device",
   forceSoftware: "software",
+  /** Under the user dir (not the device dir, which a reset deletes): sign-ins whose keys are gone, to revoke at the next login. */
+  retiredFile: "retired-devices.json",
+  /** Lock (under the device dir) held while a first run creates the device's keys. */
+  createLock: "identity",
   /** Wrapping the data key: ephemeral ECDH, HKDF-SHA256, AES-256-GCM (same values in the SDK). */
   wrapSalt: "sikrets-datakey-wrap",
   wrapInfo: "sikrets-datakey-wrap-v1",
@@ -302,6 +313,10 @@ export const MCP = {
   maxCaptureBytes: 16 * 1024 * 1024,
   maxOutputChars: 60_000,
   minRedactLength: 6,
+  // Stopping a command: SIGTERM to its process group, SIGKILL after killGraceMs, and stop reading
+  // its pipes readDeadlineMs after that (a process that left the group can still hold them open).
+  killGraceMs: 2_000,
+  readDeadlineMs: 1_000,
 } as const;
 
 // ── Website logins for agents ─────────────────────────────────────────────
@@ -347,6 +362,8 @@ export const PASSWORD_MANAGERS = {
     binEnv: ENV.bw,
     /** Env var the bw CLI reads its unlocked session from. */
     sessionEnv: "BW_SESSION",
+    /** Where bw points when no self-hosted server is configured. */
+    defaultServer: "https://vault.bitwarden.com",
     /** Env var we hand the master password through, so it never appears in argv. */
     passwordEnv: "SIKRETS_BW_PASSWORD",
     /** Where bw keeps its config and encrypted cache; set it to isolate a test run. */
@@ -372,4 +389,17 @@ export const IMPORT = {
   /** 1Password's .1pux export is a zip; its items are in this file inside it. */
   onePuxData: "export.data",
   unzip: "unzip",
+} as const;
+
+// ── Local state-file locks ────────────────────────────────────────────────
+// A `<file>.lock` beside a state file another sikrets process (CLI or desktop) may write too.
+export const LOCK = {
+  suffix: ".lock",
+  /** How long to wait for another sikrets process to finish with a file. */
+  waitMs: 10_000,
+  retryMs: 25,
+  /** A lock whose holder can't be read (torn by a crash mid-write) is broken after this long. */
+  unreadableMs: 30_000,
+  /** A live holder keeps its lock this long at most (a long import); past it, it's assumed hung. */
+  maxHoldMs: 30 * 60_000,
 } as const;

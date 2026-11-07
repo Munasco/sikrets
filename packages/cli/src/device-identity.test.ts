@@ -80,8 +80,16 @@ describe("device keys", () => {
     expect((await thisDevice()).signingPublicKey.equals(device.signingPublicKey)).toBe(true);
   });
 
-  test("without a Secure Enclave: software keys, and every view says not hardware-bound", async () => {
+  test("without a Secure Enclave nothing falls back to software keys unless asked", async () => {
     fakeEnclave(false);
+    await expect(thisDevice()).rejects.toThrow(`${ENV.deviceKeys}=${DEVICE.forceSoftware}`);
+    expect(await readDeviceMeta()).toBeUndefined();
+    await expect(ensureDataKey()).rejects.toThrow("doesn't fall back to software keys");
+  });
+
+  test("software keys when asked for, and every view says not hardware-bound", async () => {
+    fakeEnclave(false);
+    process.env[ENV.deviceKeys] = DEVICE.forceSoftware;
     const device = await thisDevice();
     expect(device.meta.kind).toBe("software");
     expect(device.hardwareBound).toBe(false);
@@ -131,30 +139,31 @@ describe("data key wrapped to the device", () => {
     await expect(other.unwrap({ ...wrapped, recipient: thumbprint(other.agreementPublicKey) })).rejects.toBeInstanceOf(DeviceMismatchError);
   });
 
-  test("a raw data key in the keychain is migrated: wrapped, verified, then removed", async () => {
+  test("a raw data key in the keychain is used as it is: a read never moves it into a file", async () => {
     const se = fakeEnclave();
     const key = randomBytes(32);
     keychain.set("dev.sikrets.datakey/default", key.toString("base64"));
-    expect((await loadDataKey())!.equals(key)).toBe(true);
-    expect(keychain.has("dev.sikrets.datakey/default")).toBe(false);
-    expect((await readWrapped()).fingerprint).toBe(fingerprint(key));
-    expect(se.unwrap).toHaveBeenCalledTimes(1); // the verifying round trip
-    expect((await loadDataKey())!.equals(key)).toBe(true);
-  });
-
-  test("migration keeps the raw copy when the round trip doesn't verify", async () => {
-    const se = fakeEnclave();
-    const key = randomBytes(32);
-    keychain.set("dev.sikrets.datakey/default", key.toString("base64"));
-    se.unwrap.mockImplementation(async () => randomBytes(32));
     expect((await loadDataKey())!.equals(key)).toBe(true);
     expect(keychain.get("dev.sikrets.datakey/default")).toBe(key.toString("base64"));
     expect(await Bun.file(dataKeyFile()).exists()).toBe(false);
-    // Fixed (e.g. the helper works again): the next load migrates.
-    se.unwrap.mockRestore();
+    expect(se.create).not.toHaveBeenCalled(); // no device keys made just to read
+    expect((await ensureDataKey()).equals(key)).toBe(true); // nor a second data key
+  });
+
+  test("CLI and SDK read the same key when both a wrapped and a raw copy exist: the wrapped one", async () => {
+    process.env[ENV.deviceKeys] = DEVICE.forceSoftware; // the SDK opens software wraps in-process
+    const wrapped = await ensureDataKey();
+    keychain.set("dev.sikrets.datakey/default", randomBytes(32).toString("base64")); // a stale raw copy
+    expect((await loadDataKey())!.equals(wrapped)).toBe(true);
+    const sdk = await import("../../sdk/src/datakey.ts");
+    expect((await sdk.loadDataKey({ get: async ({ service, name }) => keychain.get(`${service}/${name}`) ?? null }))!.equals(wrapped)).toBe(true);
+  });
+
+  test("two first runs at once end with one data key", async () => {
     fakeEnclave();
-    expect((await loadDataKey())!.equals(key)).toBe(true);
-    expect(keychain.has("dev.sikrets.datakey/default")).toBe(false);
+    const [a, b] = await Promise.all([ensureDataKey(), ensureDataKey()]);
+    expect(a.equals(b)).toBe(true);
+    expect((await loadDataKey())!.equals(a)).toBe(true);
   });
 
   test("recovery restore on a new device re-wraps the key to that device", async () => {
@@ -360,6 +369,58 @@ describe("sign-in", () => {
     await rm(laptop, { recursive: true, force: true });
   });
 
+  test("a second login revokes this key's earlier sign-in, and logout revokes every one it holds", async () => {
+    fakeEnclave();
+    server = startDeviceServer({ autoApprove: "you@localhost" });
+    await (await command("login")).run([], { server: server.url, "no-browser": true });
+    const first = (await readSession())!;
+    await (await command("login")).run([], { server: server.url, "no-browser": true });
+    const second = (await readSession())!;
+    expect(second.deviceId).not.toBe(first.deviceId);
+    const revokedAt = async (id: string) => (await server!.devices()).find((d) => d.id === id)?.revokedAt;
+    expect(await revokedAt(first.deviceId)).toBeDefined(); // the same key isn't still accepted under the old id
+    expect(await revokedAt(second.deviceId)).toBeUndefined();
+
+    // An earlier id that couldn't be revoked at login is retried by logout, before the current one.
+    await writeSession({ ...second, registrations: [second.deviceId, "dev_gone"] });
+    await (await command("logout")).run([], {});
+    expect(await revokedAt(second.deviceId)).toBeDefined();
+    expect(await readSession()).toBeUndefined();
+  });
+
+  test("restore --force with keys that don't work here retires the old sign-in; the next login revokes it", async () => {
+    const se = fakeEnclave();
+    server = startDeviceServer({ autoApprove: "you@localhost" });
+    const key = await ensureDataKey();
+    const { secret, shown } = newCode();
+    await writeRecord(await wrap(key, secret));
+    await (await command("login")).run([], { server: server.url, "no-browser": true });
+    const old = (await readSession())!;
+
+    se.sign.mockImplementation(async () => Buffer.alloc(64)); // keys copied from another Mac: nothing signs here
+    spyOn(Bun.stdin, "text").mockImplementation(async () => `${shown[0]}\n`);
+    await Bun.write(dataKeyFile(), JSON.stringify({ ...(await readWrapped()), recipient: "someone-else" }));
+    await (await command("recovery")).run(["restore"], { "code-stdin": true, force: true });
+    se.sign.mockImplementation(software.sign);
+    expect((await loadDataKey())!.equals(key)).toBe(true);
+    expect(await readSession()).toBeUndefined(); // the old folder (and its session) is gone
+    expect((await server.devices()).find((d) => d.id === old.deviceId)?.revokedAt).toBeUndefined();
+
+    await (await command("login")).run([], { server: server.url, "no-browser": true });
+    expect((await server.devices()).find((d) => d.id === old.deviceId)?.revokedAt).toBeDefined();
+  });
+
+  test("a restore whose save fails puts the old device folder back", async () => {
+    const se = fakeEnclave();
+    const key = await ensureDataKey();
+    const before = await Bun.file(dataKeyFile()).text();
+    const { replaceDevice } = await import("./core/device.ts");
+    await expect(replaceDevice(async () => { throw new Error("helper broke"); })).rejects.toThrow("helper broke");
+    expect(await Bun.file(dataKeyFile()).text()).toBe(before);
+    expect((await loadDataKey())!.equals(key)).toBe(true);
+    expect(se.create).toHaveBeenCalled();
+  });
+
   test("devices without a sign-in shows only this device and how to sign in", async () => {
     fakeEnclave();
     await clearSession();
@@ -368,8 +429,8 @@ describe("sign-in", () => {
     expect(printed()).toContain("Not signed in. Run: sikrets login");
     await writeSession({ version: 1, server: "http://127.0.0.1:9", deviceId: "dev_x", user: "u", certificate: "c", kind: "software", hardwareBound: false, signedInAt: new Date().toISOString() });
     out.length = 0;
-    await (await command("logout")).run([], {});
-    expect(printed()).toContain("Couldn't revoke dev_x");
-    expect(await readSession()).toBeUndefined();
+    // Unreachable server: still signed in, so a second logout can finish the revoke.
+    await expect((await command("logout")).run([], {})).rejects.toThrow("Couldn't revoke dev_x");
+    expect((await readSession())!.deviceId).toBe("dev_x");
   });
 });
