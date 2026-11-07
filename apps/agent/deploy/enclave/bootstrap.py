@@ -22,10 +22,15 @@ from cryptography.hazmat.primitives import hashes, padding as sympadding, serial
 from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.x509.oid import NameOID
 
 ATTESTATION = "/run/attestation.json"
+# The access code, for the gateway to re-read when it changes (no restart), and the key's and the
+# certificate's state, for its /healthz.
+ACCESS_CODE_FILE = "/run/access-code"
+HEALTH = "/run/health.json"
 NSM_IOCTL = 0xC0200A00  # _IOWR(0x0A, 0, struct nsm_message)
 # Must match the context deploy/aws.sh encrypted the key with.
 KEY_CONTEXT = {"app": "sikrets-agent-demo", "secret": "model-key"}
@@ -37,6 +42,10 @@ ACME_DIRECTORY = "https://acme-v02.api.letsencrypt.org/directory"
 CHALLENGE_PORT = 8080
 # Renew when the certificate has less than this left (Let's Encrypt issues 90 days).
 RENEW_DAYS = 30
+# After a failed pass, wait this long, doubling per failure up to the cap: Let's Encrypt allows 5
+# failed validations an hour and 5 duplicate certificates a week.
+TLS_RETRY = 300
+TLS_RETRY_MAX = 6 * 3600
 
 
 class IoVec(ctypes.Structure):
@@ -266,11 +275,28 @@ def seal_tls_key(key, creds: dict, region: str, now: datetime.datetime) -> dict:
     return {"dataKey": res["CiphertextBlob"], "nonce": b64u(nonce), "key": b64u(AESGCM(data_key).encrypt(nonce, pem, b"tls-key"))}
 
 
+class TlsBlobDamaged(Exception):
+    """The stored TLS key blob can never open: not ours, or corrupt. A transport error or a KMS
+    refusal (say, an unpinned PCR0) is not this: those are retried with the same blob."""
+
+
 def open_tls_key(blob: dict, creds: dict, region: str, now: datetime.datetime):
     pad = lambda s: s + "=" * (-len(s) % 4)  # noqa: E731
-    data_key, _ = kms_attested("TrentService.Decrypt", {"CiphertextBlob": blob["dataKey"], "EncryptionContext": TLS_CONTEXT}, creds, region, now)
-    pem = AESGCM(data_key).decrypt(base64.urlsafe_b64decode(pad(blob["nonce"])), base64.urlsafe_b64decode(pad(blob["key"])), b"tls-key")
-    return serialization.load_pem_private_key(pem, None)
+    try:
+        nonce, sealed, data_key_ct = base64.urlsafe_b64decode(pad(blob["nonce"])), base64.urlsafe_b64decode(pad(blob["key"])), blob["dataKey"]
+    except (KeyError, TypeError, ValueError) as e:
+        raise TlsBlobDamaged(f"malformed: {type(e).__name__}") from e
+    try:
+        data_key, _ = kms_attested("TrentService.Decrypt", {"CiphertextBlob": data_key_ct, "EncryptionContext": TLS_CONTEXT}, creds, region, now)
+    except RuntimeError as e:
+        if "InvalidCiphertextException" in str(e):
+            raise TlsBlobDamaged("KMS can't read its data key") from e
+        raise
+    try:
+        pem = AESGCM(data_key).decrypt(nonce, sealed, b"tls-key")
+        return serialization.load_pem_private_key(pem, None)
+    except (InvalidTag, ValueError) as e:
+        raise TlsBlobDamaged(f"doesn't decrypt: {type(e).__name__}") from e
 
 
 def install_tls(key, cert_pem: str, state: dict) -> None:
@@ -284,50 +310,65 @@ def install_tls(key, cert_pem: str, state: dict) -> None:
     state["tls_version"] = state.get("tls_version", 0) + 1
 
 
-def manage_tls(state: dict) -> None:
+# The TLS manager's states (state["tls"]): "starting" until the host's first message, "off" when the
+# image has no hostname, "issuing" while Let's Encrypt is asked, "sealing" while KMS seals the key,
+# "ok", or "error: ..." (retried with backoff). The issued certificate is kept across a failed
+# seal, so a retry only seals again: it never orders a duplicate certificate.
+def tls_step(state: dict, tls: dict, host: str, challenges: dict) -> None:
+    """One pass of the TLS manager. `tls` is its own memory across passes: the key, the installed
+    certificate, and the sealed blob of that key once KMS has made one. Raises on failure."""
+    msg = state["msg"]
+    creds, region = msg["credentials"], msg["region"]
+    now = datetime.datetime.fromtimestamp(msg["now"], datetime.timezone.utc) + datetime.timedelta(seconds=time.monotonic() - state["msg_at"])
+    stored = msg.get("tls") or {}
+    # The host's copy, opened once. A damaged blob is set aside for good; any other failure
+    # (network, KMS refusing an unpinned PCR0) leaves it to try again on the next pass.
+    if tls.get("key") is None and stored.get("keyBlob") and stored.get("keyBlob") != tls.get("bad_blob"):
+        try:
+            tls["key"] = open_tls_key(stored["keyBlob"], creds, region, now)
+            tls["sealed"] = stored["keyBlob"]
+        except TlsBlobDamaged:
+            tls["bad_blob"] = stored["keyBlob"]
+        if tls.get("key") is not None and cert_ok(stored.get("cert", ""), tls["key"], host, now):
+            install_tls(tls["key"], stored["cert"], state)
+            tls["cert"] = stored["cert"]
+    if not tls.get("cert") or not cert_ok(tls["cert"], tls.get("key"), host, now):
+        if tls.get("key") is None:
+            tls["key"] = ec.generate_private_key(ec.SECP256R1())
+            tls["sealed"] = None
+        state["tls"] = "issuing"
+        cert = Acme().certificate(host, tls["key"], challenges)
+        install_tls(tls["key"], cert, state)
+        tls["cert"] = cert
+    if not tls.get("sealed"):
+        state["tls"] = "sealing"
+        tls["sealed"] = seal_tls_key(tls["key"], creds, region, now)
+    state["tls_store"] = {"keyBlob": tls["sealed"], "cert": tls["cert"]}
+    state["tls"] = "ok"
+
+
+def manage_tls(state: dict, sleep=time.sleep) -> None:
     """Keeps a valid certificate installed: the stored one if it's still good, else a new one."""
     host = open(TLS_HOST_FILE).read().strip() if os.path.exists(TLS_HOST_FILE) else ""
     if not host:
+        state["tls"] = "off"
         return
     challenges: dict = {}
     threading.Thread(target=serve_challenges, args=(challenges, host), daemon=True).start()
-    key = None
+    tls: dict = {}
+    failures = 0
     while True:
-        wait = 600
+        if not state.get("msg"):
+            sleep(5)
+            continue
         try:
-            msg = state.get("msg")
-            if msg:
-                creds, region = msg["credentials"], msg["region"]
-                now = datetime.datetime.fromtimestamp(msg["now"], datetime.timezone.utc) + datetime.timedelta(seconds=time.monotonic() - state["msg_at"])
-                stored = msg.get("tls") or {}
-                if key is None and stored.get("keyBlob") and not state.get("tls_blob_bad"):
-                    try:
-                        key = open_tls_key(stored["keyBlob"], creds, region, now)
-                        state["tls_sealed"] = stored["keyBlob"]
-                    except Exception:  # noqa: BLE001  (not ours, or damaged: make a new key)
-                        state["tls_blob_bad"] = True
-                        stored = {}
-                    if key is not None and cert_ok(stored.get("cert", ""), key, host, now):
-                        install_tls(key, stored["cert"], state)
-                        state["tls"] = "ok"
-                if state.get("tls") != "ok" or not cert_ok(state.get("tls_cert", stored.get("cert", "")), key, host, now):
-                    state["tls"] = "issuing"
-                    key = key or ec.generate_private_key(ec.SECP256R1())
-                    cert = Acme().certificate(host, key, challenges)
-                    install_tls(key, cert, state)
-                    state["tls_cert"] = cert
-                    if not state.get("tls_sealed"):
-                        state["tls_sealed"] = seal_tls_key(key, creds, region, now)
-                    state["tls_store"] = {"keyBlob": state["tls_sealed"], "cert": cert}
-                    state["tls"] = "ok"
-                else:
-                    state.setdefault("tls_cert", stored.get("cert"))
-            else:
-                wait = 5
+            tls_step(state, tls, host, challenges)
+            failures, wait = 0, 600
         except Exception as e:  # noqa: BLE001
+            failures += 1
             state["tls"] = f"error: {type(e).__name__}: {e}"[:300]
-            wait = 300
-        time.sleep(wait)
+            wait = min(TLS_RETRY * 2 ** (failures - 1), TLS_RETRY_MAX)
+        sleep(wait)
 
 
 def write(path: str, data: dict) -> None:
@@ -348,11 +389,18 @@ def refresh_attestation() -> None:
 
 
 def supervise(state: dict) -> None:
-    """Keeps the agent running with the latest values; restarts it when it exits or they change."""
+    """Keeps the agent running with the latest values; restarts it when it exits or the model key
+    or the certificate changes. A new access code doesn't restart it: the gateway re-reads the
+    file, so a rotation signs everyone out without stopping their chats."""
     agent = None
     running = None
+    health = None
     while True:
-        wanted = (state.get("secrets"), state.get("tls_version", 0)) if state.get("secrets") else None
+        now_health = {"modelKey": state.get("model_key", "waiting"), "tls": state.get("tls", "starting")}
+        if now_health != health:
+            write(HEALTH, now_health)
+            health = now_health
+        wanted = (state.get("key"), state.get("tls_version", 0)) if state.get("key") and state.get("access_code_ready") else None
         if wanted and (agent is None or agent.poll() is not None or wanted != running):
             if agent is not None and agent.poll() is None:
                 agent.terminate()
@@ -368,8 +416,9 @@ def supervise(state: dict) -> None:
                 "PORT": "8787",
                 "AGENT_HOME": "/run/sikrets",
                 "ATTESTATION_FILE": ATTESTATION,
-                "ACCESS_CODE": wanted[0][0],
-                "MODEL_API_KEY": wanted[0][1],
+                "ACCESS_CODE_FILE": ACCESS_CODE_FILE,
+                "HEALTH_FILE": HEALTH,
+                "MODEL_API_KEY": wanted[0],
                 "TLS_CERT_FILE": os.path.join(TLS_DIR, "cert.pem"),
                 "TLS_KEY_FILE": os.path.join(TLS_DIR, "key.pem"),
             }
@@ -378,27 +427,44 @@ def supervise(state: dict) -> None:
         time.sleep(2)
 
 
+def write_text(path: str, text: str) -> None:
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        f.write(text)
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, path)
+
+
 def receive(msg: dict, state: dict) -> dict:
     """Handles one message from the host: decrypts the model key when its ciphertext is new, and
-    answers with a status the host can log. Never includes a secret."""
+    answers with a status the host can log. Never includes a secret.
+    modelKey is "ok", "stale" (a new ciphertext didn't decrypt; the last good key keeps serving)
+    or "error" (no key at all)."""
+    # The TLS manager reads the latest credentials, clock and stored certificate from here.
+    state["msg_at"] = time.monotonic()
+    state["msg"] = msg
+    code = str(msg.get("accessCode") or "").strip()
+    # An empty code would open the gateway to everyone: never start (or keep feeding) it with one.
+    if not code:
+        raise RuntimeError("the access code is empty; the agent stays down until it's set")
+    if state.get("access_code") != code:
+        write_text(ACCESS_CODE_FILE, code)
+        state["access_code"] = code
+        state["access_code_ready"] = True
     ciphertext = msg["modelKeyCiphertext"]
-    error = None
+    reply = {}
     if state.get("ciphertext") != ciphertext:
         now = datetime.datetime.fromtimestamp(msg["now"], datetime.timezone.utc) if msg.get("now") else datetime.datetime.now(datetime.timezone.utc)
         try:
             state["key"] = decrypt_model_key(ciphertext, msg["credentials"], msg["region"], now)
             state["ciphertext"] = ciphertext
+            state["model_key"] = "ok"
         except Exception as e:  # noqa: BLE001
-            error = e
-    # A key that fails to decrypt leaves the last good one running.
-    if "key" in state:
-        state["secrets"] = (msg["accessCode"], state["key"])
-    # The TLS manager reads the latest credentials, clock and stored certificate from here.
-    state["msg_at"] = time.monotonic()
-    state["msg"] = msg
-    if error:
-        raise error
-    reply = {"modelKey": "ok", "tls": state.get("tls", "starting")}
+            # A key that fails to decrypt leaves the last good one running, and says so.
+            state["model_key"] = "stale" if "key" in state else "error"
+            reply["reason"] = f"{type(e).__name__}: {e}"[:300]
+    reply["modelKey"] = state.get("model_key", "error")
+    reply["tls"] = state.get("tls", "starting")
     # A newly sealed key and certificate, for the host to keep (both useless to it).
     if state.get("tls_store") and state.get("tls_store") != (msg.get("tls") or {}):
         reply["tlsStore"] = state["tls_store"]

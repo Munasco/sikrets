@@ -7,7 +7,10 @@
 #
 #   GEMINI_API_KEY=…    store or replace the model key (encrypted under the KMS key; MODEL.keyEnv)
 #   ENCLAVE_PCR0=…      pin the KMS key to this enclave build (host.sh build prints it); during a
-#                       switch, "<old>,<new>" lets both decrypt, then pin the new one alone
+#                       switch, "<old>,<new>" lets both decrypt, then pin the new one alone. A pin
+#                       that leaves out the PCR0 running now (from /attestation) is refused, since
+#                       the live enclave would lose the key at its next restart; FORCE_PCR0=1 overrides
+#   INSTANCE_ID=…       which instance to wire up, when more than one is tagged for this stack
 #   DEPLOY_REF=…        tag or commit SHA a new instance deploys; required to create one
 #   ALERT_EMAIL=…       subscribe this address to the alerts topic (AWS emails a confirmation)
 set -euo pipefail
@@ -23,6 +26,12 @@ KEY_ALIAS=alias/$NAME
 KEY_CONTEXT=app=$NAME,secret=model-key
 METRICS=Sikrets/AgentDemo
 BUDGET_USD=${BUDGET_USD:-150}
+# A two-PCR0 pin is for a switch; older than this, it's a reminder to narrow it.
+DUAL_PIN_HOURS=${DUAL_PIN_HOURS:-24}
+PLACEHOLDER_PCR0=$(printf '0%.0s' {1..96})
+TLS_HOST=$(cd "$HERE/.." && bun -e 'import { TLS } from "./src/constants.ts"; console.log(TLS.host)')
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
 
 # --- Access code: generated once, kept in SSM (SecureString) and the operator's macOS keychain.
 if ! aws ssm get-parameter --name /$NAME/access-code >/dev/null 2>&1; then
@@ -35,17 +44,19 @@ if ! aws ssm get-parameter --name /$NAME/access-code >/dev/null 2>&1; then
   echo "access code: stored (keychain service $NAME)"
 fi
 
-# --- IAM role: read the access code and the key's ciphertext, send the heartbeat. Nothing else:
-# no SSM parameter by wildcard, and no KMS permission (the key policy below grants Decrypt to this
-# role only with the enclave's attestation).
+# --- IAM role: read the access code, the key's ciphertext and which PCR0s are pinned, send the
+# heartbeat, and keep its own DeployedSha tag current. Nothing else: no SSM parameter by wildcard,
+# and no KMS permission (the key policy below grants Decrypt to this role only with the enclave's
+# attestation).
 if ! aws iam get-role --role-name $NAME >/dev/null 2>&1; then
   aws iam create-role --role-name $NAME --tags $TAGS --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ec2.amazonaws.com"},"Action":"sts:AssumeRole"}]}' >/dev/null
   aws iam attach-role-policy --role-name $NAME --policy-arn arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
 fi
 aws iam put-role-policy --role-name $NAME --policy-name agent --policy-document "$(cat <<EOF
 {"Version":"2012-10-17","Statement":[
- {"Effect":"Allow","Action":"ssm:GetParameter","Resource":["arn:aws:ssm:us-east-1:$ACCOUNT:parameter/$NAME/access-code","arn:aws:ssm:us-east-1:$ACCOUNT:parameter/$NAME/model-key-ciphertext"]},
- {"Effect":"Allow","Action":"cloudwatch:PutMetricData","Resource":"*","Condition":{"StringEquals":{"cloudwatch:namespace":"$METRICS"}}}
+ {"Effect":"Allow","Action":"ssm:GetParameter","Resource":["arn:aws:ssm:us-east-1:$ACCOUNT:parameter/$NAME/access-code","arn:aws:ssm:us-east-1:$ACCOUNT:parameter/$NAME/model-key-ciphertext","arn:aws:ssm:us-east-1:$ACCOUNT:parameter/$NAME/pinned-pcr0"]},
+ {"Effect":"Allow","Action":"cloudwatch:PutMetricData","Resource":"*","Condition":{"StringEquals":{"cloudwatch:namespace":"$METRICS"}}},
+ {"Effect":"Allow","Action":"ec2:CreateTags","Resource":"arn:aws:ec2:us-east-1:$ACCOUNT:instance/*","Condition":{"StringEquals":{"aws:ResourceTag/Project":"$NAME"},"ForAllValues:StringEquals":{"aws:TagKeys":["DeployedSha"]}}}
 ]}
 EOF
 )"
@@ -74,15 +85,77 @@ EOF
 }
 KEY=$(aws kms describe-key --key-id $KEY_ALIAS --query KeyMetadata.KeyId --output text 2>/dev/null || true)
 if [ -z "$KEY" ]; then
-  KEY=$(aws kms create-key --description "$NAME model key: decrypts only inside the attested enclave" --tags TagKey=Project,TagValue=$NAME \
-    --policy "$(key_policy "$(printf '0%.0s' {1..96})")" --query KeyMetadata.KeyId --output text)
+  # A run that died between create-key and create-alias left a tagged key with no alias: adopt it
+  # rather than make a second one.
+  for arn in $(aws resourcegroupstaggingapi get-resources --resource-type-filters kms:key --tag-filters Key=Project,Values=$NAME --query 'ResourceTagMappingList[].ResourceARN' --output text); do
+    if [ "$(aws kms describe-key --key-id "$arn" --query KeyMetadata.KeyState --output text)" = Enabled ]; then KEY=${arn##*/}; break; fi
+  done
+  if [ -z "$KEY" ]; then
+    KEY=$(aws kms create-key --description "$NAME model key: decrypts only inside the attested enclave" --tags TagKey=Project,TagValue=$NAME \
+      --policy "$(key_policy "$PLACEHOLDER_PCR0")" --query KeyMetadata.KeyId --output text)
+  fi
   aws kms create-alias --alias-name $KEY_ALIAS --target-key-id "$KEY"
   aws kms enable-key-rotation --key-id "$KEY"
 fi
+
+# The PCR0s the key allows now, read from its policy (the placeholder left out), one per line.
+pinned() {
+  aws kms get-key-policy --key-id "$KEY" --policy-name default --query Policy --output text | python3 -c '
+import json, sys
+for s in json.load(sys.stdin)["Statement"]:
+    if s.get("Sid") == "EnclaveDecrypt":
+        v = s["Condition"]["StringEqualsIgnoreCase"]["kms:RecipientAttestation:ImageSha384"]
+        for x in [v] if isinstance(v, str) else v:
+            if x.strip("0"):
+                print(x.lower())'
+}
+# The PCR0 of the enclave serving now, from its attestation (TLS host first, then CloudFront);
+# empty if none answers or it isn't an enclave.
+live_pcr0() {
+  local cf
+  cf=$(aws cloudfront list-distributions --query "DistributionList.Items[?Comment=='$NAME'].DomainName | [0]" --output text 2>/dev/null || true)
+  for url in "https://$TLS_HOST/attestation" ${cf:+"https://$cf/attestation"}; do
+    if curl -fsS -m 10 "$url" -o "$work/attestation.json" 2>/dev/null; then
+      python3 -c 'import json, sys; print(json.load(open(sys.argv[1])).get("pcrs", {}).get("0", "").lower())' "$work/attestation.json" && return 0
+    fi
+  done
+}
+
 if [ -n "${ENCLAVE_PCR0:-}" ]; then
   [[ "$ENCLAVE_PCR0" =~ ^[0-9a-fA-F]{96}(,[0-9a-fA-F]{96})?$ ]] || { echo "ENCLAVE_PCR0 must be one or two (comma-separated) 96-hex-character values"; exit 1; }
-  aws kms put-key-policy --key-id "$KEY" --policy-name default --policy "$(key_policy "$ENCLAVE_PCR0")"
-  echo "kms key:    pinned to PCR0 $(echo "$ENCLAVE_PCR0" | sed -E 's/([0-9a-fA-F]{16})[0-9a-fA-F]{80}/\1…/g')"
+  WANT=$(echo "$ENCLAVE_PCR0" | tr 'A-F' 'a-f')
+  LIVE=$(live_pcr0 || true)
+  if [ "${FORCE_PCR0:-}" != 1 ]; then
+    if [ -n "$LIVE" ] && ! echo "$WANT" | tr ',' '\n' | grep -qx "$LIVE"; then
+      echo "Refusing: the enclave running now has PCR0 ${LIVE:0:16}…, which this pin leaves out. It would lose the model key"
+      echo "and its TLS key at its next restart. Pin it alongside (ENCLAVE_PCR0=$LIVE,<new>), or FORCE_PCR0=1."
+      exit 1
+    fi
+    if [ -z "$LIVE" ] && [ -n "$(pinned)" ]; then
+      echo "Refusing: no enclave answered /attestation, so this can't check the pin keeps the live image. FORCE_PCR0=1 to pin anyway."
+      exit 1
+    fi
+  fi
+  aws kms put-key-policy --key-id "$KEY" --policy-name default --policy "$(key_policy "$WANT")"
+  echo "kms key:    pinned to PCR0 $(echo "$WANT" | sed -E 's/([0-9a-f]{16})[0-9a-f]{80}/\1…/g')"
+fi
+
+# What's pinned, mirrored to SSM for host.sh (it refuses to start an image the key won't allow),
+# with when this set was first seen. Read back from the policy each run, so it never drifts.
+PINS=$(pinned)
+since=$(aws ssm get-parameter --name /$NAME/pinned-pcr0 --query Parameter.Value --output text 2>/dev/null |
+  python3 -c 'import json, sys
+try:
+    d = json.load(sys.stdin)
+    print(d["since"] if sorted(d["pcr0"]) == sorted(sys.argv[1].split()) else "")
+except Exception:
+    print("")' "$PINS" || true)
+since=${since:-$(date +%s)}
+pins_json=$(python3 -c 'import json, sys; print(json.dumps({"pcr0": sys.argv[1].split(), "since": int(sys.argv[2])}))' "$PINS" "$since")
+aws ssm put-parameter --name /$NAME/pinned-pcr0 --type String --overwrite --value "$pins_json" >/dev/null
+if [ "$(echo "$PINS" | grep -c .)" -gt 1 ] && [ $(( $(date +%s) - since )) -gt $((DUAL_PIN_HOURS * 3600)) ]; then
+  echo "warning:    the KMS key has allowed two PCR0s for over $DUAL_PIN_HOURS hours. Once the new image is verified,"
+  echo "            pin it alone: ENCLAVE_PCR0=<live PCR0> deploy/aws.sh"
 fi
 
 # --- Model API key: encrypted under the KMS key and stored as its ciphertext (a plain String).
@@ -91,7 +164,7 @@ fi
 # Passed by file, not argv.
 KEY_ENV=$(cd "$HERE/.." && bun -e 'import { MODEL } from "./src/constants.ts"; console.log(MODEL.keyEnv)')
 tmp=$(mktemp) && chmod 600 "$tmp"
-trap 'rm -f "$tmp"' EXIT
+trap 'rm -f "$tmp"; rm -rf "$work"' EXIT
 from=""
 if [ -n "${!KEY_ENV:-}" ]; then
   printf '%s' "${!KEY_ENV}" > "$tmp" && from=$KEY_ENV
@@ -131,7 +204,14 @@ done
 
 # --- Instance: Graviton, Nitro Enclaves enabled, IMDSv2 required, encrypted root volume. It deploys
 # DEPLOY_REF, resolved here to a commit SHA that user-data.sh checks the checkout against.
-ID=$(aws ec2 describe-instances --filters Name=tag:Project,Values=$NAME Name=instance-state-name,Values=pending,running,stopping,stopped --query 'Reservations[0].Instances[0].InstanceId' --output text)
+IDS=$(aws ec2 describe-instances --filters Name=tag:Project,Values=$NAME Name=instance-state-name,Values=pending,running,stopping,stopped --query 'Reservations[].Instances[].InstanceId' --output text)
+if [ "$(echo $IDS | wc -w)" -gt 1 ]; then
+  # Never wire up whichever came first: say which.
+  [ -n "${INSTANCE_ID:-}" ] && [[ " $IDS " == *" $INSTANCE_ID "* ]] || { echo "More than one instance is tagged Project=$NAME ($IDS); set INSTANCE_ID to the one to use."; exit 1; }
+  ID=$INSTANCE_ID
+else
+  ID=${IDS:-None}
+fi
 if [ "$ID" = "None" ]; then
   [ -n "${DEPLOY_REF:-}" ] || { echo "Set DEPLOY_REF to the tag or commit SHA to deploy."; exit 1; }
   if [[ "$DEPLOY_REF" =~ ^[0-9a-f]{40}$ ]]; then
@@ -169,12 +249,15 @@ for pair in tls:443 http:80; do
   fi
   [ "$port" = 443 ] && aws elbv2 modify-target-group-attributes --target-group-arn $TG --attributes Key=proxy_protocol_v2.enabled,Value=true >/dev/null
   aws elbv2 register-targets --target-group-arn $TG --targets Id=$ID,Port=$port
+  # A replaced instance's registration goes.
+  for old in $(aws elbv2 describe-target-health --target-group-arn $TG --query "TargetHealthDescriptions[?Target.Id!='$ID'].Target.Id" --output text); do
+    aws elbv2 deregister-targets --target-group-arn $TG --targets Id=$old,Port=$port
+  done
   if [ "$(aws elbv2 describe-listeners --load-balancer-arn $NLB --query "Listeners[?Port==\`$port\`] | length(@)" --output text)" = 0 ]; then
     aws elbv2 create-listener --load-balancer-arn $NLB --protocol TCP --port $port --default-actions Type=forward,TargetGroupArn=$TG >/dev/null
   fi
 done
 NLB_DNS=$(aws elbv2 describe-load-balancers --load-balancer-arns $NLB --query 'LoadBalancers[0].DNSName' --output text)
-TLS_HOST=$(cd "$HERE/.." && bun -e 'import { TLS } from "./src/constants.ts"; console.log(TLS.host)')
 
 # --- CloudFront: HTTPS in front, nothing cached, cookies and the viewer address passed through.
 DIST=$(aws cloudfront list-distributions --query "DistributionList.Items[?Comment=='$NAME'].Id | [0]" --output text)
@@ -189,6 +272,18 @@ if [ "$DIST" = "None" ]; then
 },"Tags":{"Items":[{"Key":"Project","Value":"$NAME"}]}}
 EOF
 )" --query Distribution.Id --output text)
+fi
+# A replaced instance has a new DNS name: point the existing distribution's origin at it.
+aws cloudfront get-distribution-config --id $DIST > "$work/dist.json"
+ORIGIN=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["DistributionConfig"]["Origins"]["Items"][0]["DomainName"])' "$work/dist.json")
+if [ "$ORIGIN" != "$DNS" ]; then
+  python3 -c 'import json, sys
+d = json.load(open(sys.argv[1]))
+d["DistributionConfig"]["Origins"]["Items"][0]["DomainName"] = sys.argv[2]
+json.dump(d["DistributionConfig"], open(sys.argv[3], "w"))' "$work/dist.json" "$DNS" "$work/dist-config.json"
+  ETAG=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["ETag"])' "$work/dist.json")
+  aws cloudfront update-distribution --id $DIST --if-match "$ETAG" --distribution-config "file://$work/dist-config.json" >/dev/null
+  echo "cloudfront: origin moved from $ORIGIN to $DNS"
 fi
 DOMAIN=$(aws cloudfront get-distribution --id $DIST --query Distribution.DomainName --output text)
 

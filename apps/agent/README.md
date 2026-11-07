@@ -87,7 +87,7 @@ cd ui && GATEWAY=http://127.0.0.1:8787 bun run dev   # the page with hot reload
 
 ## Hosting
 
-`deploy/aws.sh` sets up us-east-1: a Graviton instance (c7g.xlarge, IMDSv2, SSM only, no SSH) with Nitro Enclaves enabled, reachable only from CloudFront, which serves HTTPS. The instance role can read two SSM parameters (the access code and the model key's ciphertext) and send one metric; nothing else. The access code is generated once and also saved to your macOS keychain:
+`deploy/aws.sh` sets up us-east-1: a Graviton instance (c7g.xlarge, IMDSv2, SSM only, no SSH) with Nitro Enclaves enabled, reachable only from CloudFront, which serves HTTPS. The instance role can read three SSM parameters (the access code, the model key's ciphertext and the pinned PCR0s), send one metric and update its own `DeployedSha` tag; nothing else. The access code is generated once and also saved to your macOS keychain:
 
 ```sh
 security find-generic-password -s sikrets-agent-demo -a access-code -w
@@ -96,7 +96,7 @@ security find-generic-password -s sikrets-agent-demo -a access-code -w
 | Env for `aws.sh` | |
 |---|---|
 | `GEMINI_API_KEY` | Store or replace the model key, encrypted under the KMS key (String `/sikrets-agent-demo/model-key-ciphertext`). |
-| `ENCLAVE_PCR0` | Pin the KMS key to this enclave build. |
+| `ENCLAVE_PCR0` | Pin the KMS key to this enclave build. Refused if it leaves out the PCR0 running now (`FORCE_PCR0=1` overrides). |
 | `DEPLOY_REF` | Tag or commit SHA a new instance deploys. Required to create one. |
 | `ALERT_EMAIL` | Subscribe an address to the alerts topic. No address is stored in the repo. |
 | `BUDGET_USD` | Monthly budget, default 150. |
@@ -117,14 +117,14 @@ apps/agent/deploy/enclave/host.sh up                     # on the instance: the 
 ENCLAVE_PCR0=<new PCR0> deploy/aws.sh                    # once it answers
 ```
 
-`host.sh rollback` starts the previous image again (keep its PCR0 pinned until the new one is verified). The build adds a temporary swap file: building an image needs more memory than the host has beside the enclave's reservation.
+`aws.sh` mirrors the pinned set to SSM (`/sikrets-agent-demo/pinned-pcr0`), and reminds you when two PCR0s have been pinned for over a day. `host.sh up` starts only an image built from the checked-out commit whose PCR0 is pinned, and keeps the old one until the new one answers `/healthz`; if it doesn't, the old one comes back. `host.sh rollback` starts the previous image again (only while its PCR0 is pinned) and sets the replaced one aside as `.rejected`, so the next `up` builds afresh. `FORCE=1` skips those checks. The build adds a temporary swap file: building an image needs more memory than the host has beside the enclave's reservation.
 
 `deploy/enclave/host.sh` (on the instance) runs the agent inside the Nitro Enclave:
 
 - **Isolation:** the host can't read the enclave's memory. It only relays encrypted bytes: TLS to the model API (`MODEL.host`, now generativelanguage.googleapis.com), GitHub, OSV, KMS and Let's Encrypt runs from inside the enclave, through vsock proxies allowed to reach just those five hosts. The gateway and every owner's opencode run inside, each opencode in its own bubblewrap sandbox and uid (the image installs `bubblewrap` and `util-linux`). That changes the image, so a build with it has new PCR0–2: pin the new PCR0 (below) before it can decrypt the model key, and publish the new measurements.
 - **The model key:** stored only as KMS ciphertext. The KMS key's policy lets nobody decrypt, re-encrypt or create grants, except the instance role calling `Decrypt` with an attestation document whose PCR0 (`kms:RecipientAttestation:ImageSha384`) is the pinned build. The host hands the enclave the ciphertext and the role's temporary credentials; the enclave makes a fresh RSA key, asks the Nitro Security Module for an attestation document carrying it, and calls KMS itself. KMS returns the key encrypted to that RSA key, so the host relaying the call only ever sees ciphertext, and the same call from the host, without the enclave's attestation, is refused. Whoever controls the AWS account can still change the key policy; that's logged in CloudTrail.
 - **HTTPS ends inside the enclave** at `https://agent.sikrets.usetennant.com` (`TLS.host`). A network load balancer passes TCP through to the instance (443 with a PROXY v2 header naming the client, 80 for the certificate challenge); the host relays the bytes over vsock without decrypting them; inside, a small front (`src/tls-front.ts`) reads the client address and hands the TLS bytes to the gateway's own HTTPS server. The enclave makes its own TLS key and gets a Let's Encrypt certificate for the hostname baked into the image (so it's part of PCR0), answering the HTTP-01 challenge itself (`bootstrap.py`). The key leaves the enclave only encrypted under a KMS data key that `GenerateDataKey`/`Decrypt` release only to the attested PCR0; the host keeps that blob and the public certificate in `/etc/sikrets-agent/tls.json` and hands them back on restart. The certificate renews 30 days before it expires. DNS: a CNAME from the hostname to the load balancer (`aws.sh` prints both). The CloudFront URL still works, but there TLS ends at CloudFront and the origin hop is plain HTTP.
-- **The access code:** the host reads it from SSM and hands it over vsock with the ciphertext, every 15 minutes, so a rotated value reaches the enclave without a rebuild. The enclave answers with a status the host logs (`journalctl -u sikrets-enclave-feed`), never a secret.
+- **The access code:** the host reads it from SSM and hands it over vsock with the ciphertext, every 15 minutes, so a rotated value reaches the enclave without a rebuild or a restart (it signs everyone out; chats keep running). An empty code is refused. Signing out revokes that login on the server. The enclave answers with a status the host logs (`journalctl -u sikrets-enclave-feed`), never a secret.
 - **Attestation:** `/attestation` returns a document signed by the Nitro Security Module. Its PCR0–2 must match the measurements `nitro-cli build-enclave` printed for this build.
 
 A new build has a new PCR0, so the key won't decrypt for it until it's pinned (above); the enclave's feed retries every minute until then. `host.sh down` serves from the host again, without the model key: only the enclave can decrypt it.

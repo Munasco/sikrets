@@ -53,8 +53,9 @@ PrivateTmp=true
 WantedBy=multi-user.target
 EOF
 
-# Enclave allocator: 2 vCPUs and 2 GiB for an enclave, leaving the rest to the host.
-sed -i 's/^cpu_count:.*/cpu_count: 2/; s/^memory_mib:.*/memory_mib: 2048/' /etc/nitro_enclaves/allocator.yaml
+# Enclave allocator: the same reservation host.sh uses (deploy/enclave/allocator.env).
+. /opt/sikrets-agent/src/apps/agent/deploy/enclave/allocator.env
+sed -i "s/^cpu_count:.*/cpu_count: $ENCLAVE_CPUS_DEFAULT/; s/^memory_mib:.*/memory_mib: $ENCLAVE_MEMORY_MIB_DEFAULT/" /etc/nitro_enclaves/allocator.yaml
 systemctl enable --now nitro-enclaves-allocator.service || true
 
 systemctl daemon-reload
