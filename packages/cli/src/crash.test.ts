@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
-import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { Page } from "playwright-core";
@@ -46,6 +46,7 @@ beforeEach(async () => {
     const url = new URL(String(input));
     const method = init?.method ?? "GET";
     const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
+    if (url.hostname === "api.anthropic.com") return json({ data: [] });
     if (method === "GET" && url.pathname === "/v2/redis/databases") return json(Object.values(databases));
     if (method === "POST" && url.pathname === "/v2/redis/database") {
       const body = JSON.parse(String(init!.body)) as { database_name: string };
@@ -292,6 +293,28 @@ describe("rotate", () => {
     expect(token()).toBe("tok_rotated_1");
     expect((await state.load(root)).resources[0]!.rotation).toBeUndefined();
     expect([...keychain.keys()].some((k) => k.startsWith("dev.sikrets.recovery."))).toBe(false);
+  });
+});
+
+describe("replaced dashboard keys", () => {
+  test("state.json records only that a key awaits revoking; its last characters stay in a private per-user file", async () => {
+    const paste = (v: string) => request({ recipe: "anthropic/api-key", name: "anthropic", secret: async () => (await import("./core/secret.ts")).Secret.of(v) });
+    await applyPlan("add", (await planAdd(paste("sk-ant-api03-firstkeyfirstkeyfirst1111"), ctx)).changes, ctx);
+    const { run } = await import("./commands/rotate.ts");
+    const stdin = spyOn(Bun.stdin, "text").mockResolvedValue("sk-ant-api03-secondkeysecondkeysec2222");
+    await inProject(() => run(["anthropic"], { yes: true, "value-stdin": true }));
+    stdin.mockRestore();
+
+    const committed = await Bun.file(path.join(root, ".sikrets/state.json")).text();
+    expect(committed).not.toContain("1111");
+    expect((await state.load(root)).resources[0]!.oldKey).toEqual({ replacedAt: expect.any(String) });
+    const hints = path.join(root, ".home/revoke-hints.json");
+    expect(await Bun.file(hints).json()).toEqual({ "demo/anthropic": expect.stringMatching(/1111$/) });
+    expect((await stat(hints)).mode & 0o777).toBe(0o600);
+
+    await inProject(() => run(["anthropic"], { revoked: true }));
+    expect((await state.load(root)).resources[0]!.oldKey).toBeUndefined();
+    expect(await Bun.file(hints).json()).toEqual({});
   });
 });
 

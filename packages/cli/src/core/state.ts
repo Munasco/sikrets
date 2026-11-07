@@ -38,8 +38,12 @@ export interface Resource {
   autoRotate?: boolean;
   /** A rotation that started and hasn't finished; see commands/rotate.ts. */
   rotation?: Rotation;
-  /** Manual recipes: the key a rotation replaced, until the person confirms it was revoked. */
-  oldKey?: { hint: string; replacedAt: string };
+  /**
+   * Manual recipes: a rotation replaced a key the person still has to revoke. Only the time is
+   * kept here (this file can be committed); the key's last characters stay in the per-user
+   * revoke-hints file (store.ts).
+   */
+  oldKey?: { replacedAt: string };
 }
 
 /**

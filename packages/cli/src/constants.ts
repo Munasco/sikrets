@@ -32,6 +32,8 @@ export const FILES = {
   connections: "connections.json",
   /** Lock name held while a credential is being rotated. */
   rotation: "rotation",
+  /** Per-user (never committed): last characters of replaced keys awaiting revocation. */
+  revokeHints: "revoke-hints.json",
 } as const;
 export const IAC_DIR = "iac/terraform";
 
