@@ -1,5 +1,10 @@
 import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
-import { makeSessionCerts, type SessionCerts } from "./core/proxy/certs.ts";
+import { mkdtemp, readdir, rm, utimes } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { run as runSession } from "./commands/session.ts";
+import { makeSessionCerts, sweepStaleSessions, type SessionCerts } from "./core/proxy/certs.ts";
+import { ENV } from "./constants.ts";
 import { sandboxed, seatbeltProfile } from "./core/proxy/sandbox.ts";
 import { startProxy, type Proxy, type RequestLog } from "./core/proxy/server.ts";
 import { Secret } from "./core/secret.ts";
@@ -92,6 +97,11 @@ describe("credential proxy", () => {
 });
 
 describe("catalog services", () => {
+  test("no host belongs to two services", () => {
+    const hosts = SERVICES.flatMap((s) => Object.keys(s.hosts));
+    expect(new Set(hosts).size).toBe(hosts.length);
+  });
+
   test("keys go where each service expects them: a custom header or a query parameter", async () => {
     const pick = (f: (c: ReturnType<(typeof SERVICES)[number]["hosts"][string]>) => boolean) =>
       SERVICES.find((s) => !["github", "slack", "anthropic", "openai", "resend", "stripe"].includes(s.id) && f(Object.values(s.hosts)[0]!("k")))!;
@@ -119,6 +129,97 @@ describe("catalog services", () => {
     await c.dispose();
     fake.stop(true);
   });
+});
+
+describe("session lifecycle", () => {
+  test("a session ends exactly once, and says how", async () => {
+    const ends: string[] = [];
+    const short = proxy.open("t", [{ service: "github" }], 50, (s) => ends.push(`short:${s}`));
+    const s = proxy.open("t", [{ service: "github" }], 60_000, (st) => ends.push(`s:${st}`));
+    await Bun.sleep(100);
+    proxy.revoke(s.token);
+    proxy.revoke(s.token);
+    proxy.revoke(short.token); // already expired: no second ending
+    expect(ends).toEqual(["short:expired", "s:revoked"]);
+    expect(short.state).toBe("expired");
+  });
+
+  test("a TTL longer than setTimeout's limit doesn't end the session early", async () => {
+    const ends: string[] = [];
+    const s = proxy.open("t", [{ service: "github" }], 40 * 86_400_000, (st) => ends.push(st));
+    await Bun.sleep(50);
+    expect(ends).toEqual([]);
+    expect(await curl("https://api.github.com/user", s.token)).toBe(200);
+    proxy.revoke(s.token);
+  });
+
+  test("the wall clock decides: after the Mac sleeps past the deadline, nothing gets through", async () => {
+    const s = proxy.open("t", [{ service: "github" }], 60_000);
+    const realNow = Date.now;
+    Date.now = () => realNow() + 61_000; // the timer hasn't fired; the clock has moved on
+    try {
+      expect(await curl("https://api.github.com/user", s.token)).toBe(0);
+    } finally {
+      Date.now = realNow;
+      proxy.revoke(s.token);
+    }
+  });
+
+  test("leftover session folders of dead processes are swept; live ones are kept", async () => {
+    const tmp = await mkdtemp(path.join(os.tmpdir(), "sikrets-sweep-"));
+    try {
+      const make = async (name: string, owner?: number) => {
+        await Bun.write(path.join(tmp, name, "keys", "ca.key"), "fake");
+        if (owner !== undefined) await Bun.write(path.join(tmp, name, "owner.pid"), String(owner));
+      };
+      await make("sikrets-session-dead", 2 ** 22 + 12345);
+      await make("sikrets-session-live", process.pid);
+      await make("sikrets-session-old");
+      await make("sikrets-session-new");
+      await make("unrelated", 2 ** 22 + 12345);
+      const old = new Date(Date.now() - 3 * 86_400_000);
+      await utimes(path.join(tmp, "sikrets-session-old"), old, old);
+      expect(await sweepStaleSessions(tmp)).toBe(2);
+      expect((await readdir(tmp)).sort()).toEqual(["sikrets-session-live", "sikrets-session-new", "unrelated"]);
+    } finally {
+      await rm(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("sikrets session run", () => {
+  // Its own temp dir and config dir, so leftovers are easy to see and nothing touches the real ones.
+  let tmp: string;
+  const saved = { tmpdir: process.env.TMPDIR, cwd: process.cwd() };
+  beforeAll(async () => {
+    tmp = await mkdtemp(path.join(os.tmpdir(), "sikrets-session-run-"));
+    process.env.TMPDIR = tmp;
+    Bun.env[ENV.configDir] = path.join(tmp, "config");
+    process.chdir(tmp);
+  });
+  afterAll(async () => {
+    process.chdir(saved.cwd);
+    if (saved.tmpdir === undefined) delete process.env.TMPDIR;
+    else process.env.TMPDIR = saved.tmpdir;
+    delete Bun.env[ENV.configDir];
+    await rm(tmp, { recursive: true, force: true });
+  });
+  const deps = (ttlMs?: number) => ({ getToken: async () => Secret.of(REAL.github), ...(ttlMs ? { ttlMs } : {}) });
+  const leftovers = async () => (await readdir(tmp)).filter((n) => n.startsWith("sikrets-session-"));
+
+  test("a command that can't start still deletes the session's CA key", async () => {
+    await expect(runSession(["run", "github", "/nonexistent/agent"], { "no-sandbox": true }, deps())).rejects.toThrow();
+    expect(await leftovers()).toEqual([]);
+  });
+
+  test("when time runs out the agent is stopped, and the folder is gone", async () => {
+    const started = Date.now();
+    await runSession(["run", "github", "/bin/sleep", "30"], { "no-sandbox": true }, deps(300));
+    expect(Date.now() - started).toBeLessThan(5_000);
+    expect(process.exitCode).not.toBe(0);
+    process.exitCode = 0;
+    expect(await leftovers()).toEqual([]);
+  }, 15_000);
 });
 
 describe.if(process.platform === "darwin")("sandbox", () => {

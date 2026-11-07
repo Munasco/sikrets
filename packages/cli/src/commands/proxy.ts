@@ -12,12 +12,13 @@ export async function run(args: string[], opts: Record<string, unknown>) {
     if (!opts["value-stdin"]) console.error(`Create a token at ${s.tokenUrl}`);
     const value = await readSecretInput(opts, `${s.name} token (hidden): `);
     await tokens.set(s.id, value);
-    return console.log(opts.json ? JSON.stringify({ service: s.id, stored: true }) : `Stored the ${s.name} token in your keychain (${value.hint()}).`);
+    // Running sessions read tokens once, at start; they keep the old one until they end.
+    return console.log(opts.json ? JSON.stringify({ service: s.id, stored: true }) : `Stored the ${s.name} token in your keychain (${value.hint()}). Sessions already running keep the old one until they end.`);
   }
   if (sub === "rm") {
     if (!id) throw new Error("Usage: sikrets proxy rm <service>");
     await tokens.delete(service(id).id);
-    return console.log(`Removed the ${service(id).name} token.`);
+    return console.log(`Removed the ${service(id).name} token. Sessions already running keep using it until they end.`);
   }
   if (sub && sub !== "ls") throw new Error(`Unknown proxy subcommand "${sub}". Use: add, ls, rm`);
 

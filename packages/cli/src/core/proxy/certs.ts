@@ -1,5 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
-import { chmod } from "node:fs/promises";
+import { chmod, mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { PROXY } from "../../constants.ts";
@@ -32,8 +31,39 @@ async function systemRoots(): Promise<string> {
   throw new Error(`No system certificate bundle found (looked in ${PROXY.systemRoots.join(", ")})`);
 }
 
+const OWNER = "owner.pid";
+
+const running = (pid: number) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+};
+
+/**
+ * Deletes session folders whose owner is gone (killed with SIGKILL, a crash, a power cut), so no
+ * CA key outlives its session for long. Folders of sessions still running are left alone.
+ */
+export async function sweepStaleSessions(tmp = os.tmpdir()): Promise<number> {
+  let swept = 0;
+  for (const name of await readdir(tmp).catch(() => [] as string[])) {
+    if (!name.startsWith(PROXY.tempPrefix)) continue;
+    const base = path.join(tmp, name);
+    const pid = Number((await readFile(path.join(base, OWNER), "utf8").catch(() => "")).trim());
+    // No owner file: a folder from before owners were recorded, or one still being made; old ones go.
+    const stale = pid > 0 ? !running(pid) : Date.now() - ((await stat(base).catch(() => undefined))?.mtimeMs ?? Date.now()) > PROXY.staleTempMs;
+    if (!stale) continue;
+    await rm(base, { recursive: true, force: true }).catch(() => undefined);
+    swept++;
+  }
+  return swept;
+}
+
 export async function makeSessionCerts(hosts: readonly string[]): Promise<SessionCerts> {
-  const base = await mkdtemp(path.join(os.tmpdir(), "sikrets-session-"));
+  const base = await mkdtemp(path.join(os.tmpdir(), PROXY.tempPrefix));
+  await Bun.write(path.join(base, OWNER), String(process.pid));
   const dir = path.join(base, "keys");
   await Bun.write(path.join(dir, ".keep"), "");
   await chmod(base, 0o700);
