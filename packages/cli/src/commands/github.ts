@@ -48,8 +48,8 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   const grant = agent ? await authorize(root, agent, [{ key: keyName, resource: res.name }]) : undefined;
   // Installation tokens always last an hour, so an agent that expires sooner gets none.
   leaseSeconds(grant?.agent, GITHUB.tokenLifetimeSeconds, GITHUB.tokenLifetimeSeconds);
-  const key = await (await openVault(ctx.project, ctx.vault)).get(keyName);
-  if (!key) throw new Error(`${keyName} is missing from the ${ctx.vault} vault; add the key again`);
+  const key = await (await openVault(ctx.project, ctx.server)).get(keyName);
+  if (!key) throw new Error(`${keyName} is missing from the vault on ${ctx.server}; add the key again`);
 
   const t = await installationToken({ appId, installationId, key, repositories: list(opts.repo), permissions });
   if (grant?.agent.expiresAt && Date.parse(t.expiresAt) > Date.parse(grant.agent.expiresAt)) {

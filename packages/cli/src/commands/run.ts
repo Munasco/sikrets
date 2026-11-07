@@ -14,7 +14,7 @@ import { recordUse } from "../core/usage.ts";
 export async function projectEnv(root: string, agent?: string): Promise<Env> {
   const { resources } = await state.load(root);
   const { ctx } = await projectContext(root, { log: () => {} });
-  const vault = await openVault(ctx.project, ctx.vault);
+  const vault = await openVault(ctx.project, ctx.server);
   const live = resources.filter((x) => x.applied);
   const external = (await externalKeys(root)).map(({ key }) => key);
   const offers = [...live.flatMap((r) => r.envKeys.map((key) => ({ key, resource: r.name }))), ...external.map((key) => ({ key }))];
@@ -23,7 +23,7 @@ export async function projectEnv(root: string, agent?: string): Promise<Env> {
   for (const r of live) {
     for (const key of r.envKeys.filter((k) => !allowed || allowed.has(k))) {
       const value = await vault.get(key);
-      if (!value) throw new Error(`${key} is missing from the ${vault.name} vault; run sikrets apply`);
+      if (!value) throw new Error(`${key} is missing from the vault on ${vault.server}; run sikrets apply`);
       env[key] = value;
     }
   }

@@ -24,7 +24,7 @@ export async function run(_args: string[], opts: Record<string, unknown>) {
   if (opts["dry-run"]) return terraform(root, ["plan", "-input=false"], env);
   await terraform(root, ["apply", "-input=false", ...(opts.yes ? ["-auto-approve"] : [])], env);
 
-  const result = await sync(root, ctx.project, ctx.vault, env);
+  const result = await sync(root, ctx.project, ctx.server, env);
   await record(root, { kind: "apply", detail: `${resources.length} Terraform resource(s)${pending.length ? `, new: ${pending.join(", ")}` : ""}` });
   if (pending.length) {
     await journal.record(root, {
@@ -45,7 +45,7 @@ registerUndo("terraform.destroy", async ({ names }, ctx: Context) => {
   const targets = resources.filter((r) => list.includes(r.name));
   const env = await providerEnv(targets.map((r) => r.provider));
   await terraform(ctx.root, ["destroy", "-input=false", "-auto-approve", ...targets.map((r) => `-target=module.${tfIdent(r.name)}`)], env);
-  const vault = await openVault(ctx.project, ctx.vault);
+  const vault = await openVault(ctx.project, ctx.server);
   for (const r of targets) {
     for (const key of r.envKeys) await vault.delete(key);
     await state.upsert(ctx.root, { ...r, applied: false, outputs: {} });

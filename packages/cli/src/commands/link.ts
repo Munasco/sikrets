@@ -14,7 +14,7 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   const [key, ref] = args;
   if (opts.push) {
     const { ctx } = await projectContext(root, { log: (s) => log(opts, s) });
-    const vault = await openVault(ctx.project, ctx.vault);
+    const vault = await openVault(ctx.project, ctx.server);
     const result = await pushPending(root, (k) => vault.get(k), (s) => log(opts, s));
     const failed = result.filter((r) => r.error);
     if (failed.length) process.exitCode = 1;
@@ -39,11 +39,11 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   // Copying from an item whose write-back is pending would bring back a revoked value.
   assertNotPending(await externalKeys(root), [key], [ref]);
   const { ctx } = await projectContext(root, { log: (s) => log(opts, s) });
-  const vault = await openVault(ctx.project, ctx.vault);
+  const vault = await openVault(ctx.project, ctx.server);
   const value = await m.read(ref);
   const now = new Date().toISOString();
   await importExternalKeys(root, [{ key, source: m.id, ref, addedAt: now, sync: { state: "synced", at: now } }], () => vault.put(key, value));
   await record(root, { kind: "link", detail: `${m.name} ${ref}`, keys: [key] });
   if (opts.json) console.log(JSON.stringify({ key, ref, manager: m.id }));
-  else log(opts, `Linked ${key} to ${m.name} (${ref}). Copied its current value into the ${vault.name} vault; rotations write back to ${m.name}.`);
+  else log(opts, `Linked ${key} to ${m.name} (${ref}). Copied its current value into the vault on ${vault.server}; rotations write back to ${m.name}.`);
 }

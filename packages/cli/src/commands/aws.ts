@@ -44,8 +44,8 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   const grant = agent ? await authorize(root, agent, [res ? { key: keyName!, resource: res.name } : { key: used, resource: AWS_SESSION.profileScope }]) : undefined;
   // An agent's session never outlives the agent.
   const seconds = leaseSeconds(grant?.agent, wanted, AWS_SESSION.minMinutes * 60);
-  const key = res ? await (await openVault(ctx.project, ctx.vault)).get(keyName!) : undefined;
-  if (res && !key) throw new Error(`${keyName} is missing from the ${ctx.vault} vault; add the key again`);
+  const key = res ? await (await openVault(ctx.project, ctx.server)).get(keyName!) : undefined;
+  if (res && !key) throw new Error(`${keyName} is missing from the vault on ${ctx.server}; add the key again`);
 
   const region = typeof opts.region === "string" ? opts.region : Bun.env.AWS_REGION || AWS_SESSION.defaultRegion;
   const session = await awsSession({ ...(key ? { key } : {}), ...(profile ? { profile } : {}), region, seconds, ...(typeof opts.role === "string" ? { role: opts.role } : {}) });

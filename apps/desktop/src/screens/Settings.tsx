@@ -65,7 +65,7 @@ export function Settings({ info }: { info: Info }) {
               onClick={async () => {
                 setInitBusy(true);
                 try {
-                  await sikrets(["init", "--vault", "keychain"]);
+                  await sikrets(["init"]);
                   toast("Created sikrets.json");
                   refresh();
                 } catch (e) {

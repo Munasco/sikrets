@@ -10,8 +10,6 @@ export const USER_AGENT = "sikrets-cli";
 export const ENV = {
   /** Overrides ~/.sikrets (connections, browser profiles, run logs). */
   configDir: "SIKRETS_CONFIG_DIR",
-  /** Overrides the project's vault for one run: "ssm" or "keychain". */
-  vault: "SIKRETS_VAULT",
   /** Terraform-compatible binary to use instead of terraform/tofu on PATH. */
   terraform: "SIKRETS_TERRAFORM",
   /** Project name for the SDK when it can't infer one. */
@@ -26,7 +24,7 @@ export const ENV = {
   op: "SIKRETS_OP",
   /** "software" makes a new device identity use software keys even where a Secure Enclave exists. */
   deviceKeys: "SIKRETS_DEVICE_KEYS",
-  /** Sikrets server that `sikrets login` registers this device with. */
+  /** The Sikrets server to use instead of the hosted one (after --server, before sikrets.json). */
   server: "SIKRETS_SERVER",
   /** Set to 1 to run the opt-in Secure Enclave smoke test (silent: no Touch ID, no dialogs). */
   enclaveSmoke: "SIKRETS_ENCLAVE_SMOKE",
@@ -53,7 +51,6 @@ export const USAGE_DIR = "usage";
 export const IAC_DIR = "iac/terraform";
 // ── Defaults for sikrets.json ─────────────────────────────────────────────
 export const DEFAULTS = {
-  vault: "ssm",
   envFile: ".env",
   rotateEvery: "30d",
 } as const;
@@ -70,10 +67,11 @@ export const STAND_IN = {
 // ── Vault namespaces ──────────────────────────────────────────────────────
 /** OS keychain service for provider logins and minted management keys. */
 export const KEYCHAIN_SERVICE = "dev.sikrets";
-/** OS keychain service for one project's values. */
+/** Legacy vaults `sikrets migrate` reads from: one project's values in the OS keychain... */
 export const keychainVaultService = (project: string) => `${KEYCHAIN_SERVICE}.vault.${project}`;
-/** SSM Parameter Store path prefix; values live at /sikrets/<project>/<KEY>. */
+/** ...or in SSM Parameter Store at /sikrets/<project>/<KEY>. The prefix also stays in every envelope's AAD. */
 export const SSM_PREFIX = "/sikrets";
+export const LEGACY_VAULTS = ["ssm", "keychain"] as const;
 
 /** Tag applied to cloud resources Sikrets creates (and used to find them for cost). */
 export const MANAGED_BY_TAG = "sikrets";
@@ -186,12 +184,6 @@ export const ENVELOPE = {
   ivBytes: 12,
   tagBytes: 16,
 } as const;
-/** SSM parameter (beside the project's values) naming the data key they're sealed under; not a vault key. */
-export const DATA_KEY_MARKER = "sikrets.datakey";
-/** Under the user dir: serialises writes to one project's keychain vault (CLI and desktop). */
-export const vaultLockFile = (project: string) => `locks/vault-${project}`;
-/** SSM Parameter Store's Standard tier value limit, which the sealed value has to fit. */
-export const SSM_STANDARD_MAX_BYTES = 4096;
 
 // ── Revealing a real value ────────────────────────────────────────────────
 export const REVEAL = {
@@ -262,12 +254,10 @@ export const DEVICE = {
 
 // Device sign-in and per-request proof of possession, in the style of DPoP (RFC 9449): every
 // request carries a JWS by the device key over method, URL, time, a one-time nonce and the body
-// hash. The hosted server doesn't exist yet; tests run against a local fake (testing/device-server.ts).
+// hash. The server side is packages/server (its PROTOCOL constants must match these).
 export const DEVICE_AUTH = {
-  /** Where `sikrets login` goes without --server or SIKRETS_SERVER: the local fake server. */
-  defaultServer: "http://127.0.0.1:4873",
-  fakeServerPort: 4873,
   paths: {
+    info: "/v1/info",
     authorize: "/v1/devices/authorize",
     token: "/v1/devices/token",
     /** Stands in for the browser approval page until the real sign-in flow exists. */
@@ -275,7 +265,13 @@ export const DEVICE_AUTH = {
     devices: "/v1/devices",
     revoke: (id: string) => `/v1/devices/${encodeURIComponent(id)}/revoke`,
     me: "/v1/me",
+    values: (project: string, environment: string) => `/v1/projects/${encodeURIComponent(project)}/environments/${encodeURIComponent(environment)}/values`,
+    value: (project: string, environment: string, name: string) => `/v1/projects/${encodeURIComponent(project)}/environments/${encodeURIComponent(environment)}/values/${encodeURIComponent(name)}`,
+    /** The data-key fingerprint a project is sealed under (GET), or claim it (PUT); every value write carries it too. */
+    dataKey: (project: string) => `/v1/projects/${encodeURIComponent(project)}/datakey`,
   },
+  /** The server's answer to a write sealed under another data key than the project's. */
+  dataKeyMismatch: "datakey_mismatch",
   proofHeader: "sikrets-device-proof",
   proofType: "sikrets-device-proof+jwt",
   certificateType: "sikrets-device-cert+jwt",
@@ -287,11 +283,33 @@ export const DEVICE_AUTH = {
   nonceBytes: 16,
   /** The token endpoint's answer while the person hasn't approved yet (RFC 8628 wording). */
   pending: "authorization_pending",
+  /** The reason a server gives for a device key it has revoked for good. */
+  keyRevoked: "key revoked",
   pollIntervalMs: 1000,
   approvalTimeoutMs: 5 * 60_000,
   userCodeChars: 8,
   deviceIdPrefix: "dev_",
   requestIdPrefix: "dar_",
+} as const;
+
+// ── Sikrets server ────────────────────────────────────────────────────────
+// Every vault value goes through a Sikrets server, sealed. Ours by default; a custom one comes from
+// --server, SIKRETS_SERVER, "server" in sikrets.json, or the one `sikrets login --server` saved.
+export const SERVER = {
+  /** The hosted server (placeholder until it is live). */
+  defaultUrl: "https://api.sikrets.usetennant.com",
+  /** `sikrets server`: port, and data folder under the user dir. */
+  localPort: 4873,
+  localHost: "127.0.0.1",
+  /** The one account on a `sikrets server`. */
+  localUser: "you@localhost",
+  dataDir: "server",
+  /** The environment values go to until environments are exposed in the CLI. */
+  environment: "dev",
+  /** A server that approves sign-ins itself (`sikrets server`) says so in /v1/info. */
+  autoApproval: "auto",
+  /** Hosts that are this machine: the only ones signed in to without `sikrets login`, or allowed over http in sikrets.json. */
+  loopbackHosts: ["localhost", "127.0.0.1", "[::1]", "::1"],
 } as const;
 
 // `sikrets mcp`. Output is scrubbed of secret values before it reaches the agent; values shorter

@@ -46,7 +46,7 @@ const recovery: Recovery = { state: "ok", setUp: true, createdAt: at(21), split:
 
 const status: Status = {
   project: "shop",
-  vault: "keychain",
+  server: "https://api.sikrets.usetennant.com",
   resources: ["payments", "llm", "cache", "github-app", "email"].map((name) => ({ name })),
 };
 

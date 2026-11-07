@@ -9,7 +9,7 @@ import { previewDigest } from "../commands/import.ts";
 import { openVault } from "./vault.ts";
 
 // Vault values are stored sealed, so read them back the way the CLI does rather than off the raw keychain entry.
-const opened = async (project: string, key: string) => (await (await openVault(project, "keychain")).get(key))?.reveal();
+const opened = async (project: string, key: string) => (await (await openVault(project)).get(key))?.reveal();
 
 // Every value below is fake. Each fixture follows the real export's header and shape.
 
@@ -205,7 +205,6 @@ describe("sikrets import", () => {
     root = await mkdtemp(path.join(os.tmpdir(), "sikrets-import-"));
     cwd = process.cwd();
     process.chdir(root);
-    process.env.SIKRETS_VAULT = "keychain";
     spyOn(Bun.secrets, "set").mockImplementation(async ({ service, name, value }) => void keychain.set(`${service}/${name}`, value));
     spyOn(Bun.secrets, "get").mockImplementation(async ({ service, name }) => keychain.get(`${service}/${name}`) ?? null);
     spyOn(console, "error").mockImplementation((...a: unknown[]) => void output.push(a.join(" ")));
@@ -220,8 +219,8 @@ describe("sikrets import", () => {
     await Bun.write(path.join(root, "Passwords.csv"), APPLE);
     const { run } = await import("../commands/import.ts");
     await run(["Passwords.csv"], { yes: true });
-    const service = `dev.sikrets.vault.${path.basename(root).toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/^-+/, "")}`;
-    expect(await opened(service.slice("dev.sikrets.vault.".length), "GITHUB_COM_DEV_PASSWORD")).toBe("fake-gh-pass");
+    const project = path.basename(root).toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/^-+/, "");
+    expect(await opened(project, "GITHUB_COM_DEV_PASSWORD")).toBe("fake-gh-pass");
     const text = output.join("\n");
     expect(text).toContain("+ GITHUB_COM_DEV_PASSWORD");
     expect(text).toContain("Delete it now: rm");

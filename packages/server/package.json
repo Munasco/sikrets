@@ -1,0 +1,25 @@
+{
+  "name": "@sikrets/server",
+  "version": "0.0.1",
+  "description": "Sikrets server: devices, sign-in and zero-knowledge storage of sealed vault values.",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./store-contract": "./src/store-contract.ts"
+  },
+  "scripts": {
+    "start": "bun run src/main.ts",
+    "dev": "bun --watch run src/main.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test --timeout 5000"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "3.1156.0",
+    "hono": "4.13.16"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.1",
+    "typescript": "5.9.3"
+  }
+}

@@ -10,7 +10,7 @@ import { managerFor } from "./index.ts";
 import { openVault } from "../core/vault.ts";
 
 // Vault values are stored sealed, so read them back the way the CLI does rather than off the raw keychain entry.
-const opened = async (project: string, key: string) => (await (await openVault(project, "keychain")).get(key))?.reveal();
+const opened = async (project: string, key: string) => (await (await openVault(project)).get(key))?.reveal();
 
 // Fake `bw` and `op` on PATH (fakes/*.ts behind tiny shell wrappers), an in-memory keychain and a
 // throwaway config dir, so no real vault, keychain or account is touched. Every value is fake.
@@ -315,7 +315,7 @@ describe("write-back drift", () => {
     await inProject(async () => {
       await (await import("../commands/link.ts")).run(["GITHUB_TOKEN", "bw://item-1/password"], {});
       // Rotation: the vault gets the new value, then bw is locked elsewhere so the write-back fails.
-      await (await import("../core/vault.ts")).openVault("project", "keychain").then((v) => v.put("GITHUB_TOKEN", Secret.of("rotated-github")));
+      await (await import("../core/vault.ts")).openVault("project").then((v) => v.put("GITHUB_TOKEN", Secret.of("rotated-github")));
       await Bun.write(path.join(dir, "bw.json"), JSON.stringify({ ...(await bwState()), status: "locked" }));
       const result = await writeBack(root(), new Map([["GITHUB_TOKEN", Secret.of("rotated-github")]]), () => {});
       expect(result[0]!.error).toContain("expired");
@@ -327,13 +327,13 @@ describe("write-back drift", () => {
       await expect(link.run(["OTHER", "bw://item-1/password"], {})).rejects.toThrow("sikrets link --push");
       await expect((await import("../commands/import.ts")).run(["bitwarden"], { yes: true })).rejects.toThrow("old, revoked value");
       await expect(link.run(["GITHUB_TOKEN"], { remove: true })).rejects.toThrow("sikrets link --push");
-      expect((await (await openVault("project", "keychain")).get("GITHUB_TOKEN"))?.reveal()).toBe("rotated-github"); // nothing copied back
+      expect((await (await openVault("project")).get("GITHUB_TOKEN"))?.reveal()).toBe("rotated-github"); // nothing copied back
 
       await link.run([], { push: true });
       expect((await bwState()).items[0].login.password).toBe("rotated-github");
       expect((await externalKeys(root()))[0]!.sync).toMatchObject({ state: "synced" });
       await link.run(["GITHUB_TOKEN", "bw://item-1/password"], {}); // allowed again
-      expect((await (await openVault("project", "keychain")).get("GITHUB_TOKEN"))?.reveal()).toBe("rotated-github");
+      expect((await (await openVault("project")).get("GITHUB_TOKEN"))?.reveal()).toBe("rotated-github");
     });
   });
 
@@ -359,7 +359,6 @@ describe("sikrets import/link with a password manager", () => {
     const output: string[] = [];
     spyOn(console, "error").mockImplementation((...a: unknown[]) => void output.push(a.join(" ")));
     spyOn(console, "log").mockImplementation((...a: unknown[]) => void output.push(a.join(" ")));
-    process.env.SIKRETS_VAULT = "keychain";
     process.chdir(root);
     try {
       await (await import("../commands/import.ts")).run(["bitwarden"], { yes: true });

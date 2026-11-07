@@ -1,41 +1,41 @@
-import path from "node:path";
-import { awsClientConfig } from "../providers/aws.ts";
-import { configDir } from "../store.ts";
+import { DeviceAuthError } from "./device-auth.ts";
 import { ensureDataKey, fingerprint, loadDataKey } from "./datakey.ts";
-import { EnvelopeError, envelopeKind, openValue, projectKey, sealValue } from "./envelope.ts";
-import { withLock } from "./lock.ts";
+import { envelopeKind, openValue, projectKey, sealValue } from "./envelope.ts";
 import { registerUndo } from "./plan.ts";
 import { readRecord } from "./recovery.ts";
 import { Secret } from "./secret.ts";
-import { DATA_KEY_MARKER, keychainVaultService, SSM_PREFIX, SSM_STANDARD_MAX_BYTES, vaultLockFile } from "../constants.ts";
+import { connect, resolveServer, type Connection } from "./server.ts";
+import { DEVICE_AUTH, SERVER } from "../constants.ts";
 
-// Where provisioned credentials live. Until the Sikrets platform vault ships, the default is AWS
-// SSM Parameter Store (IAM-controlled, shared by everyone on the account); the OS keychain is the
-// single-machine fallback. Values only ever cross this boundary wrapped in Secret. Every value is
-// sealed on this machine before it is stored (see envelope.ts), so neither AWS nor anything else
-// reading the backend holds a key that opens it. Reads never write: legacy plaintext is refused
-// (anyone who can write the backend could have planted it) until `sikrets seal` seals it, on
-// purpose, with a check that the value didn't change in between.
-
-export type VaultName = "ssm" | "keychain";
+// Where values live: a Sikrets server (ours unless configured otherwise; see server.ts). Every
+// value is sealed on this machine before it leaves (envelope.ts) and opened here after it comes
+// back, so the server only ever holds ciphertext. Requests are signed by this device's key.
+// Values only ever cross this boundary wrapped in Secret.
 
 export interface Vault {
-  readonly name: VaultName;
+  /** The server holding the values. */
+  readonly server: string;
   put(key: string, value: Secret): Promise<void>;
+  /** Stores an envelope sealed elsewhere for this project and key, as is (sikrets migrate); it must open with this device's key. */
+  putSealed(key: string, envelope: string): Promise<void>;
+  /**
+   * Create-only versions (sikrets migrate): false, and nothing written, when the server already
+   * holds a value under that name, so a value written there meanwhile is never overwritten.
+   */
+  create(key: string, value: Secret): Promise<boolean>;
+  createSealed(key: string, envelope: string): Promise<boolean>;
+  /** Opens an envelope for this project and key with this device's key; throws if it doesn't open. */
+  open(key: string, envelope: string): Promise<Secret>;
   get(key: string): Promise<Secret | undefined>;
-  /** Whether a value is stored, without decrypting it. */
+  /** Whether a value is stored, without fetching or decrypting it. */
   has(key: string): Promise<boolean>;
   delete(key: string): Promise<void>;
-}
-
-/** The one method of SSMClient Sikrets uses, so tests can pass a fake. */
-export interface SsmClient {
-  send(command: object): Promise<any>;
+  /** Every stored name (stand-ins included), sorted. */
+  list(): Promise<string[]>;
 }
 
 export interface VaultOptions {
-  /** Defaults to an SSMClient for the connected AWS profile. */
-  ssm?: SsmClient;
+  environment?: string;
 }
 
 const KEY = /^[A-Z][A-Z0-9_]{0,127}$/;
@@ -45,203 +45,142 @@ const checkKey = (key: string) => {
   return key;
 };
 
-const MISMATCH_HINT = "This device's data key isn't the one this project's values are sealed with. Restore that key with: sikrets recovery restore --force";
 const RESTORE_HINT = "This device doesn't have your data key, so it can't open or add to this vault. Restore it with your recovery code: sikrets recovery restore";
+const MISMATCH_HINT = "This project is sealed with a different data key than this device's, so nothing was written. Restore that key on this device with your recovery code: sikrets recovery restore --force";
 
-/** A stored value and its version: equal versions mean nothing was written in between. */
-export interface Stored {
-  value: string;
-  version: string;
-}
+const isMismatch = (error: unknown) => error instanceof DeviceAuthError && error.code === DEVICE_AUTH.dataKeyMismatch;
 
-/** Values exactly as a backend holds them: envelopes, or legacy plaintext. */
-export interface RawStore {
-  get(key: string): Promise<string | undefined>;
-  getVersioned(key: string): Promise<Stored | undefined>;
-  put(key: string, stored: string): Promise<void>;
-  /** Writes `stored` only if `key` still holds `expected`. False (and nothing lost) if it changed. */
-  replaceIf(key: string, expected: Stored, stored: string): Promise<boolean>;
-  delete(key: string): Promise<void>;
-  /** Every key stored for the project; only backends that can list implement it. */
-  list?(): Promise<string[]>;
-  /** Whether any of the project's values is sealed; only backends that can list implement it. */
-  anySealed?(): Promise<boolean>;
-  /** Shared backends record which data key the project is sealed under: created once, never overwritten. */
-  marker?(): Promise<string | undefined>;
-  /** Claims the marker for `fp` unless one exists; returns whichever fingerprint holds it. */
-  claimMarker?(fp: string): Promise<string>;
-  maxBytes?: number;
-}
+/** Opens the project's vault on `server` (default: the resolved server). Nothing is fetched until it is used. */
+export async function openVault(project: string, server?: string, opts: VaultOptions = {}): Promise<Vault> {
+  const where = server ?? (await resolveServer());
+  const environment = opts.environment ?? SERVER.environment;
+  const P = DEVICE_AUTH.paths;
+  let connection: Promise<Connection> | undefined;
+  const conn = () => (connection ??= connect(where));
+  let names: Promise<Set<string>> | undefined;
 
-function keychainStore(project: string): RawStore {
-  const service = keychainVaultService(project);
-  // The keychain has no versions or conditional writes; a lock file stands in for both.
-  const locked = <T>(fn: () => Promise<T>) => withLock(path.join(configDir(), vaultLockFile(project)), fn);
-  const get = async (key: string) => (await Bun.secrets.get({ service, name: key })) || undefined;
-  return {
-    get,
-    getVersioned: async (key) => {
-      const value = await get(key);
-      return value === undefined ? undefined : { value, version: value };
-    },
-    put: (key, stored) => locked(() => Bun.secrets.set({ service, name: key, value: stored })),
-    replaceIf: (key, expected, stored) =>
-      locked(async () => {
-        if ((await get(key)) !== expected.value) return false;
-        await Bun.secrets.set({ service, name: key, value: stored });
-        return true;
-      }),
-    delete: (key) => locked(async () => void (await Bun.secrets.delete({ service, name: key }))),
+  const send = async <T>(method: string, route: string, payload?: unknown, allowMissing = false) => {
+    const { client, session } = await conn();
+    return client.send<T>(session, method, route, payload, { allowMissing });
   };
-}
+  const stored = () =>
+    (names ??= send<{ values: { name: string }[] }>("GET", P.values(project, environment)).then(
+      (r) => new Set(r.values.map((v) => v.name)),
+      (error) => {
+        names = undefined;
+        throw error;
+      },
+    ));
 
-async function ssmStore(project: string, client?: SsmClient): Promise<RawStore> {
-  const { SSMClient, PutParameterCommand, GetParameterCommand, GetParameterHistoryCommand, GetParametersByPathCommand, DeleteParameterCommand, ParameterNotFound } = await import("@aws-sdk/client-ssm");
-  const c: SsmClient = client ?? new SSMClient(await awsClientConfig());
-  const prefix = `${SSM_PREFIX}/${project}`;
-  const path = (key: string) => `${prefix}/${key}`;
-  const missing = (error: unknown) => error instanceof ParameterNotFound || (error as { name?: string })?.name === "ParameterNotFound";
-  const getVersioned = async (key: string): Promise<Stored | undefined> => {
-    try {
-      const p = (await c.send(new GetParameterCommand({ Name: path(key), WithDecryption: true }))).Parameter;
-      return p?.Value ? { value: p.Value, version: String(p.Version ?? "") } : undefined;
-    } catch (error) {
-      if (missing(error)) return undefined;
-      throw error;
-    }
-  };
-  const list = async (each: (p: { Name?: string; Value?: string }) => boolean | void) => {
-    let NextToken: string | undefined;
-    do {
-      const page = await c.send(new GetParametersByPathCommand({ Path: prefix, Recursive: false, WithDecryption: true, NextToken }));
-      for (const p of page.Parameters ?? []) if (each(p) === true) return true;
-      NextToken = page.NextToken;
-    } while (NextToken);
-    return false;
-  };
-  return {
-    maxBytes: SSM_STANDARD_MAX_BYTES,
-    get: async (key) => (await getVersioned(key))?.value,
-    getVersioned,
-    // SSM has no conditional put. Check the version right before, then confirm ours is the very
-    // next one; if another write slipped in between, put that newer value back and report it.
-    async replaceIf(key, expected, stored) {
-      if ((await getVersioned(key))?.version !== expected.version) return false;
-      const put = await c.send(new PutParameterCommand({ Name: path(key), Value: stored, Type: "SecureString", Overwrite: true, Tier: "Standard" }));
-      const before = Number(expected.version);
-      if (!Number.isInteger(before) || put?.Version === undefined || put.Version === before + 1) return true;
-      const history: { Version?: number; Value?: string }[] = [];
-      let NextToken: string | undefined;
-      do {
-        const page = await c.send(new GetParameterHistoryCommand({ Name: path(key), WithDecryption: true, NextToken }));
-        history.push(...(page.Parameters ?? []));
-        NextToken = page.NextToken;
-      } while (NextToken);
-      const theirs = history.filter((h) => h.Version! > before && h.Version! < put.Version).sort((a, b) => b.Version! - a.Version!)[0];
-      if (theirs?.Value) await c.send(new PutParameterCommand({ Name: path(key), Value: theirs.Value, Type: "SecureString", Overwrite: true, Tier: "Standard" }));
-      return false;
-    },
-    // Still a SecureString: KMS stays on as a second layer, it just no longer holds the only key.
-    put: async (key, stored) => void (await c.send(new PutParameterCommand({ Name: path(key), Value: stored, Type: "SecureString", Overwrite: true, Tier: "Standard" }))),
-    async delete(key) {
-      try {
-        await c.send(new DeleteParameterCommand({ Name: path(key) }));
-      } catch (error) {
-        if (!missing(error)) throw error;
-      }
-    },
-    async list() {
-      const names: string[] = [];
-      await list((p) => void (p.Name && names.push(p.Name.slice(prefix.length + 1))));
-      return names;
-    },
-    anySealed: () => list((p) => Boolean(p.Value && p.Name !== path(DATA_KEY_MARKER) && envelopeKind(p.Value) !== "plain")),
-    marker: async () => (await getVersioned(DATA_KEY_MARKER))?.value,
-    async claimMarker(fp) {
-      try {
-        // A plain String: a fingerprint reveals nothing, and anyone reading the project may check it.
-        await c.send(new PutParameterCommand({ Name: path(DATA_KEY_MARKER), Value: fp, Type: "String", Overwrite: false, Tier: "Standard" }));
-        return fp;
-      } catch (error) {
-        if ((error as { name?: string })?.name !== "ParameterAlreadyExists") throw error;
-        return (await getVersioned(DATA_KEY_MARKER))?.value ?? fp;
-      }
-    },
-  };
-}
-
-/** The vault, plus what `sikrets seal` needs: the raw store and the write-path project key. */
-export interface SealableVault extends Vault {
-  readonly store: RawStore;
-  writeKey(key: string): Promise<Uint8Array>;
-  seal(key: string, writeKey: Uint8Array, plaintext: string): string;
-}
-
-export const plaintextHint = (key: string) => `${key} is stored unencrypted, so it isn't trusted. Check it, then seal it with: sikrets seal --apply`;
-
-function sealedVault(project: string, name: VaultName, store: RawStore): SealableVault {
   const readKey = async () => {
     const dataKey = await loadDataKey();
     if (!dataKey) throw new Error(RESTORE_HINT);
     return projectKey(dataKey, project);
   };
 
-  // A device without a data key creates one only when nothing says one already exists (no
-  // recovery record, no sealed values, no marker). Otherwise it would quietly seal new values under
-  // a key no other device holds, next to old ones it can't open. On a shared backend the project's
-  // marker is claimed with a create-only write, so of two fresh devices only the first one's key is
-  // used; the other is refused before it writes anything.
-  let claimed: string | undefined; // checked once per vault, not on every write
-  const claim = async (dataKey: Uint8Array) => {
-    const mine = fingerprint(dataKey);
-    if (!store.claimMarker || claimed === mine) return;
-    if ((await store.claimMarker(mine)) !== mine) throw new Error(MISMATCH_HINT);
-    claimed = mine;
-  };
-  const writeKey = async (key: string) => {
-    const existing = await loadDataKey();
-    if (existing) {
-      await claim(existing);
-      return projectKey(existing, project);
+  /** The fingerprint the server says this project's values are sealed under, if it has one. */
+  let claimed: Promise<string | undefined> | undefined;
+  const claimedFingerprint = () =>
+    (claimed ??= send<{ fingerprint: string } | undefined>("GET", P.dataKey(project), undefined, true).then(
+      (r) => r?.fingerprint,
+      (error) => {
+        claimed = undefined;
+        throw error;
+      },
+    ));
+
+  /** Whether a stored value opens under `key`; undefined when there is none to try. */
+  const opensExisting = async (key: Buffer): Promise<boolean | undefined> => {
+    for (const name of [...(await stored())].sort()) {
+      const found = await send<{ value: string } | undefined>("GET", P.value(project, environment, name), undefined, true);
+      if (!found || envelopeKind(found.value) !== "sealed") continue;
+      try {
+        openValue(key, project, name, found.value);
+        return true;
+      } catch {
+        return false;
+      }
     }
-    const current = await store.get(key);
-    if ((await readRecord()) || (await store.marker?.()) || (current && envelopeKind(current) !== "plain") || (await store.anySealed?.())) throw new Error(RESTORE_HINT);
-    const created = await ensureDataKey();
-    await claim(created);
-    return projectKey(created, project);
+    return undefined;
   };
 
-  const seal = (key: string, k: Uint8Array, plaintext: string) => {
-    const stored = sealValue(k, project, key, plaintext);
-    const size = Buffer.byteLength(stored);
-    if (store.maxBytes && size > store.maxBytes) {
-      throw new Error(`${key} is too large for the ${name} vault once encrypted (${size} of ${store.maxBytes} bytes). Values up to about 3 KB fit; use the keychain vault for larger ones`);
+  // The key to write with, checked against the project's data-key claim on the server before the
+  // first write (and claimed if the project has none), so two devices that each made a key can't
+  // both seal values here: the server keeps the first fingerprint and refuses the other. A device
+  // without a data key makes one only for a project nothing says is sealed yet (no claim, no
+  // recovery record, no values); `create` is false for envelopes sealed elsewhere.
+  let writer: Promise<{ key: Buffer; fingerprint: string }> | undefined;
+  const writeKey = (create = true) =>
+    (writer ??= (async () => {
+      let dataKey = await loadDataKey();
+      const held = await claimedFingerprint();
+      if (!dataKey) {
+        if (!create || held || (await readRecord()) || (await stored()).size) throw new Error(RESTORE_HINT);
+        dataKey = await ensureDataKey();
+      }
+      const mine = fingerprint(dataKey);
+      if (held && held !== mine) throw new Error(MISMATCH_HINT);
+      const key = projectKey(dataKey, project);
+      if (!held) {
+        // Values stored before claims existed: claim only with the key they open under.
+        if ((await opensExisting(key)) === false) throw new Error(MISMATCH_HINT);
+        try {
+          await send("PUT", P.dataKey(project), { fingerprint: mine });
+        } catch (error) {
+          if (isMismatch(error)) throw new Error(MISMATCH_HINT);
+          throw error;
+        }
+        claimed = Promise.resolve(mine);
+      }
+      return { key, fingerprint: mine };
+    })().catch((error) => {
+      writer = undefined;
+      throw error;
+    }));
+
+  const upload = async (key: string, sealed: string, dataKey: string, ifAbsent = false): Promise<boolean> => {
+    try {
+      await send("PUT", P.value(project, environment, key), { value: sealed, dataKey, ...(ifAbsent ? { ifAbsent: true } : {}) });
+    } catch (error) {
+      if (isMismatch(error)) throw new Error(MISMATCH_HINT);
+      if (error instanceof DeviceAuthError && error.code === "too_large") throw new Error(`${key} is too large to store once encrypted (${Buffer.byteLength(sealed)} bytes): ${error.message}`);
+      if (ifAbsent && error instanceof DeviceAuthError && error.status === 412) return false;
+      throw error;
     }
-    return stored;
+    (await stored()).add(key);
+    return true;
+  };
+  const seal = async (key: string, value: Secret, ifAbsent = false) => {
+    const w = await writeKey();
+    return upload(key, sealValue(w.key, project, key, value.reveal()), w.fingerprint, ifAbsent);
+  };
+  const sealedOnly = (key: string, envelope: string) => {
+    if (envelopeKind(envelope) !== "sealed") throw new Error(`${key} isn't sealed; refusing to upload it as is`);
+    return envelope;
   };
 
   return {
-    name,
-    store,
-    writeKey,
-    seal,
-    put: async (key, value) => store.put(checkKey(key), seal(key, await writeKey(key), value.reveal())),
-    // A read never writes and never creates a key.
+    server: where,
+    put: async (key, value) => void (await seal(checkKey(key), value)),
+    putSealed: async (key, envelope) => void (await upload(checkKey(key), sealedOnly(key, envelope), (await writeKey(false)).fingerprint)),
+    create: async (key, value) => seal(checkKey(key), value, true),
+    createSealed: async (key, envelope) => upload(checkKey(key), sealedOnly(key, envelope), (await writeKey(false)).fingerprint, true),
+    open: async (key, envelope) => Secret.of(openValue(await readKey(), project, checkKey(key), envelope)),
     async get(key) {
-      const stored = await store.get(checkKey(key));
-      if (stored === undefined) return undefined;
-      if (envelopeKind(stored) === "plain") throw new EnvelopeError(plaintextHint(key));
-      return Secret.of(openValue(await readKey(), project, key, stored));
+      const found = await send<{ value: string } | undefined>("GET", P.value(project, environment, checkKey(key)), undefined, true);
+      if (!found) return undefined;
+      return Secret.of(openValue(await readKey(), project, key, found.value));
     },
-    has: async (key) => (await store.get(checkKey(key))) !== undefined,
-    delete: (key) => store.delete(checkKey(key)),
+    has: async (key) => (await stored()).has(checkKey(key)),
+    async delete(key) {
+      await send("DELETE", P.value(project, environment, checkKey(key)));
+      (await stored()).delete(key);
+    },
+    list: async () => [...(await stored())].sort(),
   };
 }
 
-export const openVault = async (project: string, name: VaultName, opts: VaultOptions = {}): Promise<SealableVault> =>
-  sealedVault(project, name, name === "ssm" ? await ssmStore(project, opts.ssm) : keychainStore(project));
-
 registerUndo("vault.delete", async ({ project, keys }, ctx) => {
-  const vault = await openVault(project!, ctx.vault);
+  const vault = await openVault(project!, ctx.server);
   for (const key of keys!.split(",")) await vault.delete(key);
 });

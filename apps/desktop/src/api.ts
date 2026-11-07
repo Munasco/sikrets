@@ -103,7 +103,7 @@ export interface LinkedKey {
 
 export interface Status {
   project: string;
-  vault: string;
+  server: string;
   resources: { name: string; recipe?: string; state?: string }[];
 }
 

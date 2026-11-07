@@ -37,11 +37,11 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   // Never copy over a key, or from an item, whose rotated value hasn't been written back yet.
   assertNotPending(await externalKeys(root), entries.map((e) => e.key), entries.flatMap((e) => (e.ref ? [e.ref] : [])));
 
-  const vault = await openVault(ctx.project, ctx.vault);
+  const vault = await openVault(ctx.project, ctx.server);
   const existing = new Set<string>();
-  for (const e of entries) if ((await vault.get(e.key)) !== undefined) existing.add(e.key);
+  for (const e of entries) if (await vault.has(e.key)) existing.add(e.key);
 
-  say(`${ctx.dryRun ? "Dry run — would import" : "Importing"} ${entries.length} value(s) from ${label} into the ${vault.name} vault:`);
+  say(`${ctx.dryRun ? "Dry run — would import" : "Importing"} ${entries.length} value(s) from ${label} into the vault on ${vault.server}:`);
   for (const e of entries) say(`  ${existing.has(e.key) ? "~" : "+"} ${e.key}${e.item !== e.key ? `  (${e.item})` : ""}${existing.has(e.key) ? "  replaces the current value" : ""}${e.ref ? "  linked" : ""}`);
   const summary = { source: fromFile ? source : m!.id, format: label, keys: entries.map((e) => e.key), replaced: [...existing] };
   const digest = previewDigest(entries, existing);
