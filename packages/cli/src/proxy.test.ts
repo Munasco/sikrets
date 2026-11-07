@@ -1,0 +1,209 @@
+import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
+import { mkdtemp, readdir, rm, utimes } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { run as runSession } from "./commands/session.ts";
+import { makeSessionCerts, sweepStaleSessions, type SessionCerts } from "./core/proxy/certs.ts";
+import { ENV } from "./constants.ts";
+import { sandboxed, seatbeltProfile } from "./core/proxy/sandbox.ts";
+import { startProxy, type Proxy, type RequestLog } from "./core/proxy/server.ts";
+import { Secret } from "./core/secret.ts";
+
+// Real CONNECT and TLS from curl, against a fake provider that records what it was sent.
+const REAL = { github: "real-github-token-0123456789", slack: "real-slack-token-0123456789" };
+const seen: { host: string; auth: string | null; method: string }[] = [];
+const provider = Bun.serve({
+  port: 0,
+  hostname: "127.0.0.1",
+  fetch(req) {
+    seen.push({ host: req.headers.get("x-forwarded-host") ?? "", auth: req.headers.get("authorization"), method: req.method });
+    return Response.json({ ok: true });
+  },
+});
+
+let certs: SessionCerts;
+let proxy: Proxy;
+const logs: RequestLog[] = [];
+beforeAll(async () => {
+  mock.restore(); // other test files mock fetch and the keychain; this one needs the real ones
+  certs = await makeSessionCerts(["api.github.com", "uploads.github.com", "github.com", "slack.com"]);
+  proxy = await startProxy({
+    certs,
+    tokens: new Map([["github", Secret.of(REAL.github)], ["slack", Secret.of(REAL.slack)]]),
+    upstream: () => `http://127.0.0.1:${provider.port}`,
+    log: (e) => logs.push(e),
+  });
+});
+afterAll(async () => {
+  await proxy.stop();
+  await certs.dispose();
+  provider.stop(true);
+});
+
+async function curl(url: string, token: string, ...extra: string[]) {
+  const p = Bun.spawn(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "--cacert", certs.bundleFile, "-x", `http://${token}:@127.0.0.1:${proxy.port}`, ...extra, url], { stdout: "pipe", stderr: "pipe" });
+  return Number(await new Response(p.stdout).text());
+}
+
+describe("credential proxy", () => {
+  test("the agent's session token becomes the real token, and the agent's own header is dropped", async () => {
+    const s = proxy.open("t", [{ service: "github" }], 60_000);
+    seen.length = 0;
+    expect(await curl("https://api.github.com/user", s.token, "-H", "authorization: Bearer agent-supplied")).toBe(200);
+    expect(seen[0]!.auth).toBe(`Bearer ${REAL.github}`);
+    // git over HTTPS gets Basic auth with the token as the password.
+    expect(await curl("https://github.com/acme/repo.git/info/refs", s.token)).toBe(200);
+    expect(Buffer.from(seen[1]!.auth!.slice(6), "base64").toString()).toBe(`x-access-token:${REAL.github}`);
+  });
+
+  test("no session, a guessed one, an expired one and a revoked one all get nothing", async () => {
+    expect(await curl("https://api.github.com/user", "")).toBe(0); // curl reports the 407 CONNECT as 000
+    expect(await curl("https://api.github.com/user", "sks_guessed")).toBe(0);
+    const short = proxy.open("t", [{ service: "github" }], 50);
+    await Bun.sleep(80);
+    expect(await curl("https://api.github.com/user", short.token)).toBe(0);
+    const s = proxy.open("t", [{ service: "github" }], 60_000);
+    expect(await curl("https://api.github.com/user", s.token)).toBe(200);
+    proxy.revoke(s.token);
+    expect(await curl("https://api.github.com/user", s.token)).toBe(0);
+  });
+
+  test("a session only reaches its own services, with its own methods", async () => {
+    const s = proxy.open("t", [{ service: "slack", methods: ["GET"] }], 60_000);
+    seen.length = 0;
+    expect(await curl("https://slack.com/api/auth.test", s.token)).toBe(200);
+    expect(seen[0]!.auth).toBe(`Bearer ${REAL.slack}`);
+    expect(await curl("https://slack.com/api/chat.postMessage", s.token, "-X", "POST")).toBe(403);
+    // GitHub isn't in this bundle: its traffic is tunnelled untouched, so no token is attached.
+    expect(logs.at(-1)!.denied).toContain("POST isn't allowed");
+  });
+
+  test("--only-services refuses every other host", async () => {
+    const strict = await startProxy({ certs, tokens: new Map([["github", Secret.of(REAL.github)]]), onlyServices: true, upstream: () => `http://127.0.0.1:${provider.port}` });
+    const s = strict.open("t", [{ service: "github" }], 60_000);
+    const p = Bun.spawn(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "-p", "-x", `http://${s.token}:@127.0.0.1:${strict.port}`, `http://127.0.0.1:${provider.port}/`], { stdout: "pipe" });
+    expect(Number(await new Response(p.stdout).text())).toBe(0); // 403 to the CONNECT
+    await strict.stop();
+  });
+
+  test("other hosts are tunnelled without the proxy seeing inside", async () => {
+    const s = proxy.open("t", [{ service: "github" }], 60_000);
+    seen.length = 0;
+    const p = Bun.spawn(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "-p", "-x", `http://${s.token}:@127.0.0.1:${proxy.port}`, `http://127.0.0.1:${provider.port}/x`], { stdout: "pipe" });
+    expect(Number(await new Response(p.stdout).text())).toBe(200);
+    expect(seen[0]!.auth).toBeNull();
+  });
+});
+
+describe("session lifecycle", () => {
+  test("a session ends exactly once, and says how", async () => {
+    const ends: string[] = [];
+    const short = proxy.open("t", [{ service: "github" }], 50, (s) => ends.push(`short:${s}`));
+    const s = proxy.open("t", [{ service: "github" }], 60_000, (st) => ends.push(`s:${st}`));
+    await Bun.sleep(100);
+    proxy.revoke(s.token);
+    proxy.revoke(s.token);
+    proxy.revoke(short.token); // already expired: no second ending
+    expect(ends).toEqual(["short:expired", "s:revoked"]);
+    expect(short.state).toBe("expired");
+  });
+
+  test("a TTL longer than setTimeout's limit doesn't end the session early", async () => {
+    const ends: string[] = [];
+    const s = proxy.open("t", [{ service: "github" }], 40 * 86_400_000, (st) => ends.push(st));
+    await Bun.sleep(50);
+    expect(ends).toEqual([]);
+    expect(await curl("https://api.github.com/user", s.token)).toBe(200);
+    proxy.revoke(s.token);
+  });
+
+  test("the wall clock decides: after the Mac sleeps past the deadline, nothing gets through", async () => {
+    const s = proxy.open("t", [{ service: "github" }], 60_000);
+    const realNow = Date.now;
+    Date.now = () => realNow() + 61_000; // the timer hasn't fired; the clock has moved on
+    try {
+      expect(await curl("https://api.github.com/user", s.token)).toBe(0);
+    } finally {
+      Date.now = realNow;
+      proxy.revoke(s.token);
+    }
+  });
+
+  test("leftover session folders of dead processes are swept; live ones are kept", async () => {
+    const tmp = await mkdtemp(path.join(os.tmpdir(), "sikrets-sweep-"));
+    try {
+      const make = async (name: string, owner?: number) => {
+        await Bun.write(path.join(tmp, name, "keys", "ca.key"), "fake");
+        if (owner !== undefined) await Bun.write(path.join(tmp, name, "owner.pid"), String(owner));
+      };
+      await make("sikrets-session-dead", 2 ** 22 + 12345);
+      await make("sikrets-session-live", process.pid);
+      await make("sikrets-session-old");
+      await make("sikrets-session-new");
+      await make("unrelated", 2 ** 22 + 12345);
+      const old = new Date(Date.now() - 3 * 86_400_000);
+      await utimes(path.join(tmp, "sikrets-session-old"), old, old);
+      expect(await sweepStaleSessions(tmp)).toBe(2);
+      expect((await readdir(tmp)).sort()).toEqual(["sikrets-session-live", "sikrets-session-new", "unrelated"]);
+    } finally {
+      await rm(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("sikrets session run", () => {
+  // Its own temp dir and config dir, so leftovers are easy to see and nothing touches the real ones.
+  let tmp: string;
+  const saved = { tmpdir: process.env.TMPDIR, cwd: process.cwd() };
+  beforeAll(async () => {
+    tmp = await mkdtemp(path.join(os.tmpdir(), "sikrets-session-run-"));
+    process.env.TMPDIR = tmp;
+    Bun.env[ENV.configDir] = path.join(tmp, "config");
+    process.chdir(tmp);
+  });
+  afterAll(async () => {
+    process.chdir(saved.cwd);
+    if (saved.tmpdir === undefined) delete process.env.TMPDIR;
+    else process.env.TMPDIR = saved.tmpdir;
+    delete Bun.env[ENV.configDir];
+    await rm(tmp, { recursive: true, force: true });
+  });
+  const deps = (ttlMs?: number) => ({ getToken: async () => Secret.of(REAL.github), ...(ttlMs ? { ttlMs } : {}) });
+  const leftovers = async () => (await readdir(tmp)).filter((n) => n.startsWith("sikrets-session-"));
+
+  test("a command that can't start still deletes the session's CA key", async () => {
+    await expect(runSession(["run", "github", "/nonexistent/agent"], { "no-sandbox": true }, deps())).rejects.toThrow();
+    expect(await leftovers()).toEqual([]);
+  });
+
+  test("when time runs out the agent is stopped, and the folder is gone", async () => {
+    const started = Date.now();
+    await runSession(["run", "github", "/bin/sleep", "30"], { "no-sandbox": true }, deps(300));
+    expect(Date.now() - started).toBeLessThan(5_000);
+    expect(process.exitCode).not.toBe(0);
+    process.exitCode = 0;
+    expect(await leftovers()).toEqual([]);
+  }, 15_000);
+});
+
+describe.if(process.platform === "darwin")("sandbox", () => {
+  test("the agent can use the proxy but not the keychain or the network directly", async () => {
+    await Bun.secrets.set({ service: "dev.sikrets.test.sandbox", name: "T", value: "should-stay-hidden" });
+    const s = proxy.open("t", [{ service: "github" }], 60_000);
+    const profile = seatbeltProfile({ privateDirs: [certs.dir] });
+    // Async: the proxy runs in this process, so a blocking spawn would deadlock it.
+    const run = async (...cmd: string[]) => {
+      const p = Bun.spawn(sandboxed(cmd, profile), { stdout: "pipe", stderr: "pipe" });
+      return { stdout: await new Response(p.stdout).text(), exitCode: await p.exited };
+    };
+    const via = await run("curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "--cacert", certs.bundleFile, "-x", `http://${s.token}:@127.0.0.1:${proxy.port}`, "https://api.github.com/user");
+    expect(via.stdout).toBe("200");
+    const direct = await run("curl", "-s", "-m", "3", "-o", "/dev/null", "-w", "%{http_code}", "https://example.com");
+    expect(direct.stdout).toBe("000");
+    const keychain = await run("security", "find-generic-password", "-s", "dev.sikrets.test.sandbox", "-a", "T", "-w");
+    expect(keychain.stdout).not.toContain("should-stay-hidden");
+    const keys = await run("ls", certs.dir);
+    expect(keys.exitCode).not.toBe(0);
+    await Bun.secrets.delete({ service: "dev.sikrets.test.sandbox", name: "T" });
+  }, 20_000);
+});

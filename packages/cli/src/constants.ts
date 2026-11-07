@@ -75,3 +75,25 @@ export const PROVIDER_URLS = {
   openai: { login: "https://platform.openai.com/login" },
   x: { login: "https://x.com/i/flow/login" },
 } as const;
+
+// ── Proxy and sessions ────────────────────────────────────────────────────
+// `sikrets session run` starts a credential proxy for one agent: the agent holds a session token,
+// the proxy holds the real keys and attaches them on the way out.
+export const PROXY = {
+  /** OS keychain service holding the real tokens the proxy attaches. */
+  keychainService: `${KEYCHAIN_SERVICE}.proxy`,
+  sessionPrefix: "sks_",
+  defaultDuration: "2h",
+  /** Folder under the user dir for per-session request logs. */
+  sessionsDir: "sessions",
+  /** Longest a session waits between checks of its deadline against the clock. */
+  expiryCheckMs: 60_000,
+  /** When a session expires, the agent gets SIGTERM, then SIGKILL after this long. */
+  killGraceMs: 5_000,
+  /** Prefix of each session's temp folder (CA and host keys); leftovers from crashed sessions are swept. */
+  tempPrefix: "sikrets-session-",
+  /** A session folder with no owner recorded is swept once it's this old (its certificates last 2 days). */
+  staleTempMs: 2 * 86_400_000,
+  /** Trust roots the session CA is appended to, for tools that replace the system store. */
+  systemRoots: ["/etc/ssl/cert.pem", "/etc/ssl/certs/ca-certificates.crt", "/etc/pki/tls/certs/ca-bundle.crt"],
+} as const;
