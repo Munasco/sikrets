@@ -6,9 +6,15 @@ import { FILE_LOCK } from "../constants.ts";
 // Bun-native file helpers. Bun.write creates missing parent folders and Bun.file reads lazily.
 // Bun has no permission API, so private files fall back to node:fs chmod/mkdir for 0600/0700.
 
+// One read of whatever file is there now: a file swapped in by an atomic rename mid-read can't
+// come back truncated to the old file's size.
 export async function readJson<T>(file: string, fallback: T): Promise<T> {
-  const f = Bun.file(file);
-  return (await f.exists()) ? ((await f.json()) as T) : fallback;
+  try {
+    return JSON.parse(await readFile(file, "utf8")) as T;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return fallback;
+    throw error;
+  }
 }
 
 export const readText = async (file: string) => {
