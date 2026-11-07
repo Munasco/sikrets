@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Bot, Plus, Ban, X } from "lucide-react";
 import { sikrets, type Agent, type KeyRow, type Status } from "../api.ts";
-import { ago, Button, Chip, cn, Empty, ErrorLine, Field, IconButton, Input, message, Panel, until, useLoad, useToast } from "../ui.tsx";
+import { ago, Button, Chip, cn, Empty, ErrorLine, Field, IconButton, Input, message, Panel, shown, until, useLoad, useToast } from "../ui.tsx";
 
 // Scoped agent identities: which resources or keys each agent may be handed, and until when.
 
@@ -29,7 +29,7 @@ export function Agents() {
           </Button>
         </div>
       )}
-      <ErrorLine error={list.error} />
+      {list.status === "error" && <ErrorLine error={list.error} />}
       <div className="overflow-hidden rounded-lg border border-line bg-white">
         <table className="w-full text-left text-[12.5px]">
           <thead>
@@ -40,10 +40,10 @@ export function Agents() {
             </tr>
           </thead>
           <tbody>
-            {list.data?.map((a) => <AgentLine key={a.name + a.createdAt} agent={a} onChange={list.reload} />)}
+            {shown(list)?.map((a) => <AgentLine key={a.name + a.createdAt} agent={a} onChange={list.reload} />)}
           </tbody>
         </table>
-        {!list.loading && !list.error && !list.data?.length && <Empty icon={<Bot className="size-4" />} title="No agents yet" />}
+        {list.status === "ready" && !list.data.length && <Empty icon={<Bot className="size-4" />} title="No agents yet" />}
       </div>
     </div>
   );
@@ -134,12 +134,12 @@ function AddAgent({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
       title="New agent"
       className="rise"
       actions={
-        <IconButton label="Close" shortcut="esc" onClick={onClose}>
+        <IconButton label="Close" shortcut="esc" disabled={busy} onClick={onClose}>
           <X className="size-3.5" />
         </IconButton>
       }
     >
-      <form onSubmit={submit} onKeyDown={(e) => e.key === "Escape" && onClose()} className="flex flex-col gap-3 p-3">
+      <form onSubmit={submit} onKeyDown={(e) => e.key === "Escape" && !busy && onClose()} className="flex flex-col gap-3 p-3">
         <div className="flex gap-3">
           <Field label="Name" className="w-56">
             <Input autoFocus value={name} onChange={(e) => setName(e.target.value.toLowerCase())} placeholder="claude-code" pattern="[a-z0-9-]+" required />
@@ -154,17 +154,17 @@ function AddAgent({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
         </div>
         <Field label={`Scope · ${scope.length} selected`}>
           <div className="flex flex-wrap gap-1.5">
-            {options.data?.map((s) => (
+            {shown(options)?.map((s) => (
               <button key={s} type="button" aria-pressed={scope.includes(s)} onClick={() => toggle(s)} className={cn("h-6 rounded-md border px-2 font-mono text-[11px] transition-colors", scope.includes(s) ? "border-forest bg-forest text-cream" : "border-line bg-white text-ink-soft hover:bg-cream")}>
                 {s}
               </button>
             ))}
-            {options.data && !options.data.length && <span className="text-[12px] text-dim">No keys in this project yet.</span>}
+            {options.status === "ready" && !options.data.length && <span className="text-[12px] text-dim">No keys in this project yet.</span>}
           </div>
         </Field>
-        <ErrorLine error={error ?? options.error} />
+        <ErrorLine error={error ?? (options.status === "error" ? options.error : undefined)} />
         <div className="flex justify-end gap-2">
-          <Button onClick={onClose}>Cancel</Button>
+          <Button disabled={busy} onClick={onClose}>Cancel</Button>
           <Button variant="primary" type="submit" busy={busy} disabled={!name || !scope.length}>Add agent</Button>
         </div>
       </form>

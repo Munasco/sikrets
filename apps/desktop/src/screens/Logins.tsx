@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Globe, Plus, ShieldCheck, Trash2, Undo2, X } from "lucide-react";
 import { sikrets, type Grant, type Login } from "../api.ts";
-import { ago, Button, Chip, Empty, ErrorLine, Field, IconButton, Input, message, Panel, useLoad, useToast } from "../ui.tsx";
+import { ago, Button, Chip, Empty, ErrorLine, Field, IconButton, Input, message, Panel, shown, useLoad, useToast } from "../ui.tsx";
 
 // Website logins agents sign in with but never see. The password and 2FA secret go to the
 // keychain through the CLI's stdin; this window never shows them again.
@@ -24,14 +24,20 @@ export function Logins() {
           </Button>
         </div>
       )}
-      <ErrorLine error={logins.error} />
+      {logins.status === "error" && <ErrorLine error={logins.error} />}
       <Panel title="Logins">
-        {logins.data?.map((l) => <LoginLine key={l.name} login={l} onChange={reload} />)}
-        {!logins.loading && !logins.error && !logins.data?.length && <Empty icon={<Globe className="size-4" />} title="No logins yet" />}
+        {shown(logins)?.map((l) => <LoginLine key={l.name} login={l} onChange={reload} />)}
+        {logins.status === "ready" && !logins.data.length && <Empty icon={<Globe className="size-4" />} title="No logins yet" />}
       </Panel>
       <Panel title="Agent grants">
-        {grants.data?.map((g) => <GrantLine key={g.login + g.agent} grant={g} onChange={reload} />)}
-        {!grants.loading && !grants.data?.length && <p className="px-3 py-4 text-[12.5px] text-dim">No standing grants. Each agent is asked on first use.</p>}
+        {/* A failed read is an error, never "no grants": grants that exist must not look absent. */}
+        {grants.status === "error" && (
+          <div className="p-3">
+            <ErrorLine error={grants.error} />
+          </div>
+        )}
+        {shown(grants)?.map((g) => <GrantLine key={g.login + g.agent} grant={g} onChange={reload} />)}
+        {grants.status === "ready" && !grants.data.length && <p className="px-3 py-4 text-[12.5px] text-dim">No standing grants. Each agent is asked on first use.</p>}
       </Panel>
     </div>
   );
@@ -144,12 +150,12 @@ function AddLogin({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
       title="New login"
       className="rise"
       actions={
-        <IconButton label="Close" shortcut="esc" onClick={onClose}>
+        <IconButton label="Close" shortcut="esc" disabled={busy} onClick={onClose}>
           <X className="size-3.5" />
         </IconButton>
       }
     >
-      <form onSubmit={submit} onKeyDown={(e) => e.key === "Escape" && onClose()} className="grid grid-cols-2 gap-3 p-3">
+      <form onSubmit={submit} onKeyDown={(e) => e.key === "Escape" && !busy && onClose()} className="grid grid-cols-2 gap-3 p-3">
         <Field label="Name">
           <Input autoFocus required value={form.name} onChange={set("name")} placeholder="github" />
         </Field>
@@ -169,7 +175,7 @@ function AddLogin({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
           <ErrorLine error={error} />
         </div>
         <div className="col-span-2 flex justify-end gap-2">
-          <Button onClick={onClose}>Cancel</Button>
+          <Button disabled={busy} onClick={onClose}>Cancel</Button>
           <Button variant="primary" type="submit" busy={busy}>Save to keychain</Button>
         </div>
       </form>

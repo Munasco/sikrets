@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { externalKeys, saveExternalKeys, writeBack } from "../core/keys.ts";
+import { externalKeys, markPending, saveExternalKeys, writeBack } from "../core/keys.ts";
 import { Secret } from "../core/secret.ts";
 import { bitwarden, parseRef as parseBwRef } from "./bitwarden.ts";
 import { onepassword, parseRef as parseOpRef } from "./onepassword.ts";
@@ -170,14 +170,34 @@ describe("Bitwarden adapter", () => {
     expect(JSON.stringify(entries)).not.toContain("old-github-token");
   });
 
-  test("lock forgets the session", async () => {
+  test("lock forgets the session and the connection record", async () => {
     await unlockBw();
     await bitwarden.lock();
     expect(keychain.size).toBe(0);
-    await expect(bitwarden.read("bw://item-1")).rejects.toThrow("locked");
+    expect(await Bun.file(path.join(dir, "config", "connections.json")).text()).not.toContain("bitwarden");
+    expect(await bitwarden.status()).toEqual({ state: "locked", account: "dev@example.com" });
+    await expect(bitwarden.read("bw://item-1")).rejects.toThrow("Bitwarden is locked");
+  });
+
+  test("status follows bw: unauthenticated, unlocked, then expired when locked elsewhere", async () => {
+    expect(await bitwarden.status()).toEqual({ state: "unauthenticated" });
+    await unlockBw();
+    expect(await bitwarden.status()).toEqual({ state: "unlocked", account: "dev@example.com" });
+    // `bw lock` in another terminal: the saved session is now stale.
+    await Bun.write(path.join(dir, "bw.json"), JSON.stringify({ ...(await bwState()), status: "locked" }));
+    expect(await bitwarden.status()).toEqual({ state: "expired", account: "dev@example.com" });
+    await expect(bitwarden.read("bw://item-1")).rejects.toThrow("Bitwarden session for dev@example.com expired");
+    await expect(bitwarden.write("bw://item-1", Secret.of("fake-new"))).rejects.toThrow("sikrets unlock bitwarden");
+  });
+
+  test("a failed sign-in points bw back at the server it had", async () => {
+    await expect(unlockBw({ password: async () => Secret.of("wrong-fake-password") })).rejects.toThrow("bw login failed");
+    expect((await bwState()).serverUrl).toBe("https://vault.bitwarden.com");
+    expect(await Bun.file(path.join(dir, "config", "connections.json")).exists()).toBe(false);
   });
 
   test("a BW_SESSION already in the environment is used as is", async () => {
+    await Bun.write(path.join(dir, "bw.json"), JSON.stringify({ ...(await bwState()), status: "unlocked" }));
     process.env.BW_SESSION = "fake-bw-session";
     expect((await bitwarden.read("bw://item-1")).reveal()).toBe("old-github-token");
   });
@@ -202,8 +222,21 @@ describe("1Password adapter", () => {
     await expect(onepassword.read("op://Dev/Missing/credential")).rejects.toThrow("isn't an item");
   });
 
-  test("not signed in fails with op's message", async () => {
-    await expect(onepassword.read("op://Dev/Stripe/credential")).rejects.toThrow("not currently signed in");
+  test("never unlocked here is locked, even if op could sign itself in", async () => {
+    expect(await onepassword.status()).toEqual({ state: "locked", account: "dev@example.com" });
+    await expect(onepassword.read("op://Dev/Stripe/credential")).rejects.toThrow("1Password is locked. Run: sikrets unlock 1password");
+    expect((await calls()).some((c) => c.args[0] === "read")).toBe(false);
+  });
+
+  test("status: unlocked, expired when op drops the token, locked after lock", async () => {
+    await unlockOp();
+    expect(await onepassword.status()).toEqual({ state: "unlocked", account: "FAKEUSERUUID" });
+    keychain.set("dev.sikrets.1password/FAKEUSERUUID#session", "fake-op-stale");
+    expect(await onepassword.status()).toEqual({ state: "expired", account: "FAKEUSERUUID" });
+    await expect(onepassword.read("op://Dev/Stripe/credential")).rejects.toThrow("1Password session for FAKEUSERUUID expired");
+    await onepassword.lock();
+    expect(keychain.size).toBe(0);
+    expect(await onepassword.status()).toMatchObject({ state: "locked" });
   });
 
   test("write edits the field through a template on stdin", async () => {
@@ -258,6 +291,61 @@ describe("rotation write-back", () => {
     expect((await opState()).items[0].fields[1].value).toBe("rotated-stripe");
     expect(said.join("\n")).not.toMatch(/rotated-/);
     await expectCleanArgv("rotated-github", "rotated-stripe", "rotated-gone");
+  });
+});
+
+describe("write-back drift", () => {
+  const root = () => path.join(dir, "project");
+  async function inProject<T>(fn: () => Promise<T>): Promise<T> {
+    const cwd = process.cwd();
+    spyOn(console, "error").mockImplementation(() => {});
+    spyOn(console, "log").mockImplementation(() => {});
+    process.env.SIKRETS_VAULT = "keychain";
+    await Bun.write(path.join(root(), ".keep"), "");
+    process.chdir(root());
+    try {
+      return await fn();
+    } finally {
+      process.chdir(cwd);
+    }
+  }
+
+  test("a failed write-back stays pending; link and import refuse the stale item until --push", async () => {
+    await unlockBw();
+    await inProject(async () => {
+      await (await import("../commands/link.ts")).run(["GITHUB_TOKEN", "bw://item-1/password"], {});
+      // Rotation: the vault gets the new value, then bw is locked elsewhere so the write-back fails.
+      await (await import("../core/vault.ts")).openVault("project", "keychain").then((v) => v.put("GITHUB_TOKEN", Secret.of("rotated-github")));
+      await Bun.write(path.join(dir, "bw.json"), JSON.stringify({ ...(await bwState()), status: "locked" }));
+      const result = await writeBack(root(), new Map([["GITHUB_TOKEN", Secret.of("rotated-github")]]), () => {});
+      expect(result[0]!.error).toContain("expired");
+      expect((await externalKeys(root()))[0]!.sync).toMatchObject({ state: "pending", error: expect.stringContaining("expired") });
+
+      await bitwarden.unlock({ email: "dev@example.com", password: async () => Secret.of(BW_PASSWORD), say: () => {} });
+      const link = await import("../commands/link.ts");
+      await expect(link.run(["GITHUB_TOKEN", "bw://item-1/password"], {})).rejects.toThrow("old, revoked value");
+      await expect(link.run(["OTHER", "bw://item-1/password"], {})).rejects.toThrow("sikrets link --push");
+      await expect((await import("../commands/import.ts")).run(["bitwarden"], { yes: true })).rejects.toThrow("old, revoked value");
+      await expect(link.run(["GITHUB_TOKEN"], { remove: true })).rejects.toThrow("sikrets link --push");
+      expect((await (await openVault("project", "keychain")).get("GITHUB_TOKEN"))?.reveal()).toBe("rotated-github"); // nothing copied back
+
+      await link.run([], { push: true });
+      expect((await bwState()).items[0].login.password).toBe("rotated-github");
+      expect((await externalKeys(root()))[0]!.sync).toMatchObject({ state: "synced" });
+      await link.run(["GITHUB_TOKEN", "bw://item-1/password"], {}); // allowed again
+      expect((await (await openVault("project", "keychain")).get("GITHUB_TOKEN"))?.reveal()).toBe("rotated-github");
+    });
+  });
+
+  test("a crash between the vault write and the write-back still leaves the key pending", async () => {
+    await saveExternalKeys(root(), [{ key: "GITHUB_TOKEN", source: "bitwarden", ref: "bw://item-1/password", addedAt: "2026-01-01T00:00:00Z" }]);
+    await markPending(root(), ["GITHUB_TOKEN"]); // what rotate records right after the vault write
+    await expect(saveExternalKeys(root(), [{ key: "GITHUB_TOKEN", source: "bitwarden", ref: "bw://item-1/password", addedAt: "2026-01-02T00:00:00Z" }])).rejects.toThrow("never reached the password manager");
+  });
+
+  test("concurrent writers don't lose keys.json entries", async () => {
+    await Promise.all(Array.from({ length: 20 }, (_, i) => saveExternalKeys(root(), [{ key: `K${i}`, source: ".env", addedAt: "2026-01-01T00:00:00Z" }])));
+    expect(await externalKeys(root())).toHaveLength(20);
   });
 });
 

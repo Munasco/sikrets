@@ -42,7 +42,7 @@ const grants: Grant[] = [
   { login: "stripe", agent: "reviewer", grantedAt: at(3) },
 ];
 
-const recovery: Recovery = { setUp: true, createdAt: at(21), split: false, matchesThisDevice: true, file: "~/.sikrets/recovery.json" };
+const recovery: Recovery = { state: "ok", setUp: true, createdAt: at(21), split: false, matchesThisDevice: true, file: "~/.sikrets/recovery.json" };
 
 const status: Status = {
   project: "shop",
@@ -50,7 +50,7 @@ const status: Status = {
   resources: ["payments", "llm", "cache", "github-app", "email"].map((name) => ({ name })),
 };
 
-const preview: ImportPreview = { dryRun: true, source: "~/Downloads/Passwords.csv", format: "Chrome passwords CSV", keys: ["LINEAR_API_KEY", "POSTHOG_KEY", "SUPABASE_SERVICE_ROLE", "VERCEL_TOKEN", "DATADOG_API_KEY"], replaced: ["DATADOG_API_KEY"] };
+const preview: ImportPreview = { dryRun: true, digest: "demo", source: "~/Downloads/Passwords.csv", format: "Chrome passwords CSV", keys: ["LINEAR_API_KEY", "POSTHOG_KEY", "SUPABASE_SERVICE_ROLE", "VERCEL_TOKEN", "DATADOG_API_KEY"], replaced: ["DATADOG_API_KEY"] };
 
 export async function demo(args: string[]): Promise<unknown> {
   await new Promise((r) => setTimeout(r, 120));
@@ -71,8 +71,9 @@ export async function demo(args: string[]): Promise<unknown> {
     case "import":
       return preview;
     case "link":
-      return keys.filter((k) => k.ref).map(({ key, ref }) => ({ key, ref }));
+      return keys.filter((k) => k.ref).map(({ key, ref }) => ({ key, ref, sync: { state: "synced" } }));
     case "unlock":
+      if (args.includes("--status")) return sub === "1password" ? { manager: "1password", state: "unauthenticated" } : { manager: "bitwarden", state: "unlocked", account: "me@acme.dev" };
       return { manager: "bitwarden", account: "me@acme.dev", unlocked: true };
     default:
       return {};

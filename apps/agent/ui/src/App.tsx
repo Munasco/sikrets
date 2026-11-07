@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { ArrowUp, ChevronRight, KeyRound, PanelLeft, Search, ShieldCheck, ShieldQuestion, Sparkles, Square, SquarePen } from "lucide-react";
-import { api, ApiError, subscribe, type AssistantPart, type Attestation, type Me, type Message, type OcEvent, type PermissionRequest, type SessionInfo, type ToolPart } from "./api.ts";
+import { api, ApiError, onSignedOut, subscribe, type AssistantPart, type Attestation, type Me, type Message, type OcEvent, type PermissionRequest, type SessionInfo, type ToolPart } from "./api.ts";
 import { Markdown, withSecrets } from "./markdown.tsx";
 import { ToolRow } from "./tools.tsx";
 import { cn, IconButton, Kbd, Logo, Tip } from "./ui.tsx";
@@ -29,11 +29,18 @@ function duration(ms: number) {
   return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`;
 }
 
+/** A run this page saw start keeps showing as working this long even if a session list from just before says idle. */
+const WORKING_GRACE_MS = 5_000;
+/** A snapshot is fetched again (up to this many times) while live events for it keep arriving. */
+const SNAPSHOT_TRIES = 3;
+
 const routeSession = () => /^#\/s\/(ses_[\w]+)/.exec(location.hash)?.[1];
 
 export function App() {
   const [me, setMe] = useState<Me>();
   useEffect(() => void api.me().then(setMe, () => setMe({ authed: false, gated: true, model: "" })), []);
+  // An expired login (any 401, or the event stream finding /api/me signed out) goes back to the gate.
+  useEffect(() => onSignedOut(() => setMe((m) => (m ? { ...m, authed: false } : m))), []);
   if (!me) return null;
   if (!me.authed) return <Gate onIn={() => api.me().then(setMe)} />;
   return <Workspace model={me.model} />;
@@ -72,7 +79,8 @@ function Workspace({ model }: { model: string }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [pending, setPending] = useState<PermissionRequest[]>([]);
   const [working, setWorking] = useState<Record<string, number>>({});
-  const [approvals, setApprovals] = useState<Record<string, boolean>>({});
+  // Held tool calls per session, by request id: one reply clears only that request.
+  const [approvals, setApprovals] = useState<Record<string, string[]>>({});
   const [unread, setUnread] = useState<Record<string, boolean>>({});
   const [error, setError] = useState("");
   const [sidebar, setSidebar] = useState(() => window.innerWidth >= 768);
@@ -81,6 +89,10 @@ function Workspace({ model }: { model: string }) {
   const [attestation, setAttestation] = useState<Attestation>();
   const currentRef = useRef(current);
   currentRef.current = current;
+  // Live events seen per session, so a snapshot that raced them is fetched again.
+  const seen = useRef<Record<string, number>>({});
+  // A new chat being created by a send; a second send waits for it instead of making another.
+  const creating = useRef<Promise<string> | undefined>(undefined);
   const composer = useRef<HTMLTextAreaElement>(null);
 
   const refreshSessions = useCallback(
@@ -89,19 +101,41 @@ function Workspace({ model }: { model: string }) {
         .sessions()
         .then((list) => {
           setSessions(list);
-          // Runs that started before this page loaded (a reload, another tab) still show as working.
+          // The server says what's running (also runs started elsewhere: a reload, another tab).
+          // It replaces what this page thinks, except a run it saw start a moment ago.
           const busy = Object.fromEntries(list.filter((s) => s.time.busy && (!s.time.idle || s.time.busy > s.time.idle)).map((s) => [s.id, s.time.busy!]));
-          setWorking((w) => ({ ...busy, ...w }));
+          const now = Date.now();
+          setWorking((w) => ({ ...Object.fromEntries(Object.entries(w).filter(([, t]) => now - t < WORKING_GRACE_MS)), ...busy }));
+          return busy;
         })
-        .catch(() => {}),
+        .catch(() => ({}) as Record<string, number>),
     [],
   );
   const load = useCallback(async (id: string) => {
-    const [m, p] = await Promise.all([api.messages(id), api.permissions(id)]);
-    if (currentRef.current !== id) return;
-    setMessages(m);
-    setPending(p);
+    for (let i = 0; i < SNAPSHOT_TRIES; i++) {
+      const before = seen.current[id] ?? 0;
+      const [m, p] = await Promise.all([api.messages(id), api.permissions(id)]);
+      if (currentRef.current !== id) return;
+      setMessages(m);
+      setPending(p);
+      setApprovals(({ [id]: _, ...a }) => (p.length ? { ...a, [id]: p.map((x) => x.id) } : a));
+      // Events that arrived while it was in flight may or may not be in it: fetch again rather than guess.
+      if ((seen.current[id] ?? 0) === before) return;
+    }
   }, []);
+  /** After the event stream drops, events in between are gone: take everything from the server again. */
+  const resync = useCallback(async () => {
+    const busy = await refreshSessions();
+    const id = currentRef.current;
+    if (id) await load(id).catch(() => {});
+    const others = Object.keys(busy).filter((s) => s !== id);
+    const held = await Promise.all(others.map((s) => api.permissions(s).then((p) => [s, p.map((x) => x.id)] as const, () => [s, undefined] as const)));
+    setApprovals((a) => {
+      const next = { ...a };
+      for (const [s, ids] of held) if (ids) ids.length ? (next[s] = ids) : delete next[s];
+      return next;
+    });
+  }, [load, refreshSessions]);
 
   useEffect(() => {
     void refreshSessions();
@@ -133,6 +167,7 @@ function Workspace({ model }: { model: string }) {
     () =>
       subscribe((ev) => {
         const sid = ev.data.sessionID;
+        if (sid) seen.current[sid] = (seen.current[sid] ?? 0) + 1;
         if (ev.type === "session.execution.started" && sid) setWorking((w) => ({ ...w, [sid]: Date.now() }));
         if (/^session\.execution\.(succeeded|failed|interrupted)$/.test(ev.type) && sid) {
           setWorking(({ [sid]: _, ...w }) => w);
@@ -141,32 +176,50 @@ function Workspace({ model }: { model: string }) {
           if (sid === currentRef.current) void load(sid);
         }
         if (ev.type === "permission.asked" && sid) {
-          setApprovals((a) => ({ ...a, [sid]: true }));
+          const rid = (ev.data as unknown as PermissionRequest).id;
+          setApprovals((a) => ({ ...a, [sid]: [...(a[sid] ?? []).filter((x) => x !== rid), rid] }));
           if (sid === currentRef.current) setPending((p) => [...p.filter((x) => x.id !== (ev.data as unknown as PermissionRequest).id), ev.data as unknown as PermissionRequest]);
         }
-        if (ev.type === "permission.replied" && sid) {
-          setApprovals(({ [sid]: _, ...a }) => a);
-          setPending((p) => p.filter((x) => x.id !== ev.data.requestID));
-        }
+        if (ev.type === "permission.replied" && sid) replied(sid, String(ev.data.requestID));
         if (ev.type === "session.renamed" || ev.type === "session.created") void refreshSessions();
         if (sid === currentRef.current) {
           setMessages((m) => apply(m, ev));
           if (ev.type === "session.step.failed" || ev.type === "session.execution.failed") setError(String((ev.data.error as { message?: string } | undefined)?.message ?? "The model request failed."));
         }
-      }, setLive),
-    [load, refreshSessions],
+      }, (isLive, reconnected) => {
+        setLive(isLive);
+        if (reconnected) void resync();
+      }),
+    [load, refreshSessions, resync],
   );
+
+  /** A held request was answered (by its event, or by our own reply succeeding). */
+  function replied(sid: string, rid: string) {
+    setApprovals(({ [sid]: ids = [], ...a }) => {
+      const left = ids.filter((x) => x !== rid);
+      return left.length ? { ...a, [sid]: left } : a;
+    });
+    setPending((p) => p.filter((x) => x.id !== rid));
+  }
 
   const send = async (text: string) => {
     setError("");
-    let id = current;
+    // Read the ref, not the render's `current`: a second send before the re-render must reuse the new chat.
+    let id = currentRef.current;
     try {
       if (!id) {
-        id = (await api.create()).id;
-        currentRef.current = id;
-        location.hash = `#/s/${id}`;
-        setCurrent(id);
-        void refreshSessions();
+        creating.current ??= api.create().then((s) => {
+          currentRef.current = s.id;
+          location.hash = `#/s/${s.id}`;
+          setCurrent(s.id);
+          void refreshSessions();
+          return s.id;
+        });
+        try {
+          id = await creating.current;
+        } finally {
+          creating.current = undefined;
+        }
       }
       setSending(text);
       const admitted = (await api.prompt(id, text)) as { data?: { id: string; payload?: { text?: string } } };
@@ -203,7 +256,7 @@ function Workspace({ model }: { model: string }) {
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const status = (id: string): Status => (approvals[id] ? "approval" : working[id] ? "working" : unread[id] ? "unread" : sessions.find((s) => s.id === id)?.outcome === "failed" ? "failed" : undefined);
+  const status = (id: string): Status => (approvals[id]?.length ? "approval" : working[id] ? "working" : unread[id] ? "unread" : sessions.find((s) => s.id === id)?.outcome === "failed" ? "failed" : undefined);
   const title = sessions.find((s) => s.id === current)?.title;
   const running = current ? working[current] : undefined;
   const empty = !current || (!messages.length && !sending);
@@ -221,7 +274,7 @@ function Workspace({ model }: { model: string }) {
           <EnclaveBadge attestation={attestation} />
         </header>
 
-        <Timeline messages={messages} pending={pending} session={current} running={running} sending={sending} error={error} empty={empty} />
+        <Timeline messages={messages} pending={pending} session={current} running={running} sending={sending} error={error} empty={empty} onReplied={replied} />
 
         <div className={cn("pointer-events-none absolute inset-x-0 z-20 px-3 sm:px-12", empty ? "inset-y-0 flex flex-col items-center justify-center" : "bottom-0 pb-3 pt-2")}>
           {empty && <Hero />}
@@ -428,7 +481,7 @@ function Examples({ onPick, hidden }: { onPick: (text: string) => void; hidden: 
   );
 }
 
-function Timeline({ messages, pending, session, running, sending, error, empty }: { messages: Message[]; pending: PermissionRequest[]; session?: string; running?: number; sending?: string; error: string; empty: boolean }) {
+function Timeline({ messages, pending, session, running, sending, error, empty, onReplied }: { messages: Message[]; pending: PermissionRequest[]; session?: string; running?: number; sending?: string; error: string; empty: boolean; onReplied: (sid: string, rid: string) => void }) {
   const scroller = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   useEffect(() => {
@@ -441,7 +494,7 @@ function Timeline({ messages, pending, session, running, sending, error, empty }
     <div ref={scroller} onScroll={(e) => (stick.current = e.currentTarget.scrollHeight - e.currentTarget.scrollTop - e.currentTarget.clientHeight < 80)} className="flex-1 overflow-y-auto">
       <div className="mx-auto w-full max-w-[46rem] px-3 pb-44 pt-4 sm:px-12 sm:box-content">
         {turns.map((t, i) => (
-          <Turn key={t.user?.id ?? i} turn={t} live={i === turns.length - 1 ? running : undefined} pending={i === turns.length - 1 ? pending : []} session={session} />
+          <Turn key={t.user?.id ?? i} turn={t} live={i === turns.length - 1 ? running : undefined} pending={i === turns.length - 1 ? pending : []} session={session} onReplied={onReplied} />
         ))}
         {sending && (
           <div className="flex flex-col items-end pb-4">
@@ -468,7 +521,7 @@ function group(messages: Message[]): TurnData[] {
   return turns;
 }
 
-function Turn({ turn, live, pending, session }: { turn: TurnData; live?: number; pending: PermissionRequest[]; session?: string }) {
+function Turn({ turn, live, pending, session, onReplied }: { turn: TurnData; live?: number; pending: PermissionRequest[]; session?: string; onReplied: (sid: string, rid: string) => void }) {
   const parts: AssistantPart[] = turn.replies.flatMap((r) => r.content);
   const tools = parts.filter((p): p is ToolPart => p.type === "tool");
   const texts = parts.filter((p): p is Extract<AssistantPart, { type: "text" }> => p.type === "text" && Boolean(p.text.trim()));
@@ -491,7 +544,7 @@ function Turn({ turn, live, pending, session }: { turn: TurnData; live?: number;
         </button>
       )}
       {showTools && tools.map((p) => <ToolRow key={p.id} part={p} />)}
-      {pending.map((p) => session && <Held key={p.id} request={p} session={session} />)}
+      {pending.map((p) => session && <Held key={p.id} request={p} session={session} onReplied={onReplied} />)}
       {live !== undefined && !texts.length && !pending.length && (
         <div className="flex h-7 items-center gap-1.5 text-[13px]">
           <span className="grid size-6 place-items-center"><span className="size-1.5 animate-pulse rounded-full bg-pine" /></span>
@@ -509,11 +562,15 @@ function Turn({ turn, live, pending, session }: { turn: TurnData; live?: number;
 }
 
 /** A tool call opencode is holding until the user decides: why, then the three choices. */
-function Held({ request, session }: { request: PermissionRequest; session: string }) {
+function Held({ request, session, onReplied }: { request: PermissionRequest; session: string; onReplied: (sid: string, rid: string) => void }) {
   const [busy, setBusy] = useState(false);
+  // A successful reply removes it here, without waiting for a "replied" event that may never come.
   const reply = async (decision: "once" | "always" | "reject") => {
     setBusy(true);
-    await api.reply(session, request.id, decision).catch(() => setBusy(false));
+    await api.reply(session, request.id, decision).then(
+      () => onReplied(session, request.id),
+      () => setBusy(false),
+    );
   };
   const why = request.metadata?.reason ?? `${request.action} on ${request.resources.join(", ")}`;
   return (

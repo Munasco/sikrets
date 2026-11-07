@@ -13,13 +13,14 @@ type State = { status: string; serverUrl: string | null; userEmail?: string; ite
 const state = (await Bun.file(file).json()) as State;
 const save = () => Bun.write(file, JSON.stringify(state));
 const fail = (m: string): never => (console.error(m), process.exit(1));
-const unlocked = () => process.env.BW_SESSION === SESSION || fail("Vault is locked.");
+const unlocked = () => (process.env.BW_SESSION === SESSION && state.status === "unlocked") || fail("Vault is locked.");
 const item = (id: string) => state.items.find((i) => i.id === id) ?? fail("Not found.");
 
 const [cmd, a, b] = args;
 switch (cmd) {
   case "status":
-    console.log(JSON.stringify({ serverUrl: state.serverUrl, userEmail: state.userEmail, status: state.status }));
+    // Like bw: "unlocked" only with a valid session; a vault locked elsewhere reads as locked.
+    console.log(JSON.stringify({ serverUrl: state.serverUrl, userEmail: state.userEmail, status: state.status === "unauthenticated" ? "unauthenticated" : state.status === "unlocked" && process.env.BW_SESSION === SESSION ? "unlocked" : "locked" }));
     break;
   case "config":
     state.serverUrl = b!;

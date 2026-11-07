@@ -31,3 +31,8 @@ export async function saveConnection(connection: Connection) {
   all.push(connection);
   await writePrivate(connectionsFile(), JSON.stringify(all, null, 2) + "\n");
 }
+
+export async function removeConnection(provider: string) {
+  const all = await listConnections();
+  if (all.some((c) => c.provider === provider)) await writePrivate(connectionsFile(), JSON.stringify(all.filter((c) => c.provider !== provider), null, 2) + "\n");
+}

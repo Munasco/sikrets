@@ -60,6 +60,61 @@ describe("sikrets mcp", () => {
     expect(failed.text).not.toContain(KEY);
   });
 
+  const alive = (pid: number) => {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const pidIn = async (file: string) => {
+    for (let i = 0; i < 100 && !(await Bun.file(file).exists()); i++) await Bun.sleep(20);
+    return Number((await Bun.file(file).text()).trim());
+  };
+
+  test("a timed-out command that ignores SIGTERM and leaves a child holding its output still returns, and both are killed", async () => {
+    const pids = path.join(root, "pids");
+    const script = `trap "" TERM; sleep 60 & echo $! > ${pids}; sleep 60`;
+    const started = Date.now();
+    const { text } = await call(server(), "run_with_secrets", { command: ["/bin/sh", "-c", script], timeout_seconds: 1 });
+    expect(text).toContain("timed out");
+    expect(Date.now() - started).toBeLessThan(6_000);
+    await Bun.sleep(50);
+    expect(alive(await pidIn(pids))).toBe(false);
+  }, 10_000);
+
+  test("a finished command doesn't wait for, or leave behind, a background child", async () => {
+    const pids = path.join(root, "pids");
+    const started = Date.now();
+    const { text } = await call(server(), "run_with_secrets", { command: ["/bin/sh", "-c", `sleep 60 & echo $! > ${pids}; echo done`] });
+    expect(text).toContain("exit 0");
+    expect(text).toContain("done");
+    expect(Date.now() - started).toBeLessThan(4_000);
+    await Bun.sleep(50);
+    expect(alive(await pidIn(pids))).toBe(false);
+  }, 10_000);
+
+  test("notifications/cancelled and close() stop a running command", async () => {
+    const s = server();
+    const pids = path.join(root, "pids");
+    const req = { jsonrpc: "2.0" as const, id: "run-1", method: "tools/call", params: { name: "run_with_secrets", arguments: { command: ["/bin/sh", "-c", `echo $$ > ${pids}; exec sleep 60`] } } };
+    const reply = s.handle(req);
+    const pid = await pidIn(pids);
+    expect(await s.handle({ jsonrpc: "2.0", method: "notifications/cancelled", params: { requestId: "run-1" } })).toBeUndefined();
+    expect(await reply).toBeUndefined(); // the client stopped waiting, so no reply
+    expect(alive(pid)).toBe(false);
+    const [entry] = await readActivity(root);
+    expect(entry!.detail).toContain("cancelled");
+
+    await rm(pids);
+    const second = s.handle({ ...req, id: 2 });
+    const pid2 = await pidIn(pids);
+    s.close();
+    await second;
+    expect(alive(pid2)).toBe(false);
+  }, 10_000);
+
   test("scrub replaces the longest form first", () => {
     expect(scrub(`a ${KEY} b`, env)).toBe("a [secret:STRIPE_KEY] b");
   });

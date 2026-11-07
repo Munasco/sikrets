@@ -1,7 +1,7 @@
 import { Secret } from "../core/secret.ts";
-import { keychain, listConnections, saveConnection } from "../store.ts";
+import { keychain, listConnections, removeConnection, saveConnection } from "../store.ts";
 import { runCli, type RunOptions } from "./exec.ts";
-import type { ManagerEntry, PasswordManager } from "./types.ts";
+import { statusMessage, type ManagerEntry, type ManagerStatus, type PasswordManager } from "./types.ts";
 import { PASSWORD_MANAGERS } from "../constants.ts";
 
 // Bitwarden and Vaultwarden through the official `bw` CLI. Vaultwarden is the same CLI pointed at
@@ -60,12 +60,34 @@ function setField(item: Item, field: string, value: string): Item {
   return { ...item, fields: exists ? fields.map((f) => (f.name === field ? { ...f, value } : f)) : [...fields, { name: field, value, type: HIDDEN }] };
 }
 
-async function session(): Promise<Secret | undefined> {
+/** The session Sikrets would use: BW_SESSION from the environment, else the one saved by `sikrets unlock`. */
+async function session(): Promise<{ token: Secret; account?: string } | undefined> {
   const fromEnv = Bun.env[BW.sessionEnv];
-  if (fromEnv) return Secret.of(fromEnv);
+  if (fromEnv) return { token: Secret.of(fromEnv) };
   const conn = (await listConnections()).find((c) => c.provider === ID);
   const saved = conn && (await keychain.get(ID, sessionAccount(conn.account)));
-  return saved ? Secret.of(saved) : undefined;
+  return saved ? { token: Secret.of(saved), account: conn.account } : undefined;
+}
+
+interface CliStatus {
+  serverUrl: string | null;
+  userEmail?: string;
+  status: "unauthenticated" | "locked" | "unlocked";
+}
+
+/** `bw status`, with the session when there is one (bw reports "unlocked" only for a valid session). */
+async function cliStatus(token?: Secret): Promise<CliStatus> {
+  const env: Record<string, string> = token ? { [BW.sessionEnv]: token.reveal() } : {};
+  return JSON.parse(await runCli(BW, ["status", "--nointeraction"], { env, secrets: token ? [token] : [] })) as CliStatus;
+}
+
+async function status(): Promise<ManagerStatus> {
+  const s = await session();
+  const cli = await cliStatus(s?.token);
+  if (cli.status === "unauthenticated") return { state: "unauthenticated" };
+  const account = s?.account ?? cli.userEmail ?? "bitwarden";
+  if (!s) return { state: "locked", ...(cli.userEmail ? { account: cli.userEmail } : {}) };
+  return cli.status === "unlocked" ? { state: "unlocked", account } : { state: "expired", account };
 }
 
 async function bw(args: string[], opts: RunOptions & { session?: boolean } = {}) {
@@ -73,11 +95,19 @@ async function bw(args: string[], opts: RunOptions & { session?: boolean } = {})
   const secrets = [...(opts.secrets ?? [])];
   if (opts.session !== false) {
     const s = await session();
-    if (!s) throw new Error("Bitwarden is locked. Run: sikrets unlock bitwarden");
-    env[BW.sessionEnv] = s.reveal();
-    secrets.push(s);
+    if (!s) throw new Error(statusMessage(BW.name, ID, { state: "locked" }));
+    env[BW.sessionEnv] = s.token.reveal();
+    secrets.push(s.token);
   }
-  return runCli(BW, opts.interactive ? args : [...args, "--nointeraction"], { ...opts, env, secrets });
+  try {
+    return await runCli(BW, opts.interactive ? args : [...args, "--nointeraction"], { ...opts, env, secrets });
+  } catch (error) {
+    // A stale session fails with bw's raw message; say what actually happened instead.
+    if (opts.session === false) throw error;
+    const now = await status().catch(() => undefined);
+    if (now && now.state !== "unlocked") throw new Error(statusMessage(BW.name, ID, now));
+    throw error;
+  }
 }
 
 const getItem = async (id: string) => JSON.parse(await bw(["get", "item", id])) as Item;
@@ -119,23 +149,32 @@ export const bitwarden: PasswordManager = {
 
   async unlock({ server, email, password, say }) {
     if (server?.startsWith("http://")) say("  Note: recent bw versions refuse plain-HTTP servers; serve Vaultwarden over HTTPS if login fails");
-    const status = JSON.parse(await bw(["status"], { session: false })) as { serverUrl: string | null; userEmail?: string; status: string };
-    if (server && status.serverUrl?.replace(/\/$/, "") !== server.replace(/\/$/, "")) {
-      if (status.status !== "unauthenticated") throw new Error(`bw is signed in to ${status.serverUrl ?? "bitwarden.com"}; run \`bw logout\` first to switch to ${server}`);
-      await bw(["config", "server", server], { session: false });
-      say(`Pointed bw at ${server}`);
-    }
-    const account = email ?? status.userEmail;
+    const current = await cliStatus();
+    const account = email ?? current.userEmail;
     if (!account) throw new Error("bw isn't signed in yet; pass --email");
+    // Switching servers is undone if sign-in then fails, so a bad password doesn't leave bw pointed elsewhere.
+    let restore: string | undefined;
+    if (server && current.serverUrl?.replace(/\/$/, "") !== server.replace(/\/$/, "")) {
+      if (current.status !== "unauthenticated") throw new Error(`bw is signed in to ${current.serverUrl ?? "bitwarden.com"}; run \`bw logout\` first to switch to ${server}`);
+      restore = current.serverUrl ?? BW.defaultServer;
+      await bw(["config", "server", server], { session: false });
+    }
     const pw = await password();
     const env = { [BW.passwordEnv]: pw.reveal() };
-    // Login may ask for a 2FA code, so it gets the terminal; unlock never does.
-    const raw =
-      status.status === "unauthenticated"
-        ? await bw(["login", account, "--passwordenv", BW.passwordEnv, "--raw"], { session: false, interactive: true, env, secrets: [pw] })
-        : await bw(["unlock", "--passwordenv", BW.passwordEnv, "--raw"], { session: false, env, secrets: [pw] });
-    const token = raw.trim();
-    if (!token) throw new Error("bw returned no session");
+    let token: string;
+    try {
+      // Login may ask for a 2FA code, so it gets the terminal; unlock never does.
+      const raw =
+        current.status === "unauthenticated"
+          ? await bw(["login", account, "--passwordenv", BW.passwordEnv, "--raw"], { session: false, interactive: true, env, secrets: [pw] })
+          : await bw(["unlock", "--passwordenv", BW.passwordEnv, "--raw"], { session: false, env, secrets: [pw] });
+      token = raw.trim();
+      if (!token) throw new Error("bw returned no session");
+    } catch (error) {
+      if (restore) await bw(["config", "server", restore], { session: false }).catch(() => undefined);
+      throw error;
+    }
+    if (restore) say(`Pointed bw at ${server}`);
     await keychain.set(ID, sessionAccount(account), token);
     await saveConnection({ provider: ID, account, mode: "terminal", connectedAt: new Date().toISOString() });
     return account;
@@ -145,5 +184,8 @@ export const bitwarden: PasswordManager = {
     const conn = (await listConnections()).find((c) => c.provider === ID);
     await bw(["lock"], { session: false }).catch(() => undefined);
     if (conn) await keychain.delete(ID, sessionAccount(conn.account));
+    await removeConnection(ID);
   },
+
+  status,
 };
