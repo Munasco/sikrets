@@ -18,7 +18,7 @@ export const apiKey = defineManualRecipe({
     url: PROVIDER_URLS.anthropic.keys,
     steps: [
       "Create key → Continue with an API key",
-      "Name it after this project, choose an expiry (7 or 30 days pairs well with rotation) and the workspace",
+      "Name it after this project and pick the workspace. Leave expiry at never, or pass the one you pick to --expires",
       "Copy the key (it's shown once) and paste it here",
     ],
   },

@@ -2,6 +2,7 @@ import { planAdd } from "../core/add.ts";
 import { projectContext } from "../core/config.ts";
 import { record } from "../core/activity.ts";
 import { applyPlan, printPlan } from "../core/plan.ts";
+import { parseExpiry } from "../core/schedule.ts";
 import { recipe } from "../recipes/index.ts";
 import { choose, confirm, log } from "../ui.ts";
 import { readSecretInput } from "./secret-input.ts";
@@ -29,6 +30,8 @@ export async function run(args: string[], opts: Record<string, unknown>) {
       },
       envFile: config.env,
       rotateEvery: config.rotateEvery,
+      ...(typeof opts.expires === "string" ? { expires: parseExpiry(opts.expires) } : {}),
+      autoRotate: opts["auto-rotate"] === true,
       secret: (prompt) => readSecretInput(opts, prompt),
     },
     ctx,

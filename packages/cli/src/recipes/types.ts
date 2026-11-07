@@ -43,6 +43,8 @@ interface RecipeBase<I extends Record<string, InputSpec>> {
   readonly inputs: I;
   readonly requires: readonly Requirement[];
   readonly outputs: Readonly<Record<string, OutputSpec>>;
+  /** Longest key lifetime the provider allows, e.g. "90d". Omitted: keys can live forever. Also the default. */
+  readonly maxExpiry?: string;
   /** Rough monthly cost for dry runs. Real spend comes from `sikrets cost`. */
   estimate(inputs: Inputs<I>): string;
 }
@@ -56,7 +58,10 @@ export interface Provisioned {
 
 export interface ApiRecipe<I extends Record<string, InputSpec> = Record<string, InputSpec>> extends RecipeBase<I> {
   readonly strategy: "api";
+  /** The remote id of the resource with this name, if one exists. Checked before create, and by rollback when a create may have happened but returned no id. */
+  find(env: Env, name: string): Promise<string | undefined>;
   create(env: Env, name: string, inputs: Inputs<I>): Promise<Provisioned>;
+  /** Deletes the resource; succeeds if it is already gone, so a resumed rollback can run it again. */
   destroy(env: Env, remoteId: string): Promise<void>;
   /** Issues a new credential for an existing resource and returns the outputs that changed. */
   rotate?(env: Env, remoteId: string): Promise<Readonly<Record<string, string | Secret>>>;

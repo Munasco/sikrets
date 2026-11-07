@@ -2,7 +2,7 @@ import { click, pause, type } from "../../browser/human.ts";
 import { promptHidden } from "../../ui.ts";
 import type { Page } from "playwright-core";
 import type { Provider, Step } from "../types.ts";
-import { PROVIDER_URLS } from "../../constants.ts";
+import { PROVIDER_URLS, USER_AGENT } from "../../constants.ts";
 
 // Upstash only needs the browser once: to mint a Developer API key. Everything after that
 // (create, delete, reset password, billing) goes through api.upstash.com.
@@ -37,10 +37,19 @@ export const upstash: Provider = {
   },
 
   // Follows Upstash's documented path: Account → Developer API → Create API Key.
-  mint: { key: "api-key", run: mintApiKey },
+  mint: { key: "api-key", manageUrl: PROVIDER_URLS.upstash.apiKeys, run: mintApiKey, verify: verifyApiKey },
 };
 
-async function mintApiKey(page: Page, step: Step): Promise<string> {
+async function verifyApiKey(email: string, key: string) {
+  const res = await fetch(`${PROVIDER_URLS.upstash.api}/redis/databases?credentials=hide`, {
+    headers: { Authorization: `Basic ${btoa(`${email}:${key}`)}`, "User-Agent": USER_AGENT },
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (res.status === 401 || res.status === 403) throw new Error("Upstash rejected the new API key");
+  if (!res.ok) throw new Error(`Couldn't check the new API key: Upstash answered HTTP ${res.status}`);
+}
+
+async function mintApiKey(page: Page, step: Step, name: string): Promise<string> {
   try {
       step("Opening Account → Developer API");
       await page.goto(PROVIDER_URLS.upstash.apiKeys, { waitUntil: "domcontentloaded" });
@@ -49,7 +58,7 @@ async function mintApiKey(page: Page, step: Step): Promise<string> {
       await click(page, page.getByRole("button", { name: /Create API Key/i }).first());
       await pause(800, 300);
       step("Naming the key");
-      await type(page, page.getByRole("dialog").locator("input").first(), `sikrets-${new Date().toISOString().slice(0, 10)}`);
+      await type(page, page.getByRole("dialog").locator("input").first(), name);
       step("Submit");
       await click(page, page.getByRole("dialog").getByRole("button", { name: /Submit|Create/i }).first());
       // The key is shown once; read the longest token-looking string in the dialog.
