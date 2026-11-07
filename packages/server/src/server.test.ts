@@ -18,6 +18,8 @@ import { ENV, PROTOCOL, VALUES } from "./constants.ts";
 
 const P = PROTOCOL.paths;
 const ADMIN = ["admin", "token", "for", "tests"].join("-");
+/** The data-key fingerprint every write in these tests is sealed under. */
+const FP = "0123456789abcdef";
 const values = (project = "shop", environment = "dev") => `/v1/projects/${project}/environments/${environment}/values`;
 const value = (name: string, project = "shop", environment = "dev") => `${values(project, environment)}/${name}`;
 
@@ -101,7 +103,7 @@ describe("request proofs", () => {
       ["GET", P.me, undefined, { proof: null }, "missing"],
       ["GET", P.me, undefined, { proof: "not.a.proof" }, "malformed"],
       ["GET", P.me, undefined, { proof: "only-one-part" }, "malformed"],
-      ["PUT", value("A_KEY"), { value: envelope() }, { body: JSON.stringify({ value: envelope() }) }, "body doesn't match"],
+      ["PUT", value("A_KEY"), { dataKey: FP, value: envelope() }, { body: JSON.stringify({ dataKey: FP, value: envelope() }) }, "body doesn't match"],
       ["GET", P.me, undefined, { method: "POST" }, "wrong method"],
       ["GET", P.me, undefined, { url: `http://sikrets.test${P.devices}` }, "wrong URL"],
       ["GET", P.me, undefined, { url: `http://other.test${P.me}` }, "wrong URL"],
@@ -148,7 +150,7 @@ describe("devices", () => {
     const desktop = device();
     await laptop.signIn("laptop");
     await desktop.signIn("desktop");
-    await laptop.call("PUT", value("API_KEY"), { value: envelope() });
+    await laptop.call("PUT", value("API_KEY"), { dataKey: FP, value: envelope() });
     const listed = (await laptop.call("GET", P.devices)).body.devices as { id: string; name: string }[];
     expect(listed.map((d) => d.name).sort()).toEqual(["desktop", "laptop"]);
     expect(JSON.stringify(listed)).not.toContain(laptop.jwk.x!);
@@ -246,8 +248,8 @@ describe("lifecycles under races and replays", () => {
     const d = device();
     await d.signIn();
     const [a, b] = [envelope(), envelope()];
-    expect((await d.call("PUT", value("NEW_KEY"), { value: a, ifAbsent: true })).status).toBe(200);
-    expect(await d.call("PUT", value("NEW_KEY"), { value: b, ifAbsent: true })).toMatchObject({ status: 412, body: { error: "exists" } });
+    expect((await d.call("PUT", value("NEW_KEY"), { dataKey: FP, value: a, ifAbsent: true })).status).toBe(200);
+    expect(await d.call("PUT", value("NEW_KEY"), { dataKey: FP, value: b, ifAbsent: true })).toMatchObject({ status: 412, body: { error: "exists" } });
     expect((await d.call("GET", value("NEW_KEY"))).body.value).toBe(a);
   });
 });
@@ -258,8 +260,8 @@ describe("sealed values", () => {
     const d = device();
     await d.signIn();
     const sealed = envelope();
-    expect((await d.call("PUT", value("API_KEY"), { value: sealed })).status).toBe(200);
-    await d.call("PUT", value("OTHER_KEY"), { value: envelope() });
+    expect((await d.call("PUT", value("API_KEY"), { dataKey: FP, value: sealed })).status).toBe(200);
+    await d.call("PUT", value("OTHER_KEY"), { dataKey: FP, value: envelope() });
     const list = await d.call("GET", values());
     expect(list.body.values.map((v: { name: string }) => v.name)).toEqual(["API_KEY", "OTHER_KEY"]);
     expect(JSON.stringify(list.body)).not.toContain(sealed);
@@ -274,7 +276,7 @@ describe("sealed values", () => {
     const { device } = setup();
     const d = device();
     await d.signIn();
-    await d.call("PUT", value("API_KEY", "shop", "prod"), { value: envelope() });
+    await d.call("PUT", value("API_KEY", "shop", "prod"), { dataKey: FP, value: envelope() });
     expect((await d.call("GET", values("shop", "dev"))).body.values).toEqual([]);
     expect((await d.call("GET", values("shop", "prod"))).body.values).toHaveLength(1);
     for (const route of [value("lower_case"), value("API_KEY", "Shop"), value("API_KEY", "shop", "Prod"), values("../x")]) expect([route, (await d.call("GET", route)).status]).toEqual([route, route.includes("..") ? 404 : 400]);
@@ -289,11 +291,11 @@ describe("sealed values", () => {
       await d.collect(s.requestId);
     }
     const sealed = envelope();
-    await bob.call("PUT", value("API_KEY"), { value: sealed });
+    await bob.call("PUT", value("API_KEY"), { dataKey: FP, value: sealed });
     expect((await alice.call("GET", value("API_KEY"))).status).toBe(404);
     expect((await alice.call("GET", values())).body.values).toEqual([]);
     // Alice writing the same name makes her own value; Bob's is untouched.
-    await alice.call("PUT", value("API_KEY"), { value: envelope() });
+    await alice.call("PUT", value("API_KEY"), { dataKey: FP, value: envelope() });
     expect((await bob.call("GET", value("API_KEY"))).body.value).toBe(sealed);
     expect((await alice.call("DELETE", value("API_KEY"))).body.deleted).toBe(true);
     expect((await bob.call("GET", value("API_KEY"))).body.value).toBe(sealed);
@@ -320,13 +322,79 @@ describe("sealed values", () => {
     const { device } = setup({ maxValueBytes: 2048 });
     const d = device();
     await d.signIn();
-    expect((await d.call("PUT", value("FITS"), { value: `sk1:${Buffer.alloc(1500).toString("base64")}` })).status).toBe(200);
-    const big = await d.call("PUT", value("TOO_BIG"), { value: `sk1:${Buffer.alloc(1600).toString("base64")}` });
+    expect((await d.call("PUT", value("FITS"), { dataKey: FP, value: `sk1:${Buffer.alloc(1500).toString("base64")}` })).status).toBe(200);
+    const big = await d.call("PUT", value("TOO_BIG"), { dataKey: FP, value: `sk1:${Buffer.alloc(1600).toString("base64")}` });
     expect([big.status, big.body.error]).toEqual([413, "too_large"]);
-    const huge = await d.call("PUT", value("HUGE"), { value: `sk1:${Buffer.alloc(8000).toString("base64")}` });
+    const huge = await d.call("PUT", value("HUGE"), { dataKey: FP, value: `sk1:${Buffer.alloc(8000).toString("base64")}` });
     expect([huge.status, huge.body.error]).toEqual([413, "too_large"]);
     expect((await d.call("GET", values())).body.values.map((v: { name: string }) => v.name)).toEqual(["FITS"]);
     expect(VALUES.maxValueBytes).toBeGreaterThanOrEqual(16 * 1024);
+  });
+});
+
+describe("data key claims", () => {
+  const dataKey = (project = "shop") => P.dataKey.replace(":project", project);
+  const OTHER_FP = "fedcba9876543210";
+
+  test("the first write claims the project; a write under another data key is refused in every environment", async () => {
+    const { store, device } = setup();
+    const [laptop, desktop] = [device(), device()];
+    await laptop.signIn("laptop");
+    await desktop.signIn("desktop");
+    expect((await laptop.call("GET", dataKey())).status).toBe(404);
+    expect((await laptop.call("PUT", value("API_KEY"), { dataKey: FP, value: envelope() })).status).toBe(200);
+    expect((await desktop.call("GET", dataKey())).body).toMatchObject({ fingerprint: FP });
+    for (const env of ["dev", "prod"]) {
+      const r = await desktop.call("PUT", value("OTHER_KEY", "shop", env), { dataKey: OTHER_FP, value: envelope() });
+      expect(r).toMatchObject({ status: 409, body: { error: PROTOCOL.dataKeyMismatch } });
+      expect(r.body.reason).toContain("restore");
+    }
+    expect((await desktop.call("PUT", value("OTHER_KEY", "shop", "prod"), { dataKey: OTHER_FP, value: envelope(), ifAbsent: true })).status).toBe(409);
+    expect(await store.listValues({ account: "you@localhost", project: "shop", environment: "prod" })).toEqual([]);
+    // The same key from another device is fine; another project is its own claim.
+    expect((await desktop.call("PUT", value("OTHER_KEY"), { dataKey: FP, value: envelope() })).status).toBe(200);
+    expect((await desktop.call("PUT", value("API_KEY", "blog"), { dataKey: OTHER_FP, value: envelope() })).status).toBe(200);
+    // Deleting every value doesn't release the claim.
+    for (const n of ["API_KEY", "OTHER_KEY"]) await laptop.call("DELETE", value(n));
+    expect((await desktop.call("PUT", value("API_KEY"), { dataKey: OTHER_FP, value: envelope() })).status).toBe(409);
+    const events = (await laptop.call("GET", P.audit)).body.events as { action: string; outcome: string }[];
+    expect(events.filter((e) => e.action === "value.put" && e.outcome === "denied").length).toBeGreaterThanOrEqual(3);
+  });
+
+  test("a write without a well-formed fingerprint is refused", async () => {
+    const { device } = setup();
+    const d = device();
+    await d.signIn();
+    for (const body of [{ value: envelope() }, { value: envelope(), dataKey: "NOT-HEX" }, { value: envelope(), dataKey: 7 }]) {
+      expect([body, (await d.call("PUT", value("API_KEY"), body)).body.error]).toEqual([body, "invalid_request"]);
+    }
+    expect((await d.call("GET", dataKey())).status).toBe(404);
+  });
+
+  test("claiming up front: the first fingerprint wins, the same one again is fine, another is refused", async () => {
+    const { device } = setup();
+    const [a, b] = [device(), device()];
+    await a.signIn();
+    await b.signIn();
+    expect((await a.call("PUT", dataKey(), { fingerprint: "nope" })).status).toBe(400);
+    expect((await a.call("PUT", dataKey(), { fingerprint: FP })).body).toMatchObject({ fingerprint: FP });
+    expect((await b.call("PUT", dataKey(), { fingerprint: FP })).status).toBe(200);
+    expect(await b.call("PUT", dataKey(), { fingerprint: OTHER_FP })).toMatchObject({ status: 409, body: { error: PROTOCOL.dataKeyMismatch } });
+    expect((await b.call("GET", dataKey("Bad"))).status).toBe(400);
+  });
+
+  test("two devices racing their first writes with different keys: exactly one key wins", async () => {
+    for (const store of [sqliteStore(), dynamoStore(fakeDynamo(), "sikrets")]) {
+      const { device } = setup({ store });
+      const [a, b] = [device(), device()];
+      await a.signIn();
+      await b.signIn();
+      const [ra, rb] = await Promise.all([a.call("PUT", value("A_KEY"), { dataKey: FP, value: envelope() }), b.call("PUT", value("B_KEY"), { dataKey: OTHER_FP, value: envelope() })]);
+      expect([ra.status, rb.status].sort()).toEqual([200, 409]);
+      const winner = ra.status === 200 ? FP : OTHER_FP;
+      expect((await a.call("GET", dataKey())).body.fingerprint).toBe(winner);
+      expect((await a.call("GET", values())).body.values).toHaveLength(1);
+    }
   });
 });
 
@@ -336,7 +404,7 @@ describe("audit", () => {
     const d = device();
     await d.signIn();
     const sealed = envelope();
-    await d.call("PUT", value("API_KEY"), { value: sealed });
+    await d.call("PUT", value("API_KEY"), { dataKey: FP, value: sealed });
     await d.call("GET", value("API_KEY"));
     await d.call("GET", value("MISSING_KEY"));
     await d.call("DELETE", value("API_KEY"));
@@ -361,7 +429,7 @@ describe("storage adapters behind the API", () => {
       await d.signIn();
       await other.signIn();
       const sealed = envelope();
-      await d.call("PUT", value("API_KEY"), { value: sealed });
+      await d.call("PUT", value("API_KEY"), { dataKey: FP, value: sealed });
       expect((await other.call("GET", value("API_KEY"))).body.value).toBe(sealed);
       expect((await d.call("GET", P.me, undefined, { nonce: "same" })).status).toBe(200);
       expect((await d.call("GET", P.me, undefined, { nonce: "same" })).body.reason).toBe("replayed");

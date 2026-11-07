@@ -12,6 +12,8 @@ export type DeviceKind = "secure-enclave" | "software";
 // - a key: once revoked, refused for good (all its devices, and any new sign-in with it).
 // - a sign-in: pending → approved | denied | expired, approved → collected | expired. Approve and
 //   collect each succeed once; the record stays until it expires, so it can't be approved again.
+// - a project's data key: unclaimed → claimed by one fingerprint, for good. Two devices that each
+//   made their own data key can't both seal values into one project; the second is refused.
 
 export interface DeviceRecord {
   id: string;
@@ -70,6 +72,14 @@ export interface ValueInfo {
   bytes: number;
 }
 
+/** Which data key a project's values are sealed under: its fingerprint (never the key), set once. */
+export interface DataKeyClaim {
+  fingerprint: string;
+  claimedAt: string;
+  /** Device that wrote the project's first value. */
+  claimedBy: string;
+}
+
 /** Names and outcomes only, never values. */
 export interface AuditEvent {
   at: string;
@@ -118,6 +128,10 @@ export interface Store {
   createValue(scope: Scope, value: StoredValue): Promise<boolean>;
   /** True when there was a value to delete. */
   deleteValue(scope: Scope, name: string): Promise<boolean>;
+
+  getDataKeyClaim(account: string, project: string): Promise<DataKeyClaim | undefined>;
+  /** Claims the project for this data key unless it already is claimed. Atomic; returns the claim that holds. */
+  claimDataKey(account: string, project: string, claim: DataKeyClaim): Promise<DataKeyClaim>;
 
   appendAudit(e: AuditEvent): Promise<void>;
   /** Newest first. */

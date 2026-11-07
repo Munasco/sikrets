@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite";
 import { chmodSync, mkdirSync } from "node:fs";
 import path from "node:path";
-import { byName, signInStatus, type AuditEvent, type DeviceRecord, type Scope, type SignIn, type Store, type StoredValue } from "./store.ts";
+import { byName, signInStatus, type AuditEvent, type DataKeyClaim, type DeviceRecord, type Scope, type SignIn, type Store, type StoredValue } from "./store.ts";
 import { SQLITE } from "./constants.ts";
 
 // The SQLite store: one file in the data folder (owner-only), or in memory for tests. It serves
@@ -23,6 +23,7 @@ const SCHEMA = `
   create index if not exists audit_by_user on audit (user, seq);
   create table if not exists meta (key text primary key, value text not null);
   create table if not exists revoked_keys (jkt text primary key, revoked_at text not null);
+  create table if not exists data_keys (account text not null, project text not null, data text not null, primary key (account, project));
 `;
 
 /** A sign-in's status in SQL, for rows written before the status field (see signInStatus). */
@@ -103,6 +104,12 @@ export function sqliteStore(dir: string = SQLITE.memory): Store {
       q("insert or ignore into vault_values (account, project, environment, name, value, updated_at, updated_by) values (?, ?, ?, ?, ?, ?, ?)").run(account, project, environment, v.name, v.value, v.updatedAt, v.updatedBy).changes === 1,
     async deleteValue({ account, project, environment }, name) {
       return q("delete from vault_values where account = ? and project = ? and environment = ? and name = ?").run(account, project, environment, name).changes > 0;
+    },
+
+    getDataKeyClaim: async (account, project) => row<DataKeyClaim>(q<{ data: string }>("select data from data_keys where account = ? and project = ?").get(account, project)),
+    async claimDataKey(account, project, claim) {
+      q("insert or ignore into data_keys (account, project, data) values (?, ?, ?)").run(account, project, JSON.stringify(claim));
+      return row<DataKeyClaim>(q<{ data: string }>("select data from data_keys where account = ? and project = ?").get(account, project))!;
     },
 
     async appendAudit(e) {

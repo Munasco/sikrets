@@ -144,6 +144,28 @@ export function storeContract(name: string, open: OpenStore) {
       expect((await s.listValues(dev)).map((v) => v.name)).toEqual(["B_KEY", "C_KEY"]);
     });
 
+    test("data key claims: set once per account and project, never replaced", async () => {
+      const s = await fresh();
+      const claim = (fingerprint: string, by = "dev_a") => ({ fingerprint, claimedAt: "2026-11-05T00:00:00.000Z", claimedBy: by });
+      expect(await s.getDataKeyClaim("alice", "shop")).toBeUndefined();
+      expect(await s.claimDataKey("alice", "shop", claim("aaaa"))).toEqual(claim("aaaa"));
+      expect(await s.claimDataKey("alice", "shop", claim("bbbb", "dev_b"))).toEqual(claim("aaaa")); // the first claim holds
+      expect(await s.getDataKeyClaim("alice", "shop")).toEqual(claim("aaaa"));
+      expect(await s.claimDataKey("alice", "blog", claim("bbbb"))).toEqual(claim("bbbb"));
+      expect(await s.claimDataKey("bob", "shop", claim("cccc"))).toEqual(claim("cccc"));
+      expect(await s.getDataKeyClaim("carol", "shop")).toBeUndefined();
+    });
+
+    test("data key claims: concurrent claims with different keys, exactly one wins", async () => {
+      const s = await fresh();
+      const fps = ["k1", "k2", "k3", "k4", "k5", "k6"];
+      const results = await Promise.all(fps.map((fp, i) => s.claimDataKey("alice", "race", { fingerprint: fp, claimedAt: "t", claimedBy: `dev_${i}` })));
+      const winner = (await s.getDataKeyClaim("alice", "race"))!;
+      expect(fps).toContain(winner.fingerprint);
+      // Every caller is told the same winner, including the ones that lost.
+      expect(new Set(results.map((r) => r.fingerprint))).toEqual(new Set([winner.fingerprint]));
+    });
+
     test("audit is per account, newest first, limited", async () => {
       const s = await fresh();
       for (let i = 0; i < 5; i++) await s.appendAudit({ at: `2026-11-05T00:00:0${i}.000Z`, user: "alice", action: `a${i}`, outcome: "ok" });

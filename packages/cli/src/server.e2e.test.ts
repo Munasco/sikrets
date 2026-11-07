@@ -7,7 +7,7 @@ import { legacy, type SsmClient } from "./commands/migrate.ts";
 import { startLocal } from "./commands/server.ts";
 import { readSession, savedServer, transport, writeSession } from "./core/device-auth.ts";
 import { projectKey, sealValue } from "./core/envelope.ts";
-import { ensureDataKey, loadDataKey } from "./core/datakey.ts";
+import { ensureDataKey, fingerprint, forgetDataKey, loadDataKey, saveDataKey } from "./core/datakey.ts";
 import { thisDevice } from "./core/device.ts";
 import { Secret } from "./core/secret.ts";
 import { resolveServer, serverFlag } from "./core/server.ts";
@@ -232,6 +232,77 @@ describe("sikrets server, end to end", () => {
   test("an unreachable server is reported as such", async () => {
     process.env[ENV.server] = "http://127.0.0.1:9";
     await expect((await openVault("demo")).list()).rejects.toThrow("Can't reach the Sikrets server at http://127.0.0.1:9");
+  });
+});
+
+describe("one data key per project", () => {
+  const scope = { account: "you@localhost", project: "demo", environment: SERVER.environment };
+  const another = async () => (await import("node:crypto")).randomBytes(32);
+
+  test("the first write claims the project; a device with another key is refused and told to restore", async () => {
+    const { testServer } = await import("./testing/preload.ts");
+    const mine = await ensureDataKey();
+    await (await openVault("demo")).put("API_KEY", Secret.of(REAL));
+    expect((await testServer().store.getDataKeyClaim(scope.account, "demo"))?.fingerprint).toBe(fingerprint(mine));
+    // This device now holds a different key (as a second, fresh device would).
+    await saveDataKey(await another());
+    await expect((await openVault("demo")).put("OTHER_TOKEN", Secret.of(OTHER))).rejects.toThrow("This project is sealed with a different data key than this device's");
+    await expect((await openVault("demo")).put("OTHER_TOKEN", Secret.of(OTHER))).rejects.toThrow("sikrets recovery restore");
+    expect((await testServer().store.listValues(scope)).map((v) => v.name)).toEqual(["API_KEY"]);
+    // Another project is free to use it; restoring the original key here makes writes work again.
+    await (await openVault("blog")).put("API_KEY", Secret.of(OTHER));
+    await saveDataKey(mine);
+    await (await openVault("demo")).put("OTHER_TOKEN", Secret.of(OTHER));
+    expect((await (await openVault("demo")).get("OTHER_TOKEN"))?.reveal()).toBe(OTHER);
+  });
+
+  test("a device without a data key never makes one for a claimed project, even with no values left", async () => {
+    await ensureDataKey();
+    const vault = await openVault("demo");
+    await vault.put("API_KEY", Secret.of(REAL));
+    await vault.delete("API_KEY");
+    await forgetDataKey();
+    await expect((await openVault("demo")).put("API_KEY", Secret.of(REAL))).rejects.toThrow("Restore it with your recovery code");
+    expect(await loadDataKey()).toBeUndefined();
+  });
+
+  test("two devices racing: the one whose claim lands second is refused, nothing written", async () => {
+    const { testServer } = await import("./testing/preload.ts");
+    await ensureDataKey();
+    const store = testServer().store;
+    const read = store.getDataKeyClaim.bind(store);
+    // The other device claims between this device's check and its claim.
+    spyOn(store, "getDataKeyClaim").mockImplementationOnce(async (account, project) => {
+      const before = await read(account, project);
+      await store.claimDataKey(account, project, { fingerprint: "0000000000000000", claimedAt: new Date().toISOString(), claimedBy: "dev_other" });
+      return before;
+    });
+    await expect((await openVault("demo")).put("API_KEY", Secret.of(REAL))).rejects.toThrow("sealed with a different data key");
+    expect(await store.listValues(scope)).toEqual([]);
+    expect((await read(scope.account, "demo"))?.fingerprint).toBe("0000000000000000");
+  });
+
+  test("values stored before claims existed: claimed only by the key they open with", async () => {
+    const { testServer } = await import("./testing/preload.ts");
+    const store = testServer().store;
+    const theirs = await another();
+    await store.putValue(scope, { name: "OLD_KEY", value: sealValue(projectKey(theirs, "demo"), "demo", "OLD_KEY", REAL), updatedAt: new Date().toISOString(), updatedBy: "dev_old" });
+    await ensureDataKey();
+    await expect((await openVault("demo")).put("API_KEY", Secret.of(OTHER))).rejects.toThrow("sealed with a different data key");
+    expect(await store.getDataKeyClaim(scope.account, "demo")).toBeUndefined();
+    await saveDataKey(theirs);
+    await (await openVault("demo")).put("API_KEY", Secret.of(OTHER));
+    expect((await store.getDataKeyClaim(scope.account, "demo"))?.fingerprint).toBe(fingerprint(theirs));
+  });
+
+  test("migrate can't upload envelopes into a project claimed by another key", async () => {
+    const { testServer } = await import("./testing/preload.ts");
+    await ensureDataKey();
+    await testServer().store.claimDataKey(scope.account, "demo", { fingerprint: "0000000000000000", claimedAt: new Date().toISOString(), claimedBy: "dev_other" });
+    const vault = await openVault("demo");
+    const sealed = sealValue(projectKey((await loadDataKey())!, "demo"), "demo", "SEALED_KEY", REAL);
+    await expect(vault.createSealed("SEALED_KEY", sealed)).rejects.toThrow("sealed with a different data key");
+    expect(await testServer().store.listValues(scope)).toEqual([]);
   });
 });
 

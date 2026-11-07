@@ -267,7 +267,11 @@ export const DEVICE_AUTH = {
     me: "/v1/me",
     values: (project: string, environment: string) => `/v1/projects/${encodeURIComponent(project)}/environments/${encodeURIComponent(environment)}/values`,
     value: (project: string, environment: string, name: string) => `/v1/projects/${encodeURIComponent(project)}/environments/${encodeURIComponent(environment)}/values/${encodeURIComponent(name)}`,
+    /** The data-key fingerprint a project is sealed under (GET), or claim it (PUT); every value write carries it too. */
+    dataKey: (project: string) => `/v1/projects/${encodeURIComponent(project)}/datakey`,
   },
+  /** The server's answer to a write sealed under another data key than the project's. */
+  dataKeyMismatch: "datakey_mismatch",
   proofHeader: "sikrets-device-proof",
   proofType: "sikrets-device-proof+jwt",
   certificateType: "sikrets-device-cert+jwt",

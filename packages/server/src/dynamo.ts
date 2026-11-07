@@ -1,6 +1,6 @@
 import { DeleteItemCommand, GetItemCommand, PutItemCommand, QueryCommand, TransactWriteItemsCommand, UpdateItemCommand, type AttributeValue } from "@aws-sdk/client-dynamodb";
 import { randomBytes } from "node:crypto";
-import { byName, type AuditEvent, type DeviceRecord, type Scope, type SignIn, type SignInStatus, type Store, type StoredValue } from "./store.ts";
+import { byName, type AuditEvent, type DataKeyClaim, type DeviceRecord, type Scope, type SignIn, type SignInStatus, type Store, type StoredValue } from "./store.ts";
 import { DYNAMO } from "./constants.ts";
 
 // The AWS adapter: one DynamoDB table (string partition key `pk`, string sort key `sk`, TTL on
@@ -18,6 +18,7 @@ import { DYNAMO } from "./constants.ts";
 //   ACCOUNT#<account>            DEVICE#<id>          the device record, with lastSeenAt/revokedAt as attributes
 //   REVOKEDKEY#<jkt>             -                    a device key refused for good
 //   VAULT#<account>#<project>#<env>   VALUE#<name>    a sealed value
+//   DATAKEY#<account>#<project>  -                    the data-key fingerprint the project is sealed under (created once)
 //   AUDIT#<account>              EVENT#<time>#<rand>  an audit event
 //   META#<key>                   -                    server settings
 
@@ -37,6 +38,7 @@ const item = (pk: string, sk: string, data: unknown, expiresAt?: number): Item =
 });
 const parse = <T>(i: Item | undefined): T | undefined => (i?.[DATA]?.S === undefined ? undefined : (JSON.parse(i[DATA].S) as T));
 const vault = ({ account, project, environment }: Scope) => `VAULT#${account}#${project}#${environment}`;
+const dataKey = (account: string, project: string) => `DATAKEY#${account}#${project}`;
 const conditionFailed = (e: unknown) => ["ConditionalCheckFailedException", "TransactionCanceledException"].includes((e as { name?: string })?.name ?? "");
 const S = (v: string): AttributeValue => ({ S: v });
 const N = (v: number): AttributeValue => ({ N: String(v) });
@@ -213,6 +215,17 @@ export function dynamoStore(client: DynamoClient, table: string): Store {
       }
     },
     deleteValue: async (scope, name) => Boolean((await del(vault(scope), `VALUE#${name}`)).Attributes),
+
+    getDataKeyClaim: async (account, project) => parse<DataKeyClaim>(await get(dataKey(account, project))),
+    async claimDataKey(account, project, claim) {
+      try {
+        await client.send(new PutItemCommand({ TableName: table, Item: item(dataKey(account, project), NONE, claim), ConditionExpression: "attribute_not_exists(#pk)", ExpressionAttributeNames: { "#pk": PK } }));
+        return claim;
+      } catch (error) {
+        if (!conditionFailed(error)) throw error;
+      }
+      return parse<DataKeyClaim>(await get(dataKey(account, project)))!;
+    },
 
     async appendAudit(e) {
       await put(item(`AUDIT#${e.user}`, `EVENT#${e.at}#${randomBytes(6).toString("hex")}`, e));

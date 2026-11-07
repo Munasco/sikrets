@@ -2,7 +2,7 @@ import { createPrivateKey, createPublicKey, generateKeyPairSync, randomBytes, si
 import { Hono, type Context } from "hono";
 import type { ApprovalPolicy } from "./approval.ts";
 import { isPublicP256, jwkThumbprint, ProofError, verifyProof, type ProofHeader } from "./proof.ts";
-import type { AuditEvent, DeviceRecord, Scope, SignIn, Store } from "./store.ts";
+import type { AuditEvent, DataKeyClaim, DeviceRecord, Scope, SignIn, Store } from "./store.ts";
 import { ACCOUNT, API_VERSION, AUDIT, PROTOCOL, SERVICE, VALUES } from "./constants.ts";
 
 // The Sikrets server's HTTP API. It owns devices, sign-in and storage, and never sees a secret:
@@ -308,6 +308,42 @@ export function createApp(opts: AppOptions): Hono<Env> {
   const record = (c: Context<Env>, scope: Scope, action: string, outcome: AuditEvent["outcome"], name?: string) =>
     audit({ user: scope.account, deviceId: c.var.device.id, action, project: scope.project, environment: scope.environment, ...(name ? { name } : {}), outcome });
 
+  // One data key per project, whatever the environment: the first write claims the project for its
+  // key's fingerprint (a conditional create), and every later write must carry the same one. Two
+  // devices that each made a key can't both seal values here; the one that lost is told to restore.
+  const projectOf = (c: Context<Env>) => {
+    const project = c.req.param("project") ?? "";
+    return VALUES.project.test(project) ? project : undefined;
+  };
+  const fingerprintOf = (req: Record<string, unknown> | undefined, field: string) => {
+    const fp = req?.[field];
+    return typeof fp === "string" && VALUES.fingerprint.test(fp) ? fp : undefined;
+  };
+  const mismatch = `this project is sealed with a different data key; restore that key on this device (sikrets recovery restore)`;
+  /** The claim that holds after this device asks for `fingerprint`. */
+  const claim = (c: Context<Env>, project: string, fingerprint: string): Promise<DataKeyClaim> =>
+    store.claimDataKey(c.var.device.user, project, { fingerprint, claimedAt: iso(), claimedBy: c.var.device.id });
+
+  app.get(P.dataKey, signedIn, async (c) => {
+    const project = projectOf(c);
+    if (!project) return deny(c, "invalid_request", "invalid project", 400);
+    const held = await store.getDataKeyClaim(c.var.device.user, project);
+    if (!held) return deny(c, "not_found", undefined, 404);
+    return c.json({ fingerprint: held.fingerprint, claimedAt: held.claimedAt });
+  });
+
+  app.put(P.dataKey, signedIn, async (c) => {
+    const project = projectOf(c);
+    if (!project) return deny(c, "invalid_request", "invalid project", 400);
+    const fingerprint = fingerprintOf(input(c.var.body), "fingerprint");
+    if (!fingerprint) return deny(c, "invalid_request", "fingerprint must be the data key's fingerprint (hex)", 400);
+    const held = await claim(c, project, fingerprint);
+    const ok = held.fingerprint === fingerprint;
+    await audit({ user: c.var.device.user, deviceId: c.var.device.id, action: "datakey.claim", project, outcome: ok ? "ok" : "denied" });
+    if (!ok) return deny(c, PROTOCOL.dataKeyMismatch, mismatch, 409);
+    return c.json({ fingerprint: held.fingerprint, claimedAt: held.claimedAt });
+  });
+
   app.get(P.values, signedIn, async (c) => {
     const scope = scopeOf(c);
     if (!scope) return deny(c, "invalid_request", "invalid project or environment", 400);
@@ -335,6 +371,15 @@ export function createApp(opts: AppOptions): Hono<Env> {
     if (problem) {
       await record(c, scope, "value.put", "denied", name);
       return deny(c, problem.tooLarge ? "too_large" : "invalid_value", problem.reason, problem.tooLarge ? 413 : 400);
+    }
+    const fingerprint = fingerprintOf(req, "dataKey");
+    if (!fingerprint) {
+      await record(c, scope, "value.put", "denied", name);
+      return deny(c, "invalid_request", "dataKey must be the fingerprint of the data key the value is sealed with", 400);
+    }
+    if ((await claim(c, scope.project, fingerprint)).fingerprint !== fingerprint) {
+      await record(c, scope, "value.put", "denied", name);
+      return deny(c, PROTOCOL.dataKeyMismatch, mismatch, 409);
     }
     const stored = { name, value: req!.value as string, updatedAt: iso(), updatedBy: c.var.device.id };
     // ifAbsent: create only (sikrets migrate), so a value written meanwhile isn't overwritten.

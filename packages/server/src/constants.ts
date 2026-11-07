@@ -61,6 +61,8 @@ export const PROTOCOL = {
     audit: "/v1/audit",
     values: "/v1/projects/:project/environments/:environment/values",
     value: "/v1/projects/:project/environments/:environment/values/:name",
+    /** Which data key the project's values are sealed under (GET), or claim it (PUT). */
+    dataKey: "/v1/projects/:project/datakey",
   },
   proofHeader: "sikrets-device-proof",
   proofType: "sikrets-device-proof+jwt",
@@ -83,6 +85,8 @@ export const PROTOCOL = {
   requestIdPrefix: "dar_",
   deviceKinds: ["secure-enclave", "software"],
   maxDeviceName: 64,
+  /** A write sealed under another data key than the one the project is claimed for. */
+  dataKeyMismatch: "datakey_mismatch",
 } as const;
 
 // ── Sealed values (CLI: ENVELOPE, isVaultKey, project names) ──────────────
@@ -95,6 +99,8 @@ export const VALUES = {
   project: /^[a-z0-9][a-z0-9-]{0,62}$/,
   environment: /^[a-z][a-z0-9-]{0,31}$/,
   defaultEnvironment: "dev",
+  /** A data key's fingerprint (CLI: fingerprint() in core/datakey.ts), sent with every write. */
+  fingerprint: /^[0-9a-f]{16,64}$/,
   /** Largest envelope accepted, in bytes. A 4 KB PEM seals to about 5.5 KB. */
   maxValueBytes: 64 * 1024,
   /** Room for the JSON around the largest value. */

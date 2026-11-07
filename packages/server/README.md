@@ -32,7 +32,8 @@ and proven with the contract suite. See below.
    Every lifecycle write is one conditional operation with a single winner across server
    instances: `claimNonce`, `ensureMeta`, `approveSignIn`/`denySignIn`/`collectSignIn`,
    `touchDevice` (never on a revoked device), `revokeDevice` (never rewrites `revokedAt`),
-   `createSignIn`/`createDevice` (all their items or none) and `createValue`.
+   `createSignIn`/`createDevice` (all their items or none), `createValue` and `claimDataKey`
+   (a project's data-key fingerprint, set once; the server refuses writes under any other).
 2. Run the contract suite against it from a `bun test` file. Pass a function that opens a fresh,
    empty store each time:
 
