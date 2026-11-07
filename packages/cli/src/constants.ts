@@ -101,6 +101,8 @@ export const GITHUB = {
   /** App JWTs: backdated for clock drift, and under GitHub's 10-minute limit. */
   jwtBackdateSeconds: 60,
   jwtLifetimeSeconds: 540,
+  /** Installation tokens always live this long; GitHub can't issue shorter ones. */
+  tokenLifetimeSeconds: 3600,
   /** Env vars an installation token is exported as. */
   tokenEnv: ["GITHUB_TOKEN", "GH_TOKEN"],
 } as const;

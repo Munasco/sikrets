@@ -1,4 +1,5 @@
-import { chmod, mkdir, rename, rm } from "node:fs/promises";
+import { chmod, mkdir } from "node:fs/promises";
+import { writeAtomic } from "./lock.ts";
 
 // Bun-native file helpers. Bun.write creates missing parent folders and Bun.file reads lazily.
 // Bun has no permission API, so private files fall back to node:fs chmod/mkdir for 0600/0700.
@@ -14,16 +15,7 @@ export const readText = async (file: string) => {
 };
 
 /** Writes JSON atomically: a temp file renamed over the target, so a reader never sees half a file. */
-export async function writeJson(file: string, value: unknown) {
-  const tmp = `${file}.${process.pid}.${crypto.randomUUID()}.tmp`;
-  try {
-    await Bun.write(tmp, JSON.stringify(value, null, 2) + "\n");
-    await rename(tmp, file);
-  } catch (error) {
-    await rm(tmp, { force: true });
-    throw error;
-  }
-}
+export const writeJson = (file: string, value: unknown) => writeAtomic(file, JSON.stringify(value, null, 2) + "\n");
 
 /** Writes a file only you can read, inside a folder only you can open. */
 export async function writePrivate(file: string, text: string) {
