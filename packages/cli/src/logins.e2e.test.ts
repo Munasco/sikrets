@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -32,6 +32,10 @@ function site(evilOrigin: () => string) {
       const url = new URL(req.url);
       if (url.pathname === "/login" && req.method === "GET")
         return page("Sign in", form("/login", `<label>Email <input type="email" name="email" autocomplete="username"></label><label>Password <input type="password" name="password"></label>`));
+      if (url.pathname === "/login-away" && req.method === "GET")
+        return page("Sign in", form("/login-away", `<input type="email" name="email" autocomplete="username"><input type="password" name="password">`));
+      // Sends you off to another origin after the password, whether it was right or not.
+      if (url.pathname === "/login-away" && req.method === "POST") return Response.redirect(`${evilOrigin()}/somewhere`, 303);
       if (url.pathname === "/login-elsewhere") return page("Sign in", form(`${evilOrigin()}/steal`, `<input type="email" name="email"><input type="password" name="password">`));
       if (url.pathname === "/login" && req.method === "POST") {
         const f = await req.formData();
@@ -85,12 +89,14 @@ const login = (over: Partial<Login> = {}): Login => ({
   ...over,
 });
 
-const server = (stored: Login = login()) =>
-  createServer({
+const servers: ReturnType<typeof createServer>[] = [];
+const server = (stored: Login = login()) => {
+  const s = createServer({
     root: dir,
     allow: [],
     loadEnv: async () => ({}),
     agent: "e2e-agent",
+    identify: async (name) => ({ name, id: "test:e2e" }),
     logins: {
       browser: cdp,
       getLogin: async (name) => (name === stored.name ? stored : undefined),
@@ -98,6 +104,9 @@ const server = (stored: Login = login()) =>
       approve: async () => (asked++, decision),
     },
   });
+  servers.push(s);
+  return s;
+};
 
 async function call(s: ReturnType<typeof server>, args: Record<string, unknown>) {
   const reply = (await s.handle({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "login", arguments: args } })) as {
@@ -118,6 +127,10 @@ beforeAll(async () => {
   agent = await chromium.connectOverCDP(cdp);
   tab = await agent.contexts()[0]!.newPage();
 }, 30_000);
+
+afterEach(() => {
+  for (const s of servers.splice(0)) s.close();
+});
 
 afterAll(async () => {
   await agent?.close().catch(() => undefined);
@@ -196,6 +209,15 @@ describe.skipIf(!browser)("MCP login tool, end to end", () => {
     expect(asked).toBe(2);
     expect((await listGrants()).map((g) => `${g.login}:${g.agent}`)).toEqual(["testsite:e2e-agent"]);
   }, 60_000);
+
+  test("a site that leaves the origin after the password is reported as unconfirmed, not signed in", async () => {
+    await tab.goto(`${real.url.origin}/login-away`);
+    const { text, isError } = await call(server(), { site: "testsite" });
+    expect(isError).toBe(false);
+    expect(text).toContain("couldn't confirm");
+    expect(text).not.toContain("Signed in");
+    expect(leaked(text)).toBe(false);
+  }, 30_000);
 
   test("with no site, lists login names and origins only", async () => {
     const { text } = await call(server(), {});

@@ -8,6 +8,7 @@ import { MCP, MCP_HTTP } from "../constants.ts";
 import { projectEnv } from "./run.ts";
 import { createLoginTool, LOGIN_TOOL, type LoginToolOptions } from "./mcp-login.ts";
 import { LOGINS } from "../constants.ts";
+import { parentIdentity, type AgentIdentity } from "../core/logins/identity.ts";
 
 // `sikrets mcp`: an MCP server on stdio, so an agent can use this project's secrets without ever
 // holding them. It can list key names, run a command with the values injected (like `sikrets run`),
@@ -34,8 +35,13 @@ export interface ServerOptions {
   /** Injected for tests; defaults to the project's vault. */
   loadEnv?: (root: string) => Promise<Env>;
   version?: string;
-  /** Who the agent is, for login grants. Defaults to the name the client sends in initialize. */
+  /** The agent's name in approvals and the activity log. Defaults to the name the client sends in its first initialize. */
   agent?: string;
+  /**
+   * Who the agent is, for login grants: an id the client can't choose. Defaults to the program that
+   * started this server (see core/logins/identity.ts); over HTTP, the authenticated client.
+   */
+  identify?: (name: string) => Promise<AgentIdentity | undefined>;
   /** For the login tool: the agent's browser, and test doubles. */
   logins?: LoginToolOptions;
 }
@@ -54,6 +60,7 @@ const TOOLS = [
     description:
       "Run a command with this project's secrets as environment variables, e.g. [\"bun\", \"test\"]. " +
       "You get the exit code and output; any secret value in the output is replaced with [secret:NAME]. " +
+      "Anything the command starts in the background is stopped when it ends. " +
       "Use this instead of reading .env files or asking the user for keys.",
     inputSchema: {
       type: "object",
@@ -108,18 +115,41 @@ function clip(text: string, env: Env): string {
   return `${clean.slice(0, keep)}\n… ${clean.length - MCP.maxOutputChars} characters omitted …\n${clean.slice(-keep)}`;
 }
 
-async function readCapped(stream: ReadableStream<Uint8Array>, limit: number, onOverflow: () => void): Promise<{ text: string; overflow: boolean }> {
+/** Reads until EOF, the limit, or `stop` aborts (then it cancels the stream and keeps what it has). */
+async function readCapped(stream: ReadableStream<Uint8Array>, limit: number, onOverflow: () => void, stop: AbortSignal): Promise<{ text: string; overflow: boolean }> {
   const chunks: Uint8Array[] = [];
   let size = 0;
-  for await (const chunk of stream) {
-    size += chunk.length;
-    if (size > limit) {
-      onOverflow();
-      return { text: "", overflow: true };
+  const reader = stream.getReader();
+  const cancel = () => void reader.cancel().catch(() => undefined);
+  stop.addEventListener("abort", cancel, { once: true });
+  try {
+    for (;;) {
+      const { done, value } = await reader.read().catch(() => ({ done: true as const, value: undefined }));
+      if (done) break;
+      size += value.length;
+      if (size > limit) {
+        onOverflow();
+        cancel();
+        return { text: "", overflow: true };
+      }
+      chunks.push(value);
     }
-    chunks.push(chunk);
+  } finally {
+    stop.removeEventListener("abort", cancel);
   }
   return { text: Buffer.concat(chunks).toString("utf8"), overflow: false };
+}
+
+/** Why a command stopped running. Only the first reason counts. */
+type RunState = "running" | "exited" | "timed-out" | "overflow" | "cancelled";
+
+/** Signals a whole process group (the command was spawned as its leader), so children it started go too. */
+function signalGroup(pid: number, signal: NodeJS.Signals) {
+  try {
+    process.kill(-pid, signal);
+  } catch {
+    // Already gone.
+  }
 }
 
 const text = (t: string, isError = false) => ({ content: [{ type: "text", text: t }], isError });
@@ -128,10 +158,17 @@ export function createServer(opts: ServerOptions) {
   const root = path.resolve(opts.root);
   const loadEnv = opts.loadEnv ?? projectEnv;
   const login = createLoginTool(opts.logins ?? {});
-  // Clients name themselves in initialize. It's self-reported, so the person sees it when asked to approve.
+  // Clients name themselves in initialize. The name is only a label the person sees; grants are
+  // bound to `identity`. Only the first initialize counts, so a client can't rename itself later.
+  let phase: "uninitialized" | "initialized" = "uninitialized";
   let agent = opts.agent ?? LOGINS.unknownAgent;
+  let identity: Promise<AgentIdentity | undefined> | undefined;
+  const whoIs = async (): Promise<AgentIdentity | { name: string }> => {
+    identity ??= (opts.identify ?? parentIdentity)(agent).catch(() => undefined);
+    return (await identity) ?? { name: agent };
+  };
 
-  async function runWithSecrets(args: Record<string, unknown>) {
+  async function runWithSecrets(args: Record<string, unknown>, signal?: AbortSignal) {
     const command = args.command;
     if (!Array.isArray(command) || !command.length || !command.every((c) => typeof c === "string")) return text("command must be a non-empty array of strings", true);
     const program = path.basename(command[0] as string);
@@ -140,33 +177,65 @@ export function createServer(opts: ServerOptions) {
     const cwd = path.resolve(root, typeof args.cwd === "string" ? args.cwd : ".");
     if (cwd !== root && !cwd.startsWith(root + path.sep)) return text("cwd must be inside the project", true);
     const timeout = Math.min(MCP.maxTimeoutSeconds, Math.max(1, Number(args.timeout_seconds) || MCP.defaultTimeoutSeconds));
+    if (signal?.aborted) return text("cancelled", true);
 
     const env = await loadEnv(root);
     const started = Date.now();
-    const spawn = () => Bun.spawn(command, { cwd, env: { ...Bun.env, ...toProcessEnv(env) }, stdin: "ignore", stdout: "pipe", stderr: "pipe" });
+    // Its own process group: stopping the command stops everything it started, and those all hold the secrets.
+    // (`detached` makes the child a process-group leader; bun-types doesn't list it yet.)
+    const options = { cwd, env: { ...Bun.env, ...toProcessEnv(env) }, stdin: "ignore", stdout: "pipe", stderr: "pipe", detached: true } as const;
+    const spawn = () => Bun.spawn(command, options);
     let proc: ReturnType<typeof spawn>;
     try {
       proc = spawn();
     } catch (error) {
       return text(scrub(`Couldn't start ${program}: ${error instanceof Error ? error.message : String(error)}`, env), true);
     }
-    let timedOut = false;
-    const timer = setTimeout(() => {
-      timedOut = true;
-      proc.kill();
-    }, timeout * 1000);
-    const stop = () => proc.kill();
-    const [out, err] = await Promise.all([readCapped(proc.stdout, MCP.maxCaptureBytes, stop), readCapped(proc.stderr, MCP.maxCaptureBytes, stop)]);
-    const code = await proc.exited;
-    clearTimeout(timer);
-    const ms = Date.now() - started;
-    await record(root, { kind: "run", detail: `mcp: ${program} by ${agent} (exit ${code}, ${(ms / 1000).toFixed(1)}s)`, keys: Object.keys(env), exitCode: code, ms });
 
-    const status = timedOut ? `timed out after ${timeout}s` : out.overflow || err.overflow ? "stopped: output over the capture limit" : `exit ${code}`;
+    let state = "running" as RunState;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const giveUpReading = new AbortController();
+    // SIGTERM the group, SIGKILL it after a grace period, then stop waiting on pipes someone outside the group still holds.
+    const terminate = () => {
+      signalGroup(proc.pid, "SIGTERM");
+      timers.push(
+        setTimeout(() => {
+          signalGroup(proc.pid, "SIGKILL");
+          timers.push(setTimeout(() => giveUpReading.abort(), MCP.readDeadlineMs));
+        }, MCP.killGraceMs),
+      );
+    };
+    const stop = (why: Exclude<RunState, "running">) => {
+      if (state !== "running") return;
+      state = why;
+      terminate();
+    };
+    timers.push(setTimeout(() => stop("timed-out"), timeout * 1000));
+    const onAbort = () => stop("cancelled");
+    signal?.addEventListener("abort", onAbort, { once: true });
+
+    const reads = Promise.all([
+      readCapped(proc.stdout, MCP.maxCaptureBytes, () => stop("overflow"), giveUpReading.signal),
+      readCapped(proc.stderr, MCP.maxCaptureBytes, () => stop("overflow"), giveUpReading.signal),
+    ]);
+    const code = await proc.exited;
+    // The command is done; anything it left behind in its group goes with it.
+    stop("exited");
+    const [out, err] = await reads;
+    for (const t of timers) clearTimeout(t);
+    signal?.removeEventListener("abort", onAbort);
+    const ms = Date.now() - started;
+    await record(root, { kind: "run", detail: `mcp: ${program} by ${agent} (${state === "exited" ? `exit ${code}` : state}, ${(ms / 1000).toFixed(1)}s)`, keys: Object.keys(env), exitCode: code, ms });
+
+    const status =
+      state === "timed-out" ? `timed out after ${timeout}s`
+      : state === "overflow" ? "stopped: output over the capture limit"
+      : state === "cancelled" ? "cancelled"
+      : `exit ${code}`;
     const parts = [`${program}: ${status}, ${(ms / 1000).toFixed(1)}s`];
     if (out.text) parts.push(`stdout:\n${clip(out.text, env)}`);
     if (err.text) parts.push(`stderr:\n${clip(err.text, env)}`);
-    return text(parts.join("\n\n"), code !== 0 || timedOut);
+    return text(parts.join("\n\n"), code !== 0 || state !== "exited");
   }
 
   async function listSecrets() {
@@ -184,16 +253,49 @@ export function createServer(opts: ServerOptions) {
     return text(entries.map((e) => `${e.at.slice(0, 19)} ${e.user} ${e.kind} ${e.detail}${e.keys?.length ? ` [${e.keys.join(", ")}]` : ""}`).join("\n"));
   }
 
-  async function handle(req: Request): Promise<Reply | undefined> {
+  // Requests in flight, so a client can cancel one (notifications/cancelled) and close() can stop them all.
+  const inFlight = new Map<string, AbortController>();
+  const key = (id: unknown) => `${typeof id}:${String(id)}`;
+
+  /** Runs one request. Aborting `signal` (or a matching notifications/cancelled) stops its command. */
+  async function handle(req: Request, signal?: AbortSignal): Promise<Reply | undefined> {
+    if (req.id === undefined) {
+      // Notifications need no reply. A cancelled one stops the request it names.
+      if (req.method === "notifications/cancelled") inFlight.get(key(req.params?.requestId))?.abort();
+      return undefined;
+    }
+    const controller = new AbortController();
+    const onAbort = () => controller.abort();
+    if (signal?.aborted) controller.abort();
+    else signal?.addEventListener("abort", onAbort, { once: true });
+    const k = key(req.id);
+    inFlight.set(k, controller);
+    try {
+      const reply = await dispatch(req, controller.signal);
+      // A cancelled request gets no reply: the client has stopped waiting for it.
+      return controller.signal.aborted ? undefined : reply;
+    } finally {
+      if (inFlight.get(k) === controller) inFlight.delete(k);
+      signal?.removeEventListener("abort", onAbort);
+    }
+  }
+
+  /** Stops every running command, e.g. when the client disconnects, and lets go of the browser. */
+  function close() {
+    for (const c of inFlight.values()) c.abort();
+    void login.release();
+  }
+
+  async function dispatch(req: Request, signal: AbortSignal): Promise<Reply> {
     const id = req.id ?? null;
     const ok = (result: unknown): Reply => ({ jsonrpc: "2.0", id, result });
     const fail = (code: number, message: string): Reply => ({ jsonrpc: "2.0", id, error: { code, message } });
-    if (req.id === undefined) return undefined; // notifications (initialized, cancelled) need no reply
 
     switch (req.method) {
       case "initialize": {
         const client = (req.params?.clientInfo as { name?: unknown } | undefined)?.name;
-        if (!opts.agent && typeof client === "string" && client.trim()) agent = client.trim().slice(0, 64);
+        if (phase === "uninitialized" && !identity && !opts.agent && typeof client === "string" && client.trim()) agent = client.trim().slice(0, 64);
+        phase = "initialized";
         return ok({
           // Answer with the client's version: this server only uses tools, which every version has.
           protocolVersion: typeof req.params?.protocolVersion === "string" ? req.params.protocolVersion : MCP.protocolVersion,
@@ -214,9 +316,9 @@ export function createServer(opts: ServerOptions) {
         const args = (req.params?.arguments ?? {}) as Record<string, unknown>;
         try {
           if (name === "list_secrets") return ok(await listSecrets());
-          if (name === "run_with_secrets") return ok(await runWithSecrets(args));
+          if (name === "run_with_secrets") return ok(await runWithSecrets(args, signal));
           if (name === "recent_activity") return ok(await recentActivity(args));
-          if (name === "login") return ok(await login(args, agent));
+          if (name === "login") return ok(await login(args, await whoIs()));
           return fail(-32602, `Unknown tool: ${String(name)}`);
         } catch (error) {
           // Errors can quote values (a provider error body, a bad path); never pass one through raw.
@@ -229,7 +331,7 @@ export function createServer(opts: ServerOptions) {
     }
   }
 
-  return { handle };
+  return { handle, close };
 }
 
 export async function run(args: string[], opts: Record<string, unknown>) {
@@ -251,6 +353,12 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   console.error(`sikrets mcp: serving ${path.resolve(root)}${allow.length ? ` (allowed: ${allow.join(", ")})` : ""}`);
   let buffer = "";
   const pending = new Set<Promise<void>>();
+  // Leaving (stdin closed, or a signal) stops every running command: they hold the secrets.
+  const shutdown = async () => {
+    server.close();
+    await Promise.all(pending);
+  };
+  for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"] as const) process.once(sig, () => void shutdown().then(() => process.exit(0)));
   for await (const chunk of Bun.stdin.stream()) {
     buffer += Buffer.from(chunk).toString("utf8");
     let nl: number;
@@ -271,7 +379,7 @@ export async function run(args: string[], opts: Record<string, unknown>) {
       void p.finally(() => pending.delete(p));
     }
   }
-  await Promise.all(pending);
+  await shutdown();
 }
 
 async function serveOverHttp(root: string, allow: string[], version: string, browser: string | undefined, opts: Record<string, unknown>) {

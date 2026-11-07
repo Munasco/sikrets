@@ -40,6 +40,15 @@ export const DEFAULTS = {
   rotateEvery: "30d",
 } as const;
 
+// Cross-process lock on a shared file (`<file>.lock`): how long to wait for it, how often to retry,
+// and when a lock whose holder never released it is treated as stale.
+export const FILE_LOCK = {
+  suffix: ".lock",
+  waitMs: 10_000,
+  retryMs: 20,
+  staleMs: 30_000,
+} as const;
+
 // ── Stand-ins ─────────────────────────────────────────────────────────────
 export const STAND_IN = {
   prefix: "sk-sikrets-",
@@ -85,6 +94,10 @@ export const MCP = {
   maxCaptureBytes: 16 * 1024 * 1024,
   maxOutputChars: 60_000,
   minRedactLength: 6,
+  // Stopping a command: SIGTERM to its process group, SIGKILL after killGraceMs, and stop reading
+  // its pipes readDeadlineMs after that (a process that left the group can still hold them open).
+  killGraceMs: 2_000,
+  readDeadlineMs: 1_000,
 } as const;
 
 // `sikrets mcp --http`: the same server over Streamable HTTP, for apps that can't spawn a local
@@ -153,16 +166,23 @@ export const LOGINS = {
   /** Chrome the agent and Sikrets share, over the DevTools protocol. */
   cdpEnv: "SIKRETS_BROWSER_CDP",
   defaultCdp: "http://127.0.0.1:9222",
+  /** How long to wait for the DevTools endpoint to answer before calling it unresponsive. */
+  cdpProbeMs: 3_000,
   /** Profile folder (under the user dir's browser/) when Sikrets has to start that Chrome itself. */
   browserProfile: "agent",
   /** Origins that may be stored without https (local test and dev servers). */
   loopbackHosts: ["localhost", "127.0.0.1", "[::1]"],
   unknownAgent: "unknown-agent",
+  /** Programs that only start the agent's MCP server; the agent is whatever started them. */
+  launchers: ["sh", "bash", "zsh", "dash", "fish", "env", "npx", "npm", "bunx", "pnpm", "pnpx", "yarn", "uvx"],
+  maxLauncherHops: 6,
   /** How long to wait for each sign-in step's page to settle, and for the person to answer. */
   stepTimeoutMs: 15_000,
   approvalTimeoutSeconds: 120,
   /** Compiled Touch ID helper, cached under the user dir. */
   touchIdBin: "bin/sikrets-touchid",
+  /** Keychain entry (under keychainService) pinning the helper's SHA-256, checked before every run. */
+  touchIdPin: "touchid-helper-sha256",
   dialogTitle: "Sikrets",
 } as const;
 

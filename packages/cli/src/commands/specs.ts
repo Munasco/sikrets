@@ -96,7 +96,7 @@ export const commands: CommandSpec[] = [
     options: [
       { name: "allow", type: "string", multiple: true, argument: "PROGRAM", description: "Only let agents run these programs (repeatable; default: any, except over a public URL)" },
       { name: "root", type: "string", argument: "DIR", description: "Project directory (default: current directory)" },
-      { name: "agent", type: "string", argument: "NAME", description: "stdio: name this agent for login approvals (default: the name its client reports)" },
+      { name: "agent", type: "string", argument: "NAME", description: "stdio: label this agent in login approvals (default: the name its client reports; grants are bound to the program that started the server)" },
       { name: "browser", type: "string", argument: "URL", description: "DevTools endpoint of the agent's Chrome for `login` (default: http://127.0.0.1:9222)" },
       { name: "http", type: "boolean", description: "Serve Streamable HTTP instead of stdio; every client needs a token (sikrets mcp clients add)" },
       { name: "port", type: "string", argument: "PORT", description: "--http: port (default: 7787)" },
