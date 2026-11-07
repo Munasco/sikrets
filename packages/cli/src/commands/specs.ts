@@ -96,9 +96,31 @@ export const commands: CommandSpec[] = [
     options: [
       { name: "allow", type: "string", multiple: true, argument: "PROGRAM", description: "Only let the agent run these programs (repeatable; default: any)" },
       { name: "root", type: "string", argument: "DIR", description: "Project directory (default: current directory)" },
+      { name: "agent", type: "string", argument: "NAME", description: "Label this agent in login approvals (default: the name its client reports; grants are bound to the program that started the server)" },
+      { name: "browser", type: "string", argument: "URL", description: "DevTools endpoint of the agent's Chrome for `login` (default: http://127.0.0.1:9222)" },
     ],
     examples: ["sikrets mcp", "sikrets mcp --allow bun --allow terraform", "claude mcp add sikrets -- sikrets mcp"],
     load: () => import("./mcp.ts"),
+  },
+  {
+    name: "logins",
+    description: "Website logins agents can sign in with but never see (add, ls, rm, grants, revoke)",
+    arguments: [{ name: "add|ls|rm|grants|revoke", required: false }, { name: "name", required: false }, { name: "url", required: false }],
+    options: [
+      { name: "username", type: "string", argument: "USER", description: "add: the username or email (prompted when missing)" },
+      { name: "totp", type: "boolean", description: "add: also store a 2FA secret (otpauth:// URI or base32), prompted hidden" },
+      { name: "password-stdin", type: "boolean", description: "add: read the password from stdin instead of a hidden prompt" },
+      { name: "agent", type: "string", argument: "NAME", description: "revoke: only this agent's grant (default: every agent's)" },
+      jsonOption,
+    ],
+    examples: [
+      "sikrets logins add github https://github.com --username me@acme.dev --totp",
+      "sikrets logins ls",
+      "sikrets logins grants",
+      "sikrets logins revoke github --agent claude-code",
+      "sikrets logins rm github",
+    ],
+    load: () => import("./logins.ts"),
   },
   {
     name: "env",

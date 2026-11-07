@@ -6,6 +6,9 @@ import { state } from "../core/state.ts";
 import { Secret } from "../core/secret.ts";
 import { MCP } from "../constants.ts";
 import { projectEnv } from "./run.ts";
+import { createLoginTool, LOGIN_TOOL, type LoginToolOptions } from "./mcp-login.ts";
+import { LOGINS } from "../constants.ts";
+import { parentIdentity, type AgentIdentity } from "../core/logins/identity.ts";
 
 // `sikrets mcp`: an MCP server on stdio, so an agent can use this project's secrets without ever
 // holding them. It can list key names, run a command with the values injected (like `sikrets run`),
@@ -32,6 +35,15 @@ export interface ServerOptions {
   /** Injected for tests; defaults to the project's vault. */
   loadEnv?: (root: string) => Promise<Env>;
   version?: string;
+  /** The agent's name in approvals and the activity log. Defaults to the name the client sends in its first initialize. */
+  agent?: string;
+  /**
+   * Who the agent is, for login grants: an id the client can't choose. Defaults to the program that
+   * started this server (see core/logins/identity.ts); over HTTP, the authenticated client.
+   */
+  identify?: (name: string) => Promise<AgentIdentity | undefined>;
+  /** For the login tool: the agent's browser, and test doubles. */
+  logins?: LoginToolOptions;
 }
 
 const TOOLS = [
@@ -73,6 +85,7 @@ const TOOLS = [
     },
     annotations: { readOnlyHint: true },
   },
+  LOGIN_TOOL,
 ] as const;
 
 /** Every form a value might take in output, longest first so a shorter form can't split a longer one. */
@@ -144,6 +157,16 @@ const text = (t: string, isError = false) => ({ content: [{ type: "text", text: 
 export function createServer(opts: ServerOptions) {
   const root = path.resolve(opts.root);
   const loadEnv = opts.loadEnv ?? projectEnv;
+  const login = createLoginTool(opts.logins ?? {});
+  // Clients name themselves in initialize. The name is only a label the person sees; grants are
+  // bound to `identity`. Only the first initialize counts, so a client can't rename itself later.
+  let phase: "uninitialized" | "initialized" = "uninitialized";
+  let agent = opts.agent ?? LOGINS.unknownAgent;
+  let identity: Promise<AgentIdentity | undefined> | undefined;
+  const whoIs = async (): Promise<AgentIdentity | { name: string }> => {
+    identity ??= (opts.identify ?? parentIdentity)(agent).catch(() => undefined);
+    return (await identity) ?? { name: agent };
+  };
 
   async function runWithSecrets(args: Record<string, unknown>, signal?: AbortSignal) {
     const command = args.command;
@@ -202,7 +225,7 @@ export function createServer(opts: ServerOptions) {
     for (const t of timers) clearTimeout(t);
     signal?.removeEventListener("abort", onAbort);
     const ms = Date.now() - started;
-    await record(root, { kind: "run", detail: `mcp: ${program} (${state === "exited" ? `exit ${code}` : state}, ${(ms / 1000).toFixed(1)}s)`, keys: Object.keys(env), exitCode: code, ms });
+    await record(root, { kind: "run", detail: `mcp: ${program} by ${agent} (${state === "exited" ? `exit ${code}` : state}, ${(ms / 1000).toFixed(1)}s)`, keys: Object.keys(env), exitCode: code, ms });
 
     const status =
       state === "timed-out" ? `timed out after ${timeout}s`
@@ -257,9 +280,10 @@ export function createServer(opts: ServerOptions) {
     }
   }
 
-  /** Stops every running command, e.g. when the client disconnects. */
+  /** Stops every running command, e.g. when the client disconnects, and lets go of the browser. */
   function close() {
     for (const c of inFlight.values()) c.abort();
+    void login.release();
   }
 
   async function dispatch(req: Request, signal: AbortSignal): Promise<Reply> {
@@ -268,7 +292,10 @@ export function createServer(opts: ServerOptions) {
     const fail = (code: number, message: string): Reply => ({ jsonrpc: "2.0", id, error: { code, message } });
 
     switch (req.method) {
-      case "initialize":
+      case "initialize": {
+        const client = (req.params?.clientInfo as { name?: unknown } | undefined)?.name;
+        if (phase === "uninitialized" && !identity && !opts.agent && typeof client === "string" && client.trim()) agent = client.trim().slice(0, 64);
+        phase = "initialized";
         return ok({
           // Answer with the client's version: this server only uses tools, which every version has.
           protocolVersion: typeof req.params?.protocolVersion === "string" ? req.params.protocolVersion : MCP.protocolVersion,
@@ -276,8 +303,10 @@ export function createServer(opts: ServerOptions) {
           serverInfo: { name: "sikrets", title: "Sikrets", version: opts.version ?? "0.0.0" },
           instructions:
             "Use run_with_secrets to run anything that needs this project's API keys. Never ask the user to paste a key, " +
-            "and don't read .env files for secrets: values there are stand-ins.",
+            "and don't read .env files for secrets: values there are stand-ins. To sign in to a website, open its sign-in page " +
+            "in the shared browser and call login; never ask the user for a password or 2FA code.",
         });
+      }
       case "ping":
         return ok({});
       case "tools/list":
@@ -289,6 +318,7 @@ export function createServer(opts: ServerOptions) {
           if (name === "list_secrets") return ok(await listSecrets());
           if (name === "run_with_secrets") return ok(await runWithSecrets(args, signal));
           if (name === "recent_activity") return ok(await recentActivity(args));
+          if (name === "login") return ok(await login(args, await whoIs()));
           return fail(-32602, `Unknown tool: ${String(name)}`);
         } catch (error) {
           // Errors can quote values (a provider error body, a bad path); never pass one through raw.
@@ -308,7 +338,9 @@ export async function run(_args: string[], opts: Record<string, unknown>) {
   const root = typeof opts.root === "string" ? opts.root : process.cwd();
   const allow = Array.isArray(opts.allow) ? (opts.allow as string[]) : [];
   const { version } = (await import("../../package.json")).default;
-  const server = createServer({ root, allow, version });
+  const agent = typeof opts.agent === "string" ? opts.agent : undefined;
+  const browser = typeof opts.browser === "string" ? opts.browser : undefined;
+  const server = createServer({ root, allow, version, agent, logins: { browser } });
   const write = (reply: Reply) => process.stdout.write(JSON.stringify(reply) + "\n");
 
   console.error(`sikrets mcp: serving ${path.resolve(root)}${allow.length ? ` (allowed: ${allow.join(", ")})` : ""}`);
