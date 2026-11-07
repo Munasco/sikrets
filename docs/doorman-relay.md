@@ -1,6 +1,39 @@
 # Doorman relay: approving rotations from a phone
 
-Status: design only. Nothing here is built yet.
+Status: built. The relay is `apps/relay` (AWS Lambda + DynamoDB, URL in `RELAY.url`), the phone app
+is `apps/mobile`, and the shared crypto is `packages/pairing`. The first version pairs by QR code
+instead of WebAuthn: same guarantees, no hosted gateway account needed. See "As built" below; the
+original design follows it.
+
+## As built
+
+```
+CLI                                   Relay (opaque mailbox)                 Phone app
+───                                   ──────────────────────                 ─────────
+sikrets pair: QR {relay, X25519 pub, pairing secret} ─────── camera ───────▶ X25519 + Ed25519 keys
+                                      box to-cli ◀── hello (sealed with secret)
+approvals watch: snapshot ──sealed──▶ box to-phone ──────────────────────▶  list, detail
+                                      box to-cli ◀── Ed25519-signed decision ─ Face ID → sign
+verify signature + one-time challenge, then rotate
+```
+
+- Box ids and the pairing id are HKDF outputs of the pairing secret. The relay never sees a key,
+  a name, a reason or a decision: only box ids and XChaCha20-Poly1305 ciphertext with a TTL.
+- Session key: `HKDF(X25519(cli, phone), salt = pairing secret)`; associated data binds direction.
+- Each open request gets a 128-bit challenge, stored only in the project's `.sikrets/relay.json`.
+  The phone signs `[context, version, pairing id, request id, resource, decision, challenge, time]`.
+  The CLI verifies against the phone key it paired with and marks the challenge used (checked and
+  written in one step, under a lock on `relay.json`), then decides. Used challenges stay as
+  tombstones; a request that reopens after a failed rotation gets a new one. A replay, a decision
+  for another request or pairing, a forged or flipped signature, or one older than 15 minutes is
+  refused.
+- Unpairing on either side sends a sealed `unpaired` notice, so the other side forgets the pairing
+  too. A new pairing's keys get their own keychain slots and replace the old ones only after the
+  hello has gone through.
+- The phone's signing key is a keychain item that requires Face ID in standalone builds; in Expo
+  Go it is device-only and gated by `expo-local-authentication`.
+- No push yet: the app polls while open. APNs needs a paid Apple Developer account.
+
 
 On the laptop, `sikrets approvals` asks with Touch ID or a dialog. When the person is away from the
 laptop, the request has to reach their phone. The CLI can't push to a phone directly, so our hosted

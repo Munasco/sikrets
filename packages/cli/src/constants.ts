@@ -16,6 +16,8 @@ export const ENV = {
   terraform: "SIKRETS_TERRAFORM",
   /** Project name for the SDK when it can't infer one. */
   project: "SIKRETS_PROJECT",
+  /** Overrides the phone relay URL (e.g. a local relay for development). */
+  relay: "SIKRETS_RELAY_URL",
 } as const;
 
 // ── Files and folders ─────────────────────────────────────────────────────
@@ -125,6 +127,30 @@ export const DOORMAN = {
   dialogTimeoutSeconds: 120,
   approveButton: "Approve",
   denyButton: "Deny",
+} as const;
+
+// ── Phone relay (pairing and approvals from the Sikrets app) ──────────────
+export const RELAY = {
+  /** Zero-knowledge mailbox (apps/relay): AWS Lambda + DynamoDB in us-east-1. */
+  url: "https://ooia2zcrrcwjoryuhochzfyczm0rkvka.lambda-url.us-east-1.on.aws",
+  /** Per-user file: which phone is paired (public keys and box ids, never a secret key). */
+  pairingFile: "pairing.json",
+  /** Per-project file: one-time challenges for requests shown on the phone. */
+  projectFile: "relay.json",
+  /** Keychain slot for the CLI's pairing secret and X25519 secret key. */
+  keychainProvider: "pairing",
+  keychainAccount: "default",
+  /** How long `sikrets pair` waits for the phone to scan. */
+  pairTimeoutMs: 5 * 60_000,
+  pollMs: 3_000,
+  /** How long a pushed snapshot stays on the relay before it lapses. */
+  snapshotTtlSeconds: 60 * 60,
+  /** Closed requests stay visible on the phone this long. */
+  recentMs: 24 * 60 * 60_000,
+  /** Snapshot message id prefix; a short hash of the project path follows. */
+  snapshotIdPrefix: "snapshot",
+  /** A used challenge for a request still pending this long later (its answer never applied) is replaced. */
+  reissueAfterMs: 60_000,
 } as const;
 
 // ── Local state-file locks ────────────────────────────────────────────────
