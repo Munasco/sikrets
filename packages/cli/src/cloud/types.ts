@@ -16,7 +16,17 @@ export interface SecretStore {
   list(): Promise<Map<string, string>>;
   get(key: string): Promise<string | undefined>;
   put(key: string, stored: string): Promise<void>;
+  /** Writes only if the value doesn't exist. False when something got there first. */
+  create(key: string, stored: string): Promise<boolean>;
   delete(key: string): Promise<void>;
+  /** Copies kept while a value is deleted and recreated (see core/migrate.ts), keyed by vault key. */
+  staged(): Promise<Map<string, string>>;
+  stage(key: string, stored: string): Promise<void>;
+  unstage(key: string): Promise<void>;
+  /** The data-key fingerprint the project is sealed under, if one has been claimed. */
+  marker(): Promise<string | undefined>;
+  /** Claims the project for this fingerprint unless one is already claimed; returns the one that holds. */
+  claimMarker(fingerprint: string): Promise<string>;
 }
 
 /** Options for deploying the stack; a provider ignores what doesn't apply to it. */

@@ -208,6 +208,8 @@ export const RECOVERY = {
   /** Keychain slot for this device's copy of the data key. */
   dataKeyProvider: "datakey",
   dataKeyAccount: "default",
+  /** Lock file (under the user folder) held while creating the data key. */
+  dataKeyLock: "datakey",
   dataKeyBytes: 32,
   /** Random bytes in a recovery code (160 bits), before the checksum group. */
   codeBytes: 20,
@@ -244,6 +246,13 @@ export const ENVELOPE = {
 } as const;
 /** sikrets.json "encryption" value that refuses legacy plaintext once a project is migrated. */
 export const ENCRYPTION_REQUIRED = "required";
+/** SSM names beside a project's values. Lowercase with a dot, so they never parse as a vault key. */
+export const SSM_META = {
+  /** Fingerprint of the data key this project's values are sealed with, created once (Overwrite: false). */
+  dataKeyMarker: "sikrets.datakey",
+  /** Suffix of the copy `migrate encrypt --purge-history` keeps while it recreates a parameter. */
+  stagedSuffix: ".sikrets-staged",
+} as const;
 
 // ── Backups ───────────────────────────────────────────────────────────────
 export const BACKUP = {
@@ -266,8 +275,10 @@ export const BACKUP = {
 
 // ── Doorman (human approval before rotating) ──────────────────────────────
 export const APPROVALS_FILE = "approvals.json";
-/** Pending requests lapse after this long without a decision. */
+/** Pending requests lapse after this long without a decision; a failed rotation gets a fresh window to retry. */
 export const APPROVAL_TTL = "24h";
+/** A rotation still marked running after this long, or whose process is gone, is recorded as failed. */
+export const APPROVAL_ROTATING_MAX_MS = 60 * 60_000;
 /** What a person is told. Generic on purpose: never the detection source. */
 export const APPROVAL_REASONS = {
   exposed: "We think this key may be exposed",
@@ -282,4 +293,13 @@ export const DOORMAN = {
   dialogTimeoutSeconds: 120,
   approveButton: "Approve",
   denyButton: "Deny",
+} as const;
+
+// ── Local state-file locks ────────────────────────────────────────────────
+export const LOCK = {
+  /** How long to wait for another sikrets process to finish with a file. */
+  waitMs: 10_000,
+  retryMs: 25,
+  /** A lock older than this is assumed abandoned even if its pid looks alive. */
+  staleMs: 30_000,
 } as const;

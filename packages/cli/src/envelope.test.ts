@@ -1,19 +1,30 @@
-import { beforeEach, describe, expect, spyOn, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { randomBytes } from "node:crypto";
-import { ensureDataKey, loadDataKey, saveDataKey } from "./core/datakey.ts";
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { ensureDataKey, fingerprint, loadDataKey, saveDataKey } from "./core/datakey.ts";
 import { EnvelopeError, envelopeKind, openValue, projectKey, sealValue } from "./core/envelope.ts";
 import { Secret } from "./core/secret.ts";
-import { ssmVault } from "./core/vault.ts";
+import { ssmParams, ssmVault } from "./core/vault.ts";
 import { fakeSsm } from "./fake-ssm.ts";
 
 // In-memory keychain and Parameter Store, so nothing real is touched.
 const keychain = new Map<string, string>();
+let dir: string;
 
-beforeEach(() => {
+beforeEach(async () => {
   keychain.clear();
+  dir = await mkdtemp(path.join(os.tmpdir(), "sikrets-envelope-"));
+  process.env.SIKRETS_CONFIG_DIR = dir; // the data key's lock file lands here, not in ~/.sikrets
   spyOn(Bun.secrets, "set").mockImplementation(async ({ service, name, value }) => void keychain.set(`${service}/${name}`, value));
   spyOn(Bun.secrets, "get").mockImplementation(async ({ service, name }) => keychain.get(`${service}/${name}`) ?? null);
   spyOn(Bun.secrets, "delete").mockImplementation(async ({ service, name }) => keychain.delete(`${service}/${name}`));
+});
+
+afterEach(async () => {
+  delete process.env.SIKRETS_CONFIG_DIR;
+  await rm(dir, { recursive: true, force: true });
 });
 
 const NAME = "/sikrets/shop/CACHE_REDIS_REST_TOKEN";
@@ -124,5 +135,46 @@ describe("ssm vault", () => {
 
     await saveDataKey(original); // what `sikrets recovery restore` does
     expect((await (await ssmVault("shop", { client: ssm.client })).get("CACHE_REDIS_REST_TOKEN"))!.reveal()).toBe(VALUE);
+  });
+
+  test("the first write claims the project for its data key; a device with another key is refused", async () => {
+    const ssm = fakeSsm();
+    await (await ssmVault("shop", { client: ssm.client })).put("CACHE_REDIS_REST_TOKEN", Secret.of(VALUE));
+    const original = (await loadDataKey())!;
+    expect(ssm.params.get("/sikrets/shop/sikrets.datakey")).toBe(fingerprint(original));
+
+    // A second fresh device that made its own key (e.g. before the first device wrote anything).
+    await saveDataKey(randomBytes(32));
+    await expect((await ssmVault("shop", { client: ssm.client })).put("NEW_KEY", Secret.of("x"))).rejects.toThrow("recovery restore --force");
+    expect(ssm.params.has("/sikrets/shop/NEW_KEY")).toBe(false);
+  });
+
+  test("two fresh devices racing on an empty project: only one key's values get written", async () => {
+    const ssm = fakeSsm();
+    const params = await ssmParams("shop", ssm.client);
+    const [a, b] = await Promise.all([params.claimMarker("aaaa"), params.claimMarker("bbbb")]);
+    expect(a).toBe(b); // both see the same winner
+    // The loser sees a marker that isn't its own and refuses to seal.
+    await saveDataKey(randomBytes(32));
+    ssm.params.set("/sikrets/shop/sikrets.datakey", "not-this-device");
+    await expect((await ssmVault("shop", { client: ssm.client })).put("NEW_KEY", Secret.of("x"))).rejects.toThrow("recovery restore --force");
+  });
+
+  test("a project sealed before the marker existed is claimed only by a key that opens it", async () => {
+    const ssm = fakeSsm();
+    const theirs = randomBytes(32);
+    ssm.params.set(NAME, sealValue(projectKey(theirs, "shop"), NAME, VALUE));
+    await saveDataKey(randomBytes(32));
+    await expect((await ssmVault("shop", { client: ssm.client })).put("NEW_KEY", Secret.of("x"))).rejects.toThrow("recovery restore --force");
+    expect(ssm.params.has("/sikrets/shop/sikrets.datakey")).toBe(false);
+    await saveDataKey(theirs);
+    await (await ssmVault("shop", { client: ssm.client })).put("NEW_KEY", Secret.of("x"));
+    expect(ssm.params.get("/sikrets/shop/sikrets.datakey")).toBe(fingerprint(theirs));
+  });
+
+  test("the marker never shows up as a vault key", async () => {
+    const ssm = fakeSsm();
+    await (await ssmVault("shop", { client: ssm.client })).put("CACHE_REDIS_REST_TOKEN", Secret.of(VALUE));
+    expect([...(await (await ssmParams("shop", ssm.client)).list()).keys()]).toEqual(["CACHE_REDIS_REST_TOKEN"]);
   });
 });

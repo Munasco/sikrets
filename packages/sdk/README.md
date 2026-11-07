@@ -26,7 +26,7 @@ Values in SSM are encrypted by the CLI before upload (`sk1:…`), so AWS stores 
 | `SIKRETS_VAULT` | `ssm` | `ssm` (AWS SSM Parameter Store) or `keychain` (Bun, local only) |
 | `SIKRETS_PROJECT_KEY` | Bun: derived from the keychain data key | base64 key that opens this project's values; write it with `sikrets env pull --project-key` |
 
-Or explicitly: `createSikrets({ project: "shop", ttlMs: 60_000 })`. Once a project is migrated, pass `requireEncrypted: true` so a plaintext value planted in SSM is refused.
+Or explicitly: `createSikrets({ project: "shop", ttlMs: 60_000 })`. Once a project is migrated (`"encryption": "required"` in sikrets.json), the SDK refuses a plaintext value planted in SSM, like the CLI. Where sikrets.json isn't deployed, pass `requireEncrypted: true`.
 
 ## Production permissions (ssm vault)
 

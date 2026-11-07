@@ -3,7 +3,8 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { configDir } from "../store.ts";
 import { fingerprint, open, seal, type Sealed } from "./datakey.ts";
-import { readJson, writePrivate } from "./fs.ts";
+import { privateDir, readJson } from "./fs.ts";
+import { createExclusive, withLock, writeAtomic } from "./lock.ts";
 import { combine, split, type Share } from "./shamir.ts";
 import { RECOVERY } from "../constants.ts";
 
@@ -18,6 +19,8 @@ export interface KdfParams {
   [param: string]: string | number;
 }
 
+export type RecoveryState = "unused" | "used";
+
 export interface RecoveryRecord {
   version: 1;
   /** Changes on every setup/rotate; bound into the wrap so an old record can't be swapped in. */
@@ -27,6 +30,12 @@ export interface RecoveryRecord {
   fingerprint: string;
   /** The code was split into shares rather than shown whole. */
   split: boolean;
+  /**
+   * "used" once a restore has accepted the code: it was typed on some device, so it should be
+   * replaced (sikrets recovery rotate). Older records have no state and count as unused.
+   */
+  state?: RecoveryState;
+  usedAt?: string;
   kdf: KdfParams;
   wrapped: Sealed;
 }
@@ -131,7 +140,7 @@ export async function deriveKey(secret: Uint8Array, kdf: KdfParams): Promise<Buf
 const aad = (r: Pick<RecoveryRecord, "id" | "fingerprint">) => `${RECOVERY.aad}|${r.id}|${r.fingerprint}`;
 
 export async function wrap(dataKey: Uint8Array, secret: Uint8Array, opts: { split?: boolean } = {}): Promise<RecoveryRecord> {
-  const head = { version: 1 as const, id: `rk_${randomBytes(6).toString("hex")}`, createdAt: new Date().toISOString(), fingerprint: fingerprint(dataKey), split: opts.split ?? false };
+  const head = { version: 1 as const, id: `rk_${randomBytes(6).toString("hex")}`, createdAt: new Date().toISOString(), fingerprint: fingerprint(dataKey), split: opts.split ?? false, state: "unused" as const };
   const kdf = newKdf();
   return { ...head, kdf, wrapped: seal(await deriveKey(secret, kdf), dataKey, aad(head)) };
 }
@@ -157,5 +166,35 @@ export async function readRecord(file = recoveryFile()): Promise<RecoveryRecord 
   return r;
 }
 
+export const recordState = (r: RecoveryRecord): RecoveryState => r.state ?? "unused";
+
+const text = (record: RecoveryRecord) => JSON.stringify(record, null, 2) + "\n";
+
 /** Replacing the record is what invalidates the previous code: nothing it can unwrap remains. */
-export const writeRecord = (record: RecoveryRecord, file = recoveryFile()) => writePrivate(file, JSON.stringify(record, null, 2) + "\n");
+export async function writeRecord(record: RecoveryRecord, file = recoveryFile()) {
+  await privateDir(path.dirname(file));
+  await writeAtomic(file, text(record), 0o600);
+}
+
+/** First setup: writes the record only if none exists, so two setups can't overwrite each other. */
+export async function createRecord(record: RecoveryRecord, file = recoveryFile()) {
+  await privateDir(path.dirname(file));
+  if (!(await createExclusive(file, text(record), 0o600))) throw new Error("Recovery was set up meanwhile, by another run. Nothing changed; to replace that code, run: sikrets recovery rotate");
+}
+
+/** Rotate: replaces the record only if it is still the one this run read. */
+export async function replaceRecord(record: RecoveryRecord, previousId: string, file = recoveryFile()) {
+  await withLock(file, async () => {
+    const now = await readRecord(file);
+    if (now?.id !== previousId) throw new Error("The recovery record changed while this ran. Nothing changed; check with: sikrets recovery status");
+    await writeRecord(record, file);
+  });
+}
+
+/** After a restore accepted the code: record that it has been used, so status asks for a new one. */
+export async function markUsed(id: string, file = recoveryFile(), now = new Date()) {
+  await withLock(file, async () => {
+    const r = await readRecord(file);
+    if (r?.id === id && recordState(r) === "unused") await writeRecord({ ...r, state: "used", usedAt: now.toISOString() }, file);
+  });
+}

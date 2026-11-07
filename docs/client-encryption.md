@@ -63,7 +63,10 @@ sikrets recovery setup                        # if you haven't: the data key now
   on, so a value planted in SSM can't be passed off as yours. New projects from `sikrets init` start
   with it.
 - `--purge-history` deletes and recreates each parameter, because SSM keeps up to 100 old versions.
-  The value is briefly missing during the swap.
+  The sealed value is staged under `<KEY>.sikrets-staged` first and the recreate uses
+  `Overwrite: false`, so a crash or denied call loses nothing and the next run finishes the job.
+- A value that changes while the migration runs (say, a rotation) is left as is and reported as
+  changed, never overwritten with the old copy.
 - Migration doesn't undo past exposure. Anyone who could read SSM before could have copied the
   values. Rotate the keys that matter: `sikrets rotate <resource>`.
 
@@ -78,9 +81,10 @@ sikrets recovery restore --file ./recovery.json
 
 Until then, reads of sealed values fail with "restore it with: sikrets recovery restore". Writes
 fail the same way. A new device never mints its own data key for a project that already has sealed
-values, because that would split the project across two keys. The check is per project: restore
-before you write to any project on a new device, or a project with no sealed values yet gets sealed
-under a new key that your other devices don't have.
+values, because that would split the project across two keys. The first write to a project claims
+it for one data key: a `/sikrets/<project>/sikrets.datakey` parameter holding the key's fingerprint,
+created with `Overwrite: false`. A device whose key doesn't match is refused, even when two fresh
+devices write at the same moment.
 
 ## Deployed apps
 
@@ -89,8 +93,8 @@ sikrets env pull --project-key --file .env.production   # adds SIKRETS_PROJECT a
 ```
 
 Put `SIKRETS_PROJECT_KEY` in the host's secret settings. The app's IAM role still needs
-`ssm:GetParameter`. `createSikrets({ requireEncrypted: true })` refuses plaintext once the project
-is migrated. Under Bun on a developer machine, the SDK derives the key from the keychain, so no
+`ssm:GetParameter`. The SDK refuses plaintext when the `sikrets.json` next to the app says
+`"encryption": "required"`; where it isn't deployed, pass `createSikrets({ requireEncrypted: true })`. Under Bun on a developer machine, the SDK derives the key from the keychain, so no
 setup is needed.
 
 ## Backups
@@ -142,6 +146,4 @@ account, and a teammate can't open values sealed under your data key. The plan:
 ## Still to do
 
 - Teams, as above.
-- `requireEncrypted` in the SDK is opt-in. It could follow `sikrets.json` once deployments carry it.
 - `migrate encrypt` handles one project per run (the one in the current directory).
-- A crash between delete and put during `--purge-history` loses that value. Take a backup first.
