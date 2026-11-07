@@ -6,6 +6,24 @@ export const SITE_URL = "https://sikrets.usetennant.com";
 export const SCHEMA_URL = `${SITE_URL}/schema.json`;
 export const USER_AGENT = "sikrets-cli";
 
+// ── Releases ──────────────────────────────────────────────────────────────
+export const REPO = "Munasco/sikrets";
+export const RELEASES = {
+  /** GitHub API: the newest non-prerelease release. */
+  latest: `https://api.github.com/repos/${REPO}/releases/latest`,
+  page: `https://github.com/${REPO}/releases`,
+  /** Release assets live at <download>/<tag>/<asset>. */
+  download: `https://github.com/${REPO}/releases/download`,
+  checksums: "SHA256SUMS",
+  installScript: `${SITE_URL}/install.sh`,
+} as const;
+export const UPDATE = {
+  /** How long the new binary gets to answer --version before the update is undone. */
+  versionCheckMs: 10_000,
+} as const;
+/** Release asset for a platform, e.g. sikrets-darwin-arm64 or sikrets-windows-x64.exe. */
+export const releaseAsset = (platform: string, arch: string) => `sikrets-${platform === "win32" ? "windows" : platform}-${arch}${platform === "win32" ? ".exe" : ""}`;
+
 // ── Environment variables Sikrets reads ───────────────────────────────────
 export const ENV = {
   /** Overrides ~/.sikrets (connections, browser profiles, run logs). */

@@ -1,0 +1,199 @@
+name: Release
+
+# Push a v* tag that matches packages/cli/package.json to build the CLI for every platform, sign and
+# notarize the macOS builds (when the Apple secrets are set), attest provenance, publish a GitHub
+# Release with SHA256SUMS, and bump the Homebrew tap (when HOMEBREW_TAP_TOKEN is set).
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/cli
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - name: Check the tag matches package.json
+        run: |
+          version=$(bun -p 'require("./package.json").version')
+          [ "v$version" = "$GITHUB_REF_NAME" ] || { echo "::error::Tag $GITHUB_REF_NAME doesn't match package.json version $version"; exit 1; }
+      - run: bun run typecheck
+      - run: bun run test
+      - name: Compile
+        run: |
+          # x64 Linux and Windows use Bun's baseline runtime so CPUs without AVX2 can run it.
+          for target in darwin-arm64 darwin-x64 linux-x64-baseline linux-arm64 windows-x64-baseline; do
+            name="sikrets-${target%-baseline}"
+            case "$target" in windows-*) name="$name.exe" ;; esac
+            bun build --compile --minify --bytecode --external electron --external "chromium-bidi/*" \
+              --target="bun-$target" src/index.ts --outfile "dist/$name"
+          done
+      - name: Smoke test
+        run: test "$(dist/sikrets-linux-x64 --version)" = "${GITHUB_REF_NAME#v}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: packages/cli/dist/
+          if-no-files-found: error
+
+  # Signs with the Developer ID in APPLE_CERT_P12 and notarizes with APPLE_ID. Without those secrets
+  # every step is skipped and the macOS builds ship with Bun's ad-hoc signature.
+  macos:
+    needs: build
+    runs-on: macos-latest
+    env:
+      APPLE_CERT_P12: ${{ secrets.APPLE_CERT_P12 }}
+      APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - if: env.APPLE_CERT_P12 == ''
+        run: echo "::notice::APPLE_CERT_P12 is not set; macOS binaries are not signed or notarized"
+      - if: env.APPLE_CERT_P12 != ''
+        uses: actions/checkout@v4
+      - if: env.APPLE_CERT_P12 != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: dist
+      - name: Import the signing certificate
+        if: env.APPLE_CERT_P12 != ''
+        run: |
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          pass=$(openssl rand -hex 16)
+          printf %s "$APPLE_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$pass" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$pass" "$keychain"
+          security import "$RUNNER_TEMP/cert.p12" -k "$keychain" -P "$APPLE_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$pass" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" login.keychain-db
+          rm "$RUNNER_TEMP/cert.p12"
+      - name: Sign
+        if: env.APPLE_CERT_P12 != ''
+        run: |
+          identity=$(security find-identity -v -p codesigning | grep -o '"Developer ID Application: [^"]*"' | head -1 | tr -d '"')
+          [ -n "$identity" ] || { echo "::error::APPLE_CERT_P12 has no Developer ID Application identity"; exit 1; }
+          # Hardened runtime, plus the JIT exceptions JavaScriptCore needs (.github/entitlements.plist).
+          for f in dist/sikrets-darwin-*; do
+            chmod +x "$f"
+            codesign --force --timestamp --options runtime --entitlements .github/entitlements.plist --sign "$identity" "$f"
+            codesign --verify --strict --verbose=2 "$f"
+          done
+      - name: Notarize
+        if: env.APPLE_CERT_P12 != '' && env.APPLE_ID != ''
+        run: |
+          # A bare binary can't be stapled; Gatekeeper fetches the ticket online on first run.
+          for f in dist/sikrets-darwin-*; do
+            ditto -c -k "$f" "$f.zip"
+            result=$(xcrun notarytool submit "$f.zip" --apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait --output-format json)
+            echo "$result"
+            [ "$(echo "$result" | jq -r .status)" = Accepted ] || { echo "::error::Notarization of $f failed"; exit 1; }
+            rm "$f.zip"
+          done
+      - name: Smoke test
+        if: env.APPLE_CERT_P12 != ''
+        run: test "$(dist/sikrets-darwin-arm64 --version)" = "${GITHUB_REF_NAME#v}"
+      - if: env.APPLE_CERT_P12 != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: dist/
+          overwrite: true
+      - name: Remove the signing keychain
+        if: always() && env.APPLE_CERT_P12 != ''
+        run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
+
+  release:
+    needs: macos
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: dist
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum sikrets-* > SHA256SUMS && cat SHA256SUMS
+      # Verify a download with: gh attestation verify <file> --repo <owner>/<repo>
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/sikrets-*
+      - name: Publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease=""
+          case "$GITHUB_REF_NAME" in *-*) prerelease=--prerelease ;; esac
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes --verify-tag $prerelease
+      - uses: actions/upload-artifact@v4
+        with:
+          name: checksums
+          path: dist/SHA256SUMS
+
+  # Renders Formula/sikrets.rb and pushes it to <owner>/homebrew-tap. Needs HOMEBREW_TAP_TOKEN, a
+  # fine-grained token with Contents: read and write on the tap repo. Skipped for prereleases.
+  homebrew:
+    needs: release
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    env:
+      HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+    steps:
+      - if: env.HOMEBREW_TAP_TOKEN == ''
+        run: echo "::notice::HOMEBREW_TAP_TOKEN is not set; the Homebrew tap was not updated"
+      - if: env.HOMEBREW_TAP_TOKEN != ''
+        uses: actions/checkout@v4
+      - if: env.HOMEBREW_TAP_TOKEN != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: checksums
+      - if: env.HOMEBREW_TAP_TOKEN != ''
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+      - name: Render the formula
+        if: env.HOMEBREW_TAP_TOKEN != ''
+        run: |
+          sum() { awk -v f="sikrets-$1" '$2 == f { print $1 }' SHA256SUMS; }
+          mkdir -p tap/Formula
+          sed -e '/^# /d' \
+            -e "s|__VERSION__|${GITHUB_REF_NAME#v}|" \
+            -e "s|__REPO__|$GITHUB_REPOSITORY|g" \
+            -e "s|__SHA256_DARWIN_ARM64__|$(sum darwin-arm64)|" \
+            -e "s|__SHA256_DARWIN_X64__|$(sum darwin-x64)|" \
+            -e "s|__SHA256_LINUX_ARM64__|$(sum linux-arm64)|" \
+            -e "s|__SHA256_LINUX_X64__|$(sum linux-x64)|" \
+            Formula/sikrets.rb > tap/Formula/sikrets.rb
+          if grep -nE '__[A-Z0-9_]+__|sha256 ""' tap/Formula/sikrets.rb; then echo "::error::Formula has unfilled values"; exit 1; fi
+          cat tap/Formula/sikrets.rb
+      - name: Push to the tap
+        if: env.HOMEBREW_TAP_TOKEN != ''
+        working-directory: tap
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/sikrets.rb
+          git diff --cached --quiet || git commit -m "sikrets ${GITHUB_REF_NAME#v}"
+          git push
