@@ -21,7 +21,8 @@ const device = (id: string, user: string, over: Partial<DeviceRecord> = {}): Dev
   ...over,
 });
 
-const signIn = (requestId: string, userCode: string): SignIn => ({ requestId, userCode, jwk: { kty: "EC", crv: "P-256", x: "x", y: "y" }, jkt: "t", name: "mac", kind: "software", hardwareBound: false, expiresAt: Date.now() + 60_000 });
+const NOW = Date.parse("2026-11-05T00:00:00.000Z");
+const signIn = (requestId: string, userCode: string, over: Partial<SignIn> = {}): SignIn => ({ requestId, userCode, jwk: { kty: "EC", crv: "P-256", x: "x", y: "y" }, jkt: "t", name: "mac", kind: "software", hardwareBound: false, expiresAt: NOW + 60_000, status: "pending", ...over });
 
 export function storeContract(name: string, open: OpenStore) {
   describe(`store contract: ${name}`, () => {
@@ -45,30 +46,77 @@ export function storeContract(name: string, open: OpenStore) {
       expect(await s.claimNonce("n1", 300, 200)).toBe(true);
     });
 
-    test("sign-ins: put, find by request id or code, approve, delete", async () => {
+    test("sign-ins: create, find by request id or code, approve once, collect once", async () => {
       const s = await fresh();
-      await s.putSignIn(signIn("dar_1", "BCDF-GHJK"));
-      expect((await s.getSignIn("dar_1"))?.userCode).toBe("BCDF-GHJK");
-      const found = (await s.findSignInByCode("BCDF-GHJK"))!;
-      expect(found.requestId).toBe("dar_1");
-      await s.putSignIn({ ...found, approvedBy: "a@x" });
-      expect((await s.getSignIn("dar_1"))?.approvedBy).toBe("a@x");
-      await s.deleteSignIn("dar_1");
-      expect(await s.getSignIn("dar_1")).toBeUndefined();
-      expect(await s.findSignInByCode("BCDF-GHJK")).toBeUndefined();
+      await s.createSignIn(signIn("dar_1", "BCDF-GHJK"), NOW);
+      expect(await s.getSignIn("dar_1")).toMatchObject({ userCode: "BCDF-GHJK", status: "pending" });
+      expect((await s.findSignInByCode("BCDF-GHJK"))?.requestId).toBe("dar_1");
       expect(await s.findSignInByCode("NOPE-NOPE")).toBeUndefined();
+      expect(await s.collectSignIn("dar_1", NOW)).toBeUndefined(); // not approved yet
+      expect(await s.approveSignIn("dar_1", "a@x", NOW)).toMatchObject({ status: "approved", approvedBy: "a@x" });
+      expect(await s.approveSignIn("dar_1", "mallory@x", NOW)).toBeUndefined(); // already approved: no account switch
+      expect((await s.getSignIn("dar_1"))?.approvedBy).toBe("a@x");
+      expect(await s.collectSignIn("dar_1", NOW)).toMatchObject({ approvedBy: "a@x" });
+      expect(await s.collectSignIn("dar_1", NOW)).toBeUndefined();
+      expect(await s.approveSignIn("dar_1", "a@x", NOW)).toBeUndefined(); // a collected sign-in never comes back
+      expect((await s.getSignIn("dar_1"))?.status).toBe("collected");
     });
 
-    test("devices are listed per account and updated in place", async () => {
+    test("sign-ins: concurrent approvals and collects each win exactly once", async () => {
       const s = await fresh();
-      for (const d of [device("dev_a", "alice"), device("dev_b", "alice"), device("dev_c", "alice"), device("dev_z", "bob")]) await s.putDevice(d);
+      await s.createSignIn(signIn("dar_2", "CDFG-HJKL"), NOW);
+      const approvals = await Promise.all(["a@x", "b@x", "c@x", "d@x"].map((u) => s.approveSignIn("dar_2", u, NOW)));
+      expect(approvals.filter(Boolean)).toHaveLength(1);
+      expect((await s.getSignIn("dar_2"))?.approvedBy).toBe(approvals.find(Boolean)!.approvedBy);
+      const collects = await Promise.all([1, 2, 3, 4].map(() => s.collectSignIn("dar_2", NOW)));
+      expect(collects.filter(Boolean)).toHaveLength(1);
+    });
+
+    test("sign-ins: deny, expire, and nothing after expiry", async () => {
+      const s = await fresh();
+      await s.createSignIn(signIn("dar_3", "DFGH-JKLM"), NOW);
+      expect(await s.denySignIn("dar_3")).toBe(true);
+      expect(await s.denySignIn("dar_3")).toBe(false);
+      expect(await s.approveSignIn("dar_3", "a@x", NOW)).toBeUndefined();
+      await s.createSignIn(signIn("dar_4", "FGHJ-KLMN"), NOW);
+      expect(await s.approveSignIn("dar_4", "a@x", NOW + 61_000)).toBeUndefined(); // past expiry
+      await s.expireSignIn("dar_4", NOW + 61_000);
+      expect((await s.getSignIn("dar_4"))?.status).toBe("expired");
+      await s.createSignIn(signIn("dar_5", "GHJK-LMNP", { status: "approved", approvedBy: "a@x" }), NOW);
+      expect(await s.collectSignIn("dar_5", NOW + 61_000)).toBeUndefined();
+    });
+
+    test("devices: listed per account; lastSeenAt never undoes a revoke; revoked stays revoked", async () => {
+      const s = await fresh();
+      for (const d of [device("dev_a", "alice"), device("dev_b", "alice"), device("dev_c", "alice"), device("dev_z", "bob")]) await s.createDevice(d);
+      await expect(s.createDevice(device("dev_a", "alice"))).rejects.toThrow();
       expect((await s.listDevices("alice")).map((d) => d.id)).toEqual(["dev_a", "dev_b", "dev_c"]);
       expect((await s.listDevices("bob")).map((d) => d.id)).toEqual(["dev_z"]);
       expect(await s.listDevices("carol")).toEqual([]);
-      await s.putDevice(device("dev_a", "alice", { revokedAt: "2026-11-05T01:00:00.000Z" }));
+      expect(await s.touchDevice("dev_a", "2026-11-05T00:30:00.000Z")).toBe(true);
+      expect((await s.getDevice("dev_a"))?.lastSeenAt).toBe("2026-11-05T00:30:00.000Z");
+      // A request that loaded dev_a before the revoke finishes after it: its touch must not bring it back.
+      const [revoked, touched] = await Promise.all([s.revokeDevice("dev_a", "2026-11-05T01:00:00.000Z"), s.touchDevice("dev_a", "2026-11-05T01:00:01.000Z")]);
+      expect(revoked).toBe(true);
+      expect(await s.touchDevice("dev_a", "2026-11-05T01:00:02.000Z")).toBe(false);
       expect((await s.getDevice("dev_a"))?.revokedAt).toBe("2026-11-05T01:00:00.000Z");
+      expect(touched === false || (await s.getDevice("dev_a"))?.revokedAt !== undefined).toBe(true);
+      expect(await s.revokeDevice("dev_a", "2026-11-05T02:00:00.000Z")).toBe(false); // revokedAt is never rewritten
+      expect((await s.getDevice("dev_a"))?.revokedAt).toBe("2026-11-05T01:00:00.000Z");
+      expect((await s.listDevices("alice")).find((d) => d.id === "dev_a")?.revokedAt).toBe("2026-11-05T01:00:00.000Z");
       expect((await s.getDevice("dev_a"))?.jwk).toEqual({ kty: "EC", crv: "P-256", x: "x", y: "y" });
       expect(await s.getDevice("dev_nope")).toBeUndefined();
+      expect(await s.touchDevice("dev_nope", "t")).toBe(false);
+      expect(await s.revokeDevice("dev_nope", "t")).toBe(false);
+    });
+
+    test("revoked keys are remembered", async () => {
+      const s = await fresh();
+      expect(await s.isKeyRevoked("jkt_1")).toBe(false);
+      await s.revokeKey("jkt_1", "2026-11-05T00:00:00.000Z");
+      await s.revokeKey("jkt_1", "2026-11-05T00:00:01.000Z");
+      expect(await s.isKeyRevoked("jkt_1")).toBe(true);
+      expect(await s.isKeyRevoked("jkt_2")).toBe(false);
     });
 
     test("values are scoped by account, project and environment", async () => {
@@ -87,6 +135,10 @@ export function storeContract(name: string, open: OpenStore) {
       const replaced = envelope();
       await s.putValue(dev, { name: "A_KEY", value: replaced, updatedAt: "t2", updatedBy: "dev_b" });
       expect((await s.getValue(dev, "A_KEY"))?.value).toBe(replaced);
+      expect(await s.createValue(dev, { name: "A_KEY", value: sealed, updatedAt: "t3", updatedBy: "dev_c" })).toBe(false); // create-only never overwrites
+      expect((await s.getValue(dev, "A_KEY"))?.value).toBe(replaced);
+      expect(await s.createValue(dev, { name: "D_KEY", value: sealed, updatedAt: "t3", updatedBy: "dev_c" })).toBe(true);
+      expect(await s.deleteValue(dev, "D_KEY")).toBe(true);
       expect(await s.deleteValue(dev, "A_KEY")).toBe(true);
       expect(await s.deleteValue(dev, "A_KEY")).toBe(false);
       expect((await s.listValues(dev)).map((v) => v.name)).toEqual(["B_KEY", "C_KEY"]);

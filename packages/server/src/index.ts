@@ -7,8 +7,7 @@ import type { Store } from "./store.ts";
 
 export { createApp, envelopeProblem } from "./app.ts";
 export { autoApproval, manualApproval, type ApprovalPolicy } from "./approval.ts";
-export { readConfig, type ServerConfig } from "./config.ts";
-/** Local development and tests only. */
+export { readConfig, startupWarnings, type ServerConfig } from "./config.ts";
 export { sqliteStore } from "./sqlite.ts";
 export { byName, type AuditEvent, type DeviceKind, type DeviceRecord, type Scope, type SignIn, type Store, type StoredValue, type ValueInfo } from "./store.ts";
 // The contract suite imports bun:test, so it is its own entry: "@sikrets/server/store-contract".

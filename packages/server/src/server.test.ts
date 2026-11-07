@@ -4,14 +4,14 @@ import os from "node:os";
 import path from "node:path";
 import { createApp } from "./app.ts";
 import { autoApproval, manualApproval } from "./approval.ts";
-import { readConfig } from "./config.ts";
+import { readConfig, startupWarnings } from "./config.ts";
 import { dynamoStore } from "./dynamo.ts";
 import { startServer } from "./index.ts";
 import { sqliteStore } from "./sqlite.ts";
 import type { Store } from "./store.ts";
 import { envelope, testDevice } from "./testing/client.ts";
 import { fakeDynamo } from "./testing/fake-dynamo.ts";
-import { DEV_ON, ENV, PROTOCOL, VALUES } from "./constants.ts";
+import { ENV, PROTOCOL, VALUES } from "./constants.ts";
 
 // The HTTP API, in-process: sign-in, proofs, devices, sealed values and the audit log. Devices are
 // software keys made per test; values are placeholder envelopes, never real secrets.
@@ -176,6 +176,82 @@ describe("devices", () => {
   });
 });
 
+describe("lifecycles under races and replays", () => {
+  test("two polls collecting one approved sign-in get one device", async () => {
+    const { device } = setup();
+    const d = device();
+    const { requestId } = await d.start();
+    const replies = await Promise.all([d.collect(requestId), d.collect(requestId), d.collect(requestId)]);
+    expect(replies.filter((r) => r.status === 200)).toHaveLength(1);
+  });
+
+  test("an approved sign-in can't be approved again, into this account or another", async () => {
+    const { device } = setup({ manual: true });
+    const d = device();
+    const s = await d.start();
+    const admin = (user: string) => d.call("POST", P.approve, { code: s.userCode, user }, { proof: null }, { authorization: `Bearer ${ADMIN}` });
+    expect((await admin("alice")).status).toBe(200);
+    expect(await admin("mallory")).toMatchObject({ status: 409, body: { error: "already_decided" } });
+    expect((await d.collect(s.requestId)).body.user).toBe("alice");
+    expect((await admin("mallory")).status).toBe(409); // nor brought back after it was collected
+    expect((await d.collect(s.requestId)).status).toBe(400);
+  });
+
+  test("a denied sign-in can't be collected or approved", async () => {
+    const { device } = setup({ manual: true });
+    const d = device();
+    const s = await d.start();
+    const admin = (body: object) => d.call("POST", P.approve, { code: s.userCode, user: "alice", ...body }, { proof: null }, { authorization: `Bearer ${ADMIN}` });
+    expect((await admin({ deny: true })).body).toEqual({ approved: false });
+    expect((await d.collect(s.requestId)).body.error).toBe("access_denied");
+    expect((await admin({})).status).toBe(409);
+  });
+
+  test("a revoked key is refused for good: no new device id, even with auto approval", async () => {
+    const { app, device } = setup();
+    const stolen = device();
+    const owner = device();
+    await stolen.signIn("stolen");
+    await owner.signIn("owner");
+    await owner.call("POST", P.revoke.replace(":id", stolen.id!));
+    expect((await stolen.call("POST", P.authorize, { name: "again", kind: "software", hardwareBound: false, publicKey: stolen.jwk }, { kid: null })).body).toEqual({ error: "invalid_proof", reason: "key revoked" });
+    expect((await stolen.call("GET", P.me)).status).toBe(401);
+    await testDevice(app).signIn(); // other keys still sign in (throws if not)
+  });
+
+  test("signing in again with the same key replaces its earlier device", async () => {
+    const { store, device } = setup();
+    const d = device();
+    await d.signIn();
+    const first = d.id!;
+    await d.signIn();
+    expect(d.id).not.toBe(first);
+    expect((await store.getDevice(first))?.revokedAt).toBeDefined();
+    expect((await d.call("GET", P.me)).status).toBe(200);
+  });
+
+  test("a request that loaded the device before a revoke can't undo it", async () => {
+    const { store, device } = setup();
+    const d = device();
+    await d.signIn();
+    const loaded = (await store.getDevice(d.id!))!; // what an in-flight request holds
+    await store.revokeDevice(d.id!, new Date().toISOString());
+    expect(await store.touchDevice(loaded.id, new Date().toISOString())).toBe(false);
+    expect((await store.getDevice(d.id!))?.revokedAt).toBeDefined();
+    expect((await d.call("GET", P.me)).status).toBe(401);
+  });
+
+  test("ifAbsent creates a value but never overwrites one", async () => {
+    const { device } = setup();
+    const d = device();
+    await d.signIn();
+    const [a, b] = [envelope(), envelope()];
+    expect((await d.call("PUT", value("NEW_KEY"), { value: a, ifAbsent: true })).status).toBe(200);
+    expect(await d.call("PUT", value("NEW_KEY"), { value: b, ifAbsent: true })).toMatchObject({ status: 412, body: { error: "exists" } });
+    expect((await d.call("GET", value("NEW_KEY"))).body.value).toBe(a);
+  });
+});
+
 describe("sealed values", () => {
   test("put, list, get and delete; names only in the listing", async () => {
     const { device } = setup();
@@ -309,12 +385,13 @@ describe("config and startup", () => {
     expect(() => readConfig({ [ENV.publicUrl]: "sikrets.example.com" })).toThrow("origin");
   });
 
-  test("DynamoDB by default; SQLite is development only and stays on this machine unless the dev flag is set", () => {
+  test("DynamoDB by default; SQLite may serve beyond this machine, with a startup warning", () => {
     expect(readConfig({}).store).toEqual({ kind: "aws", table: "sikrets", region: "us-east-1" });
-    const shared = { [ENV.store]: "sqlite", [ENV.dataDir]: "/tmp/x", [ENV.host]: "0.0.0.0", [ENV.approval]: "manual" };
-    expect(() => readConfig(shared)).toThrow(`set ${ENV.dev}=${DEV_ON}`);
-    expect(() => readConfig({ ...shared, [ENV.dev]: "true" })).toThrow(ENV.dev);
-    expect(readConfig({ ...shared, [ENV.dev]: DEV_ON }).store).toEqual({ kind: "sqlite", dir: "/tmp/x" });
+    expect(startupWarnings(readConfig({}))).toEqual([]);
+    const shared = readConfig({ [ENV.store]: "sqlite", [ENV.dataDir]: "/tmp/x", [ENV.host]: "0.0.0.0", [ENV.approval]: "manual" });
+    expect(shared.store).toEqual({ kind: "sqlite", dir: "/tmp/x" });
+    expect(startupWarnings(shared).join()).toContain("single server process");
+    expect(startupWarnings(readConfig({ [ENV.store]: "sqlite", [ENV.dataDir]: "/tmp/x" }))).toEqual([]);
   });
 
   test("listens on localhost with SQLite on disk; the certificate key and values survive a restart", async () => {

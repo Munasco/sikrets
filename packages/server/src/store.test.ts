@@ -53,3 +53,14 @@ test("dynamodb: values are stored as ciphertext items", async () => {
   expect(item.pk!.S).toBe("VAULT#alice#shop#dev");
   expect(JSON.parse(item.data!.S!).value).toBe(sealed);
 });
+
+test("sqlite: a new sign-in drops ones past their expiry (no TTL sweep here)", async () => {
+  const s = sqliteStore();
+  const base = { jwk: { kty: "EC", crv: "P-256", x: "x", y: "y" }, jkt: "t", name: "mac", kind: "software" as const, hardwareBound: false, status: "pending" as const };
+  await s.createSignIn({ ...base, requestId: "dar_old", userCode: "BBBB-BBBB", expiresAt: 1_000 }, 500);
+  await s.createSignIn({ ...base, requestId: "dar_new", userCode: "CCCC-CCCC", expiresAt: 10_000 }, 2_000);
+  expect(await s.getSignIn("dar_old")).toBeUndefined();
+  expect(await s.findSignInByCode("BBBB-BBBB")).toBeUndefined();
+  expect((await s.getSignIn("dar_new"))?.status).toBe("pending");
+  s.close();
+});

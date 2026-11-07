@@ -27,8 +27,7 @@ function build(opts: TestServerOptions) {
   const app = createApp({ store, approval: opts.autoApprove ? autoApproval(opts.autoApprove) : manualApproval(), now: opts.now });
   const approve = async (code: string, user = DEFAULT_USER) => {
     const signIn = await store.findSignInByCode(code);
-    if (!signIn) throw new Error(`No pending sign-in with code ${code}`);
-    await store.putSignIn({ ...signIn, approvedBy: user });
+    if (!signIn || !(await store.approveSignIn(signIn.requestId, user, Date.now()))) throw new Error(`No pending sign-in with code ${code}`);
   };
   return { store, app, approve, devices: (user = DEFAULT_USER) => store.listDevices(user) };
 }

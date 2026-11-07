@@ -22,7 +22,7 @@ export interface AppOptions {
 type Env = { Variables: { body: string; device: DeviceRecord } };
 
 const P = PROTOCOL.paths;
-const deny = (c: Context, error: string, reason?: string, status: 400 | 401 | 403 | 404 | 413 = 401) => c.json({ error, ...(reason ? { reason } : {}) }, status);
+const deny = (c: Context, error: string, reason?: string, status: 400 | 401 | 403 | 404 | 409 | 412 | 413 = 401) => c.json({ error, ...(reason ? { reason } : {}) }, status);
 const b64url = (b: Uint8Array | string) => Buffer.from(b).toString("base64url");
 const randomId = (prefix: string) => `${prefix}${randomBytes(9).toString("base64url")}`;
 
@@ -92,14 +92,18 @@ export function createApp(opts: AppOptions): Hono<Env> {
       body,
       now: now(),
       claimNonce: (jti, expiresAt, at) => store.claimNonce(jti, expiresAt, at),
+      // A revoked key is refused under any device id, and can't sign in again (even with auto approval).
       async keyFor(header: ProofHeader) {
         if (header.kid) {
           device = await store.getDevice(String(header.kid));
           if (!device) throw new ProofError("unknown device");
-          if (device.revokedAt) throw new ProofError("device revoked");
+          if (device.revokedAt || (await store.isKeyRevoked(jwkThumbprint(device.jwk)))) throw new ProofError("device revoked");
           return device.jwk;
         }
-        if (allowJwk && isPublicP256(header.jwk)) return header.jwk;
+        if (allowJwk && isPublicP256(header.jwk)) {
+          if (await store.isKeyRevoked(jwkThumbprint(header.jwk))) throw new ProofError(PROTOCOL.keyRevoked);
+          return header.jwk;
+        }
         throw new ProofError("no device key");
       },
     });
@@ -113,9 +117,10 @@ export function createApp(opts: AppOptions): Hono<Env> {
     try {
       const { device } = await check(c, body, false);
       if (!device) return deny(c, "invalid_proof", "no device key");
-      device.lastSeenAt = iso();
-      await store.putDevice(device);
-      c.set("device", device);
+      // Only lastSeenAt, and only on an active device: never a whole-record write that could undo a revoke.
+      const seen = iso();
+      if (!(await store.touchDevice(device.id, seen))) return deny(c, "invalid_proof", "device revoked");
+      c.set("device", { ...device, lastSeenAt: seen });
       c.set("body", body);
     } catch (error) {
       if (error instanceof ProofError) return deny(c, "invalid_proof", error.reason);
@@ -161,9 +166,11 @@ export function createApp(opts: AppOptions): Hono<Env> {
       hardwareBound: req.hardwareBound === true,
       userCode: userCode(),
       expiresAt: now() + PROTOCOL.approvalTimeoutMs,
+      status: "pending",
     };
-    signIn.approvedBy = approval.onStart(signIn);
-    await store.putSignIn(signIn);
+    const auto = approval.onStart(signIn);
+    if (auto) Object.assign(signIn, { status: "approved", approvedBy: auto });
+    await store.createSignIn(signIn, now());
     const origin = opts.publicUrl?.replace(/\/+$/, "") ?? new URL(c.req.url).origin;
     return c.json({
       requestId: signIn.requestId,
@@ -189,15 +196,32 @@ export function createApp(opts: AppOptions): Hono<Env> {
     if (!signIn || !header.jwk) return deny(c, "invalid_grant", undefined, 400);
     // Only the key that started the sign-in can collect it.
     if (jwkThumbprint(header.jwk) !== signIn.jkt) return deny(c, "invalid_grant", "a different key started this sign-in", 400);
-    if (signIn.expiresAt < now()) {
-      await store.deleteSignIn(signIn.requestId);
+    if (signIn.expiresAt < now() && (signIn.status === "pending" || signIn.status === "approved")) {
+      await store.expireSignIn(signIn.requestId, now());
       return deny(c, "expired_token", undefined, 400);
     }
-    if (!signIn.approvedBy) return deny(c, PROTOCOL.pending, undefined, 400);
-    await store.deleteSignIn(signIn.requestId);
+    switch (signIn.status) {
+      case "pending":
+        return deny(c, PROTOCOL.pending, undefined, 400);
+      case "denied":
+        return deny(c, "access_denied", undefined, 400);
+      case "expired":
+        return deny(c, "expired_token", undefined, 400);
+      case "collected":
+        return deny(c, "invalid_grant", "this sign-in was already collected", 400);
+    }
+    // Collected once: of two polls racing, only one gets a device.
+    const approved = await store.collectSignIn(signIn.requestId, now());
+    if (!approved?.approvedBy) return deny(c, "invalid_grant", "this sign-in was already collected", 400);
 
-    const device: DeviceRecord = { id: randomId(PROTOCOL.deviceIdPrefix), user: signIn.approvedBy, name: signIn.name, kind: signIn.kind, hardwareBound: signIn.hardwareBound, registeredAt: iso(), jwk: signIn.jwk };
-    await store.putDevice(device);
+    const device: DeviceRecord = { id: randomId(PROTOCOL.deviceIdPrefix), user: approved.approvedBy, name: approved.name, kind: approved.kind, hardwareBound: approved.hardwareBound, registeredAt: iso(), jwk: approved.jwk };
+    await store.createDevice(device);
+    // The same key signing in again replaces its earlier registrations, so it isn't live under two ids.
+    for (const old of await store.listDevices(device.user)) {
+      if (old.id !== device.id && !old.revokedAt && jwkThumbprint(old.jwk) === signIn.jkt && (await store.revokeDevice(old.id, iso()))) {
+        await audit({ user: device.user, deviceId: device.id, action: `device.replace ${old.id}`, outcome: "ok" });
+      }
+    }
     const key = await certificateKey();
     const input64 = `${b64url(JSON.stringify({ typ: PROTOCOL.certificateType, alg: PROTOCOL.alg }))}.${b64url(JSON.stringify({ sub: device.id, user: device.user, cnf: { jkt: signIn.jkt }, hw: device.hardwareBound, iat: Math.floor(now() / 1000) }))}`;
     const certificate = `${input64}.${b64url(signWith("sha256", Buffer.from(input64), { key, dsaEncoding: "ieee-p1363" }))}`;
@@ -234,8 +258,15 @@ export function createApp(opts: AppOptions): Hono<Env> {
     const code = String(req.code ?? c.req.query("code") ?? "");
     const signIn = code ? await store.findSignInByCode(code) : undefined;
     if (!signIn || signIn.expiresAt < now()) return deny(c, "not_found", undefined, 404);
-    signIn.approvedBy = user;
-    await store.putSignIn(signIn);
+    // Decided once: approving again (as this account or another) or after a collect is refused.
+    if (signIn.status !== "pending") return deny(c, "already_decided", `this sign-in is ${signIn.status}`, 409);
+    if (await store.isKeyRevoked(signIn.jkt)) return deny(c, "forbidden", "that device key was revoked", 403);
+    if (req.deny === true) {
+      if (!(await store.denySignIn(signIn.requestId))) return deny(c, "already_decided", undefined, 409);
+      await audit({ user, deviceId: device?.id, action: "device.deny", outcome: "ok" });
+      return c.json({ approved: false });
+    }
+    if (!(await store.approveSignIn(signIn.requestId, user, now()))) return deny(c, "already_decided", undefined, 409);
     await audit({ user, deviceId: device?.id, action: "device.approve", outcome: "ok" });
     return c.json({ approved: true });
   });
@@ -249,10 +280,11 @@ export function createApp(opts: AppOptions): Hono<Env> {
     const me = c.var.device;
     const target = await store.getDevice(c.req.param("id")!);
     if (!target || target.user !== me.user) return deny(c, "not_found", undefined, 404);
-    if (!target.revokedAt) {
-      target.revokedAt = iso();
-      await store.putDevice(target);
-      await audit({ user: me.user, deviceId: me.id, action: `device.revoke ${target.id}`, outcome: "ok" });
+    // The key first (refused for good, under any id, and from signing in again), then every device using it.
+    const jkt = jwkThumbprint(target.jwk);
+    await store.revokeKey(jkt, iso());
+    for (const d of await store.listDevices(me.user)) {
+      if (jwkThumbprint(d.jwk) === jkt && (await store.revokeDevice(d.id, iso()))) await audit({ user: me.user, deviceId: me.id, action: `device.revoke ${d.id}`, outcome: "ok" });
     }
     return c.json({ revoked: target.id });
   });
@@ -305,7 +337,13 @@ export function createApp(opts: AppOptions): Hono<Env> {
       return deny(c, problem.tooLarge ? "too_large" : "invalid_value", problem.reason, problem.tooLarge ? 413 : 400);
     }
     const stored = { name, value: req!.value as string, updatedAt: iso(), updatedBy: c.var.device.id };
-    await store.putValue(scope, stored);
+    // ifAbsent: create only (sikrets migrate), so a value written meanwhile isn't overwritten.
+    if (req!.ifAbsent === true) {
+      if (!(await store.createValue(scope, stored))) {
+        await record(c, scope, "value.put", "denied", name);
+        return deny(c, "exists", "a value with this name is already stored", 412);
+      }
+    } else await store.putValue(scope, stored);
     await record(c, scope, "value.put", "ok", name);
     return c.json({ name, updatedAt: stored.updatedAt });
   });

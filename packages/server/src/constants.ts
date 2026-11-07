@@ -10,12 +10,10 @@ export const API_VERSION = 1;
 export const ENV = {
   host: "SIKRETS_SERVER_HOST",
   port: "SIKRETS_SERVER_PORT",
-  /** "aws" (DynamoDB, the default and the one supported store) or "sqlite" (local development and tests only). */
+  /** "aws" (DynamoDB, the default) or "sqlite" (one file; a single server process). */
   store: "SIKRETS_SERVER_STORE",
   /** SQLite: folder for the database file. */
   dataDir: "SIKRETS_SERVER_DATA",
-  /** "1" lets the dev SQLite store listen beyond this machine (a shared dev box). Never in production. */
-  dev: "SIKRETS_SERVER_DEV",
   /** AWS: DynamoDB table and region. Credentials come from the standard AWS chain. */
   table: "SIKRETS_SERVER_TABLE",
   region: "SIKRETS_SERVER_REGION",
@@ -43,10 +41,7 @@ export const DEFAULTS = {
 /** Hosts auto approval may listen on: anyone who can reach the server is signed in. */
 export const LOOPBACK_HOSTS = ["127.0.0.1", "localhost", "::1"];
 
-/** The value of ENV.dev that turns it on. */
-export const DEV_ON = "1";
-
-/** Local development and tests only; production runs on DynamoDB. */
+/** The SQLite store: one file, one server process. */
 export const SQLITE = {
   file: "sikrets.db",
   /** ":memory:" keeps everything in the process (tests). */
@@ -77,6 +72,8 @@ export const PROTOCOL = {
   maxNonceChars: 128,
   /** RFC 8628 wording for "nobody approved yet". */
   pending: "authorization_pending",
+  /** Why a sign-in from a revoked key is refused (the CLI makes new device keys when it sees this). */
+  keyRevoked: "key revoked",
   pollIntervalSeconds: 1,
   approvalTimeoutMs: 5 * 60_000,
   userCodeChars: 8,
@@ -121,4 +118,11 @@ export const DYNAMO = {
   /** Epoch seconds; enable the table's TTL on this attribute so expired nonces and sign-ins are swept. */
   ttl: "expiresAt",
   none: "-",
+  /** Lifecycle fields kept as their own attributes (not in `data`), so conditional updates can test them. */
+  status: "status",
+  approvedBy: "approvedBy",
+  /** A sign-in's expiry in epoch milliseconds (the TTL attribute is seconds and swept lazily). */
+  expiresAtMs: "expiresAtMs",
+  lastSeenAt: "lastSeenAt",
+  revokedAt: "revokedAt",
 } as const;
