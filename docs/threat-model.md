@@ -206,15 +206,20 @@ grant, and has the enclave make the provider call with the real key. The real ke
 **Mitigations**
 
 - `install.sh` and `sikrets update` check every binary against the release's `SHA256SUMS` and refuse a
-  mismatch; `update` swaps the binary with a rename, so a failure leaves the old one in place.
-- Binaries carry GitHub build provenance: `gh attestation verify <file> --repo Munasco/sikrets`.
+  mismatch; `update` swaps the binary with a rename, runs the new one's `--version`, and puts the
+  previous binary back if it doesn't start or reports another version. `install.sh` stages the file
+  in the destination folder and runs it before renaming it into place.
+- Binaries carry GitHub build provenance. When the GitHub CLI is installed, `install.sh` and `update`
+  run `gh attestation verify <file> --repo Munasco/sikrets` and refuse a binary that fails it.
 - macOS builds are signed with a Developer ID and notarized (once the Apple secrets are set).
 - Releases build only from `v*` tags, with the job token scoped per job.
 
 **Gaps**
 
 - `SHA256SUMS` comes from the same release as the binary. It catches corruption and mirror tampering,
-  not a compromised release. `install.sh` and `update` don't verify the attestation yet.
+  not a compromised release. Provenance is only checked where `gh` is installed: verifying a Sigstore
+  attestation needs its trust root and the attestation bundle from GitHub, which the CLI doesn't
+  carry. Without `gh` both say it wasn't checked; check by hand with the command above.
 - Third-party actions are pinned by tag, not commit SHA.
 - Windows and Linux binaries are not code-signed.
 - The install script is served by the website. Whoever controls the site controls what `curl | sh`

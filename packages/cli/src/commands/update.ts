@@ -1,7 +1,7 @@
 import { realpath } from "node:fs/promises";
 import path from "node:path";
 import { RELEASES } from "../constants.ts";
-import { downloadVerified, isNewer, latestRelease, replaceBinary } from "../core/update.ts";
+import { downloadVerified, isNewer, latestRelease, replaceBinary, verifyProvenance } from "../core/update.ts";
 import { log } from "../ui.ts";
 
 // Only a standalone binary from a release can replace itself. Running from source (bun) or from
@@ -24,7 +24,9 @@ export async function run(_args: string[], opts: { check?: boolean; json?: boole
 
   const target = await installedBinary();
   log(opts, `Downloading sikrets ${latest.version} and checking it against ${RELEASES.checksums}…`);
-  await replaceBinary(target, await downloadVerified(latest.tag));
-  if (opts.json) return console.log(JSON.stringify({ current, latest: latest.version, available, updated: true, path: target }));
+  let provenance = false;
+  await replaceBinary(target, await downloadVerified(latest.tag), latest.version, { check: async (file) => void (provenance = await verifyProvenance(file)) });
+  if (opts.json) return console.log(JSON.stringify({ current, latest: latest.version, available, updated: true, path: target, provenance }));
   console.log(`Updated sikrets ${current} → ${latest.version} (${target})`);
+  if (!provenance) log(opts, "Build provenance wasn't checked (install the GitHub CLI, gh, and update checks it too).");
 }

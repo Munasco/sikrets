@@ -17,6 +17,10 @@ export const RELEASES = {
   checksums: "SHA256SUMS",
   installScript: `${SITE_URL}/install.sh`,
 } as const;
+export const UPDATE = {
+  /** How long the new binary gets to answer --version before the update is undone. */
+  versionCheckMs: 10_000,
+} as const;
 /** Release asset for a platform, e.g. sikrets-darwin-arm64 or sikrets-windows-x64.exe. */
 export const releaseAsset = (platform: string, arch: string) => `sikrets-${platform === "win32" ? "windows" : platform}-${arch}${platform === "win32" ? ".exe" : ""}`;
 

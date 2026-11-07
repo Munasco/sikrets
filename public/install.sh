@@ -1,5 +1,6 @@
 #!/bin/sh
-# Installs the sikrets CLI from GitHub releases, verified against the release's SHA256SUMS.
+# Installs the sikrets CLI from GitHub releases, verified against the release's SHA256SUMS (and its
+# GitHub build provenance when the gh CLI is installed).
 #
 #   curl -fsSL https://sikrets.usetennant.com/install.sh | sh
 #
@@ -67,10 +68,23 @@ expected="$(awk -v f="$asset" '{ n = $2; sub(/^\*/, "", n) } n == f { print $1; 
 actual="$(sha256 "$tmp/$asset")"
 [ "$actual" = "$expected" ] || fail "checksum mismatch for $asset (expected $expected, got $actual); nothing was installed"
 
+if has gh; then
+  gh attestation verify "$tmp/$asset" --repo "$REPO" >/dev/null || fail "$asset has no valid build provenance from $REPO; nothing was installed"
+  say "build provenance verified"
+else
+  say "build provenance not checked (install gh to check it: gh attestation verify <file> --repo $REPO)"
+fi
+
+# Copy next to the destination first: a mv from the temp dir can cross filesystems (a copy, not
+# a rename), and an interrupted copy would leave a partial sikrets. A rename in one folder can't.
 mkdir -p "$dir"
-chmod 755 "$tmp/$asset"
-mv "$tmp/$asset" "$dir/sikrets"
-say "installed $("$dir/sikrets" --version) to $dir/sikrets"
+staged="$dir/.sikrets.new.$$"
+trap 'rm -rf "$tmp" "$staged"' EXIT INT TERM
+cp "$tmp/$asset" "$staged"
+chmod 755 "$staged"
+version="$("$staged" --version)" || fail "the downloaded sikrets didn't run on this machine; nothing was installed"
+mv -f "$staged" "$dir/sikrets"
+say "installed $version to $dir/sikrets"
 
 case ":$PATH:" in
   *":$dir:"*) ;;
