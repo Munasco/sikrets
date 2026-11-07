@@ -50,6 +50,7 @@ export const commands: CommandSpec[] = [
       { name: "email", type: "string", argument: "EMAIL", description: "Sign in for me with this email (password is prompted)" },
       { name: "password-stdin", type: "boolean", description: "Read the password from stdin instead of prompting" },
       { name: "renew", type: "boolean", description: "Mint a fresh API key even if one is already stored" },
+      { name: "revoked", type: "boolean", description: "You revoked the old API keys connect listed; stop listing them" },
       { name: "profile", type: "string", argument: "PROFILE", description: "AWS only: which AWS CLI profile to use" },
       jsonOption,
     ],
@@ -117,6 +118,8 @@ export const commands: CommandSpec[] = [
     arguments: [{ name: "resource", required: true }],
     options: [
       { name: "value-stdin", type: "boolean", description: "Manual recipes: read the replacement credential from stdin" },
+      { name: "revoked", type: "boolean", description: "Manual recipes: you revoked the replaced key in the dashboard; stop reminding" },
+      { name: "expires", type: "string", argument: "DURATION", description: "Manual recipes: the expiry you picked for the new key (default: the same as before; never for none)" },
       dryRunOption,
       yesOption,
       jsonOption,

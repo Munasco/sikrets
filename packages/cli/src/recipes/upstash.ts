@@ -35,6 +35,8 @@ interface Database {
   rest_token?: string;
 }
 
+const list = (env: Env) => call<Database[]>(env, "GET", "/redis/databases?credentials=hide");
+
 const REGIONS = ["us-east-1", "us-east-2", "us-west-1", "us-west-2", "eu-west-1", "eu-central-1", "ap-southeast-1", "ap-northeast-1", "sa-east-1"] as const;
 
 export const redis = defineApiRecipe({
@@ -53,9 +55,9 @@ export const redis = defineApiRecipe({
   },
   estimate: (i) => (i.plan === "free" ? "free tier" : `pay as you go${i.budget ? `, capped at $${i.budget}/mo` : ", no cap"}`),
 
+  find: async (env, name) => (await list(env)).find((d) => d.database_name === name)?.database_id,
+
   async create(env, name, i) {
-    const existing = await call<Database[]>(env, "GET", "/redis/databases?credentials=hide");
-    if (existing.some((d) => d.database_name === name)) throw new Error(`Upstash already has a database named "${name}"`);
     const db = await call<Database>(env, "POST", "/redis/database", {
       database_name: name,
       platform: "aws",
@@ -69,7 +71,14 @@ export const redis = defineApiRecipe({
     return { remoteId: db.database_id, outputs: { rest_url: `https://${host}`, rest_token: Secret.of(db.rest_token) } };
   },
 
-  destroy: (env, id) => call<void>(env, "DELETE", `/redis/database/${encodeURIComponent(id)}`),
+  async destroy(env, id) {
+    try {
+      await call<void>(env, "DELETE", `/redis/database/${encodeURIComponent(id)}`);
+    } catch (error) {
+      // Already deleted (an earlier rollback got this far) counts as done.
+      if ((await list(env)).some((d) => d.database_id === id)) throw error;
+    }
+  },
 
   // Resetting the password issues a new REST token; the old one stops working immediately.
   async rotate(env, id) {

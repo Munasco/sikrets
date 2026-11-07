@@ -2,7 +2,8 @@ import { providerEnv, toProcessEnv, type Env } from "../core/credentials.ts";
 import { projectContext } from "../core/config.ts";
 import { state } from "../core/state.ts";
 import { record } from "../core/activity.ts";
-import { openVault } from "../core/vault.ts";
+import { until } from "../core/ttl.ts";
+import { vaults } from "../core/vault.ts";
 
 // Runs a command with this project's values injected as environment variables. Nothing is written
 // to disk and nothing is printed; the child process is the only thing that sees the raw values.
@@ -11,13 +12,17 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   const root = process.cwd();
   const { resources } = await state.load(root);
   const { ctx } = await projectContext(root, { log: () => {} });
-  const vault = await openVault(ctx.project, ctx.vault);
+  const vault = vaults(ctx.project);
 
   const env: Env = {};
   for (const r of resources.filter((x) => x.applied)) {
+    // Values are read from the vault they were stored in, whatever SIKRETS_VAULT says now.
+    const v = await vault(r.vault ?? ctx.vault);
+    // An expired key is still passed through (the app's error names the provider), but not silently.
+    if (r.expiresAt && Date.parse(r.expiresAt) <= Date.now()) console.error(`sikrets: ${r.name}'s key ${until(r.expiresAt).replace("overdue by", "expired")} ago; replace it: sikrets rotate ${r.name}`);
     for (const key of r.envKeys) {
-      const value = await vault.get(key);
-      if (!value) throw new Error(`${key} is missing from the ${vault.name} vault; run sikrets apply`);
+      const value = await v.get(key);
+      if (!value) throw new Error(`${key} is missing from the ${v.name} vault; run sikrets apply`);
       env[key] = value;
     }
   }

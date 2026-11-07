@@ -334,10 +334,11 @@ describe("rotate", () => {
   });
 
   test("Terraform resources are refused with guidance", async () => {
+    await Bun.write(path.join(root, "sikrets.json"), JSON.stringify({ project: "demo" }));
     await applyPlan("add", (await planAdd(request({ recipe: "aws/vpc", name: "main" }), ctx)).changes, ctx);
     const { state: st } = await import("./core/state.ts");
     const [vpc] = (await st.load(root)).resources;
-    await st.upsert(root, { ...vpc!, applied: true });
+    await st.upsert(ctx, { ...vpc!, applied: true });
     const { run } = await import("./commands/rotate.ts");
     const cwd = process.cwd();
     process.chdir(root);
@@ -385,15 +386,17 @@ describe("expiry and auto-rotation", () => {
     expect(Date.parse(res!.expiresAt!) - Date.now()).toBeGreaterThan(6 * DAY);
     expect(res!.autoRotate).toBeUndefined();
     await expect(planAdd(request({ recipe: "anthropic/api-key", name: "other", autoRotate: true }), ctx)).rejects.toThrow("can't rotate itself");
+    // Sikrets can't ask Upstash for an expiry, so it doesn't pretend to record one.
+    await expect(planAdd(request({ expires: "30d" }), ctx)).rejects.toThrow("can't be given an expiry");
   });
 
   test("auto-rotate replaces only due API keys, before the command runs", async () => {
-    await Bun.write(path.join(root, "sikrets.json"), JSON.stringify({ project: "demo" }));
-    await applyPlan("add", (await planAdd(request({ rotateEvery: "30d", expires: "30d", autoRotate: true }), ctx)).changes, ctx);
+    await Bun.write(path.join(root, "sikrets.json"), JSON.stringify({ project: "demo", vault: "keychain" }));
+    await applyPlan("add", (await planAdd(request({ rotateEvery: "30d", autoRotate: true }), ctx)).changes, ctx);
     await applyPlan("add", (await planAdd(request({ name: "plain", rotateEvery: "30d" }), ctx)).changes, ctx);
     const s = (await state.load(root)).resources;
-    const past = new Date(Date.now() - DAY).toISOString();
-    for (const r of s) await state.upsert(root, { ...r, rotateBy: past });
+    const past = new Date(Date.now() - 31 * DAY).toISOString(); // issued longer ago than rotateEvery
+    for (const r of s) await state.upsert(ctx, { ...r, createdAt: past });
     const { autoRotate } = await import("./core/autorotate.ts");
     const said: string[] = [];
     await autoRotate(root, (m) => said.push(m));
@@ -401,7 +404,8 @@ describe("expiry and auto-rotation", () => {
     const cache = after.find((r) => r.name === "cache")!;
     expect(said).toEqual(["sikrets: auto-rotated cache"]);
     expect(cache.lastRotatedAt).toBeString();
-    expect(Date.parse(cache.expiresAt!)).toBeGreaterThan(Date.now() + 29 * DAY);
+    expect(Date.parse(cache.rotateBy!)).toBeGreaterThan(Date.now() + 29 * DAY);
+    expect(cache.expiresAt).toBeUndefined(); // Upstash tokens don't expire
     expect(after.find((r) => r.name === "plain")!.lastRotatedAt).toBeUndefined();
   });
 });

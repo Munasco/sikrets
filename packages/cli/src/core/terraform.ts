@@ -22,6 +22,18 @@ export async function terraform(root: string, args: readonly string[], env: Env)
   if (code !== 0) throw new Error(`terraform ${args[0]} exited with ${code}`);
 }
 
+/** Addresses in the Terraform state, e.g. module.web.aws_instance.this: what actually exists. */
+export async function stateList(root: string, env: Env): Promise<string[]> {
+  const proc = Bun.spawn([terraformBinary(), "state", "list"], {
+    cwd: path.join(root, IAC_DIR),
+    env: { ...Bun.env, TF_IN_AUTOMATION: "1", ...toProcessEnv(env) },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const [stdout, code] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
+  if (code !== 0) throw new Error(`terraform state list exited with ${code}`);
+  return stdout.split("\n").map((l) => l.trim()).filter(Boolean);
+}
+
 export interface Output {
   sensitive: boolean;
   value: string | Secret;
