@@ -16,6 +16,8 @@ export const ENV = {
   terraform: "SIKRETS_TERRAFORM",
   /** Project name for the SDK when it can't infer one. */
   project: "SIKRETS_PROJECT",
+  /** One project's key (base64) for a deployed app's SDK, which has no keychain data key. */
+  projectKey: "SIKRETS_PROJECT_KEY",
   /** Agent a command hands keys to (same as --agent); see `sikrets agent`. */
   agent: "SIKRETS_AGENT",
   /** Bitwarden CLI command to run instead of `bw` (e.g. "bunx @bitwarden/cli"). */
@@ -161,6 +163,42 @@ export const RECOVERY = {
   /** Bound into every wrap as AES-GCM associated data. */
   aad: "sikrets-recovery-v1",
   fingerprintLabel: "sikrets-datakey-fingerprint",
+} as const;
+
+// ── Client-side encryption ────────────────────────────────────────────────
+// Same wire format as the SDK reads (packages/sdk/src/constants.ts): keep the two in step.
+export const ENVELOPE = {
+  /** Every sealed value starts with this; anything else in a vault is legacy plaintext. */
+  prefix: "sk1:",
+  /** Any envelope version, so one from a newer CLI fails loudly instead of reading as plaintext. */
+  versionPattern: /^sk(\d+):/,
+  /** HKDF from the data key to one project's key, so a project key never opens another project. */
+  hkdfSalt: "sikrets-project-key",
+  hkdfInfo: (project: string) => `sikrets-project-v1|${project}`,
+  /** AES-GCM associated data: the value's location, so a ciphertext can't move to another key or project. */
+  aad: (project: string, key: string) => `sikrets-value-v1|${SSM_PREFIX}/${project}/${key}`,
+  ivBytes: 12,
+  tagBytes: 16,
+} as const;
+/** SSM parameter (beside the project's values) naming the data key they're sealed under; not a vault key. */
+export const DATA_KEY_MARKER = "sikrets.datakey";
+/** Under the user dir: serialises writes to one project's keychain vault (CLI and desktop). */
+export const vaultLockFile = (project: string) => `locks/vault-${project}`;
+/** SSM Parameter Store's Standard tier value limit, which the sealed value has to fit. */
+export const SSM_STANDARD_MAX_BYTES = 4096;
+
+// ── Revealing a real value ────────────────────────────────────────────────
+export const REVEAL = {
+  /** `sikrets get --copy` clears the clipboard after this, if it still holds the value. */
+  clipboardClearSeconds: 30,
+  /** Env var the clipboard-clearing shell gets the value's SHA-256 in (never the value). */
+  clipboardHashEnv: "SIKRETS_CLIPBOARD_SHA256",
+  /** Set in CI; nobody is there to answer Touch ID. */
+  ciEnv: "CI",
+  /** Set in an SSH session, where the dialog would appear on a screen nobody is looking at. */
+  sshEnv: ["SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY"],
+  /** `launchctl managername` prints this only inside a logged-in GUI session. */
+  guiSession: "Aqua",
 } as const;
 
 // ── Doorman (human approval before rotating) ──────────────────────────────

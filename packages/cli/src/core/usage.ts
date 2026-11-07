@@ -10,7 +10,7 @@ import { USAGE_DIR } from "../constants.ts";
 // owner-only), outside the project, so it can't be committed or synced with it, and nothing in
 // Sikrets ever sends it anywhere. `inventory` and `offboard` read it.
 
-export type UseVia = "run" | "env.pull" | "aws.session" | "github.token";
+export type UseVia = "run" | "env.pull" | "get" | "aws.session" | "github.token";
 
 export interface Use {
   at: string;

@@ -6,6 +6,10 @@ import { Secret } from "./secret.ts";
 import { detectFormat, fromManager, keyName, parseCsv, parseExport, type ImportEntry } from "./import.ts";
 import { externalKeys } from "./keys.ts";
 import { previewDigest } from "../commands/import.ts";
+import { openVault } from "./vault.ts";
+
+// Vault values are stored sealed, so read them back the way the CLI does rather than off the raw keychain entry.
+const opened = async (project: string, key: string) => (await (await openVault(project, "keychain")).get(key))?.reveal();
 
 // Every value below is fake. Each fixture follows the real export's header and shape.
 
@@ -217,7 +221,7 @@ describe("sikrets import", () => {
     const { run } = await import("../commands/import.ts");
     await run(["Passwords.csv"], { yes: true });
     const service = `dev.sikrets.vault.${path.basename(root).toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/^-+/, "")}`;
-    expect(keychain.get(`${service}/GITHUB_COM_DEV_PASSWORD`)).toBe("fake-gh-pass");
+    expect(await opened(service.slice("dev.sikrets.vault.".length), "GITHUB_COM_DEV_PASSWORD")).toBe("fake-gh-pass");
     const text = output.join("\n");
     expect(text).toContain("+ GITHUB_COM_DEV_PASSWORD");
     expect(text).toContain("Delete it now: rm");

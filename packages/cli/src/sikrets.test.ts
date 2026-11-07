@@ -13,6 +13,11 @@ import { resolveInputs } from "./recipes/types.ts";
 import "./core/files.ts";
 import "./core/vault.ts";
 
+// Vault values are stored sealed, so read them back the way the CLI does rather than off the raw keychain entry.
+/** Entries in project vaults; the per-user data key outlives any one project's rollback. */
+const vaultEntries = () => [...keychain.keys()].filter((k) => k.startsWith("dev.sikrets.vault.")).length;
+const opened = async (project: string, key: string) => (await (await openVault(project, "keychain")).get(key))?.reveal();
+
 // Fake Upstash account, in-memory keychain and a throwaway project, so nothing real is touched.
 let databases: Record<string, { database_id: string; database_name: string; endpoint: string; rest_token: string }>;
 let fetchCalls: number;
@@ -121,14 +126,14 @@ describe("API recipes (upstash/redis)", () => {
     const plan = await planAdd(request({}), ctx);
     const op = await applyPlan("add upstash/redis", plan.changes, ctx);
     expect(Object.keys(databases)).toEqual(["db_cache"]);
-    expect(keychain.get("dev.sikrets.vault.demo/CACHE_REDIS_REST_TOKEN")).toBe("tok_live_secret_value");
+    expect(await opened("demo", "CACHE_REDIS_REST_TOKEN")).toBe("tok_live_secret_value");
     const [res] = (await state.load(root)).resources;
     expect(res).toMatchObject({ name: "cache", remoteId: "db_cache", applied: true, outputs: { rest_url: "https://happy-fox-123.upstash.io" } });
     expect(JSON.stringify(res)).not.toContain("tok_live"); // the token is only in the vault
 
     await undoSteps(op, ctx);
     expect(Object.keys(databases)).toHaveLength(0);
-    expect(keychain.size).toBe(0);
+    expect(vaultEntries()).toBe(0);
     expect((await state.load(root)).resources).toHaveLength(0);
   });
 
@@ -144,7 +149,7 @@ describe("API recipes (upstash/redis)", () => {
   test("a provider error leaves nothing behind", async () => {
     failCreate = true;
     await expect(applyPlan("add upstash/redis", (await planAdd(request({}), ctx)).changes, ctx)).rejects.toThrow("HTTP 500");
-    expect(keychain.size).toBe(0);
+    expect(vaultEntries()).toBe(0);
     expect((await state.load(root)).resources).toHaveLength(0);
   });
 });
@@ -212,24 +217,24 @@ describe("manual recipes (anthropic/api-key)", () => {
 
   test("a working key is verified, stored, and rollback removes it", async () => {
     const op = await applyPlan("add anthropic/api-key", (await planAdd(paste(GOOD_ANTHROPIC_KEY), ctx)).changes, ctx);
-    expect(keychain.get("dev.sikrets.vault.demo/ANTHROPIC_API_KEY")).toBe(GOOD_ANTHROPIC_KEY);
+    expect(await opened("demo", "ANTHROPIC_API_KEY")).toBe(GOOD_ANTHROPIC_KEY);
     const [res] = (await state.load(root)).resources;
     expect(res).toMatchObject({ name: "anthropic", strategy: "manual", applied: true, envKeys: ["ANTHROPIC_API_KEY"] });
     expect(JSON.stringify(res)).not.toContain("sk-ant");
     await undoSteps(op, ctx);
-    expect(keychain.size).toBe(0);
+    expect(vaultEntries()).toBe(0);
     expect((await state.load(root)).resources).toHaveLength(0);
   });
 
   test("something that isn't a key is rejected before any network call", async () => {
     await expect(applyPlan("add", (await planAdd(paste("hello"), ctx)).changes, ctx)).rejects.toThrow("doesn't look like");
     expect(fetchCalls).toBe(0);
-    expect(keychain.size).toBe(0);
+    expect(vaultEntries()).toBe(0);
   });
 
   test("a revoked or mistyped key is rejected and nothing is stored", async () => {
     await expect(applyPlan("add", (await planAdd(paste("sk-ant-api03-revokedrevokedrevoked99"), ctx)).changes, ctx)).rejects.toThrow("rejected this key");
-    expect(keychain.size).toBe(0);
+    expect(vaultEntries()).toBe(0);
     expect((await state.load(root)).resources).toHaveLength(0);
   });
 });
@@ -250,7 +255,7 @@ describe("stand-ins", () => {
 
     await undoSteps(op, ctx);
     expect(await dotenv()).toBe("# mine\nPORT=3000\n");
-    expect(keychain.size).toBe(0); // real token and stand-in both gone
+    expect(vaultEntries()).toBe(0); // real token and stand-in both gone
   });
 
   test("stand-ins are stable, and --real resolves to the real values", async () => {
@@ -324,7 +329,7 @@ describe("rotate", () => {
     } finally {
       process.chdir(cwd);
     }
-    expect(keychain.get("dev.sikrets.vault.demo/CACHE_REDIS_REST_TOKEN")).toBe("tok_rotated_value");
+    expect(await opened("demo", "CACHE_REDIS_REST_TOKEN")).toBe("tok_rotated_value");
     expect(await Bun.file(path.join(root, ".env")).text()).toBe(before); // stand-ins unchanged
     const [res] = (await state.load(root)).resources;
     expect(res!.lastRotatedAt).toBeString();
