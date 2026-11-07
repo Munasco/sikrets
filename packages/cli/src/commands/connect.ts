@@ -3,13 +3,14 @@ import { openBrowser } from "../browser/session.ts";
 import { connectAws } from "../providers/aws.ts";
 import { provider as getProvider } from "../providers/index.ts";
 import type { Credentials, Provider } from "../providers/types.ts";
-import { keychain, listConnections, saveConnection, type Connection } from "../store.ts";
+import { keychain, keysToRevoke, listConnections, moveKey, updateConnection, type Connection } from "../store.ts";
+import { MINTED_KEY_PREFIX } from "../constants.ts";
 import { log, promptHidden, promptLine } from "../ui.ts";
 
 export interface ConnectOptions {
   email?: string;
   passwordStdin?: boolean;
-  /** Mint a fresh API key even if one is stored (old keys stay valid until revoked in the dashboard). */
+  /** Mint a fresh API key even if one is stored (old keys stay valid until revoked in the dashboard, and are listed until then). */
   renew?: boolean;
   json?: boolean;
 }
@@ -28,6 +29,7 @@ export async function run(args: string[], opts: Record<string, unknown>) {
     if (opts.json) console.log(JSON.stringify({ provider: "aws", ...result, connected: true }));
     return;
   }
+  if (opts.revoked) return markRevoked(id, opts);
   return connect(id, {
     email: typeof opts.email === "string" ? opts.email : undefined,
     passwordStdin: Boolean(opts["password-stdin"]),
@@ -73,21 +75,73 @@ export async function connect(id: string, opts: ConnectOptions) {
 
     // Social sign-ins (Google, GitHub) never show us an email; API-backed providers need one.
     const account = creds?.email ?? known?.account ?? (p.mint ? await promptLine(`${p.name} account email: `) : "default");
+    const switched = known !== undefined && known.account !== account;
     if (creds) await keychain.set(p.id, creds.email, creds.password);
+    // Recorded before minting, so a saved password always has a connection that points at it.
+    await updateConnection(p.id, (cur) => ({
+      provider: p.id,
+      account,
+      mode: known && !switched ? known.mode : mode,
+      connectedAt: new Date().toISOString(),
+      keys: (cur?.keys ?? []).map((k) => (switched && k.status === "active" ? moveKey(k, "superseded") : k)),
+    }));
+    if (switched) {
+      // The previous account's login and key are no longer used; its key stays listed until revoked.
+      await keychain.delete(p.id, known.account);
+      if (p.mint) await keychain.delete(p.id, `${known.account}#${p.mint.key}`);
+    }
+
     let minted = false;
     if (p.mint && (opts.renew || !(await keychain.get(p.id, `${account}#${p.mint.key}`)))) {
-      const value = await p.mint.run(page, (s) => log(opts, `  ${s}`));
-      if (!value) throw new Error(`No ${p.mint.key} was created`);
-      await keychain.set(p.id, `${account}#${p.mint.key}`, value);
-      minted = true;
+      minted = await mintKey(p, page, account, opts);
     }
-    await saveConnection({ provider: p.id, account, mode: known?.mode ?? mode, connectedAt: new Date().toISOString() });
 
-    if (opts.json) console.log(JSON.stringify({ provider: p.id, account, connected: true, savedPassword: Boolean(creds), mintedKey: minted }));
-    else log(opts, `Connected ${p.name} as ${account}${creds ? "; password saved to keychain" : ""}${minted ? `; new ${p.mint!.key} saved to keychain` : ""}`);
+    const revoke = keysToRevoke((await listConnections()).find((c) => c.provider === p.id));
+    if (opts.json) console.log(JSON.stringify({ provider: p.id, account, connected: true, savedPassword: Boolean(creds), mintedKey: minted, keysToRevoke: revoke.map((k) => k.name) }));
+    else {
+      log(opts, `Connected ${p.name} as ${account}${creds ? "; password saved to keychain" : ""}${minted ? `; new ${p.mint!.key} saved to keychain` : ""}`);
+      if (revoke.length) log(opts, `Revoke these old ${p.name} API keys at ${p.mint!.manageUrl}: ${revoke.map((k) => k.name).join(", ")}. Then run: sikrets connect ${p.id} --revoked`);
+    }
   } finally {
     await browser.close();
   }
+}
+
+/**
+ * Mints a key in the dashboard. Its name is recorded first, so a crash mid-mint still leaves a
+ * record of a key to revoke; it only becomes the active key once the provider accepts it.
+ */
+export async function mintKey(p: Provider, page: Page, account: string, opts: ConnectOptions): Promise<boolean> {
+  const mint = p.mint!;
+  const name = `${MINTED_KEY_PREFIX}${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}`;
+  const setStatus = (to: "active" | "failed") =>
+    updateConnection(p.id, (cur) => ({
+      ...cur!,
+      keys: cur!.keys!.map((k) => (k.name === name && k.status === "minting" ? moveKey(k, to) : to === "active" && k.status === "active" ? moveKey(k, "superseded") : k)),
+    }));
+  await updateConnection(p.id, (cur) => ({ ...cur!, keys: [...(cur!.keys ?? []), { name, account, status: "minting", at: new Date().toISOString() }] }));
+  const value = await mint.run(page, (s) => log(opts, `  ${s}`), name);
+  if (!value) throw new Error(`No ${mint.key} was created`);
+  try {
+    await mint.verify(account, value);
+  } catch (error) {
+    await setStatus("failed");
+    throw new Error(`${error instanceof Error ? error.message : String(error)}. Nothing was saved; revoke "${name}" at ${mint.manageUrl} and try again`);
+  }
+  await keychain.set(p.id, `${account}#${mint.key}`, value);
+  await setStatus("active");
+  return true;
+}
+
+/** The person revoked the listed old keys in the dashboard; stop listing them. */
+async function markRevoked(id: string, opts: Record<string, unknown>) {
+  const p = getProvider(id);
+  const known = (await listConnections()).find((c) => c.provider === p.id);
+  const revoke = keysToRevoke(known);
+  if (!known || !revoke.length) return log(opts, `No old ${p.name} API keys to revoke.`);
+  await updateConnection(p.id, (cur) => ({ ...cur!, keys: cur!.keys!.map((k) => (revoke.some((r) => r.name === k.name) ? moveKey(k, "revoked") : k)) }));
+  if (opts.json) console.log(JSON.stringify({ provider: p.id, revoked: revoke.map((k) => k.name) }));
+  else log(opts, `Marked ${revoke.map((k) => k.name).join(", ")} as revoked.`);
 }
 
 async function waitForLogin(page: Page, p: Provider, opts: ConnectOptions, timeoutMs = 10 * 60_000) {

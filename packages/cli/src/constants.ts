@@ -23,6 +23,7 @@ export const ENV = {
 export const USER_DIR = ".sikrets";
 /** Per-project folder for machine-written state. */
 export const PROJECT_DIR = ".sikrets";
+export const ORPHANS_DIR = "orphans";
 export const FILES = {
   config: "sikrets.json",
   lock: "sikrets.lock",
@@ -30,14 +31,29 @@ export const FILES = {
   journal: "journal.json",
   activity: "activity.jsonl",
   connections: "connections.json",
+  /** Lock name held while expired personal resources are deleted. */
+  sweep: "sweep",
 } as const;
 export const IAC_DIR = "iac/terraform";
+
+// ── Cross-process file locks ──────────────────────────────────────────────
+export const LOCK = {
+  /** Suffix of the lock file next to the file it guards. */
+  suffix: ".lock",
+  /** How long to wait for another sikrets process before giving up. */
+  waitMs: 15_000,
+  retryMs: 50,
+  /** A lock file with no owner written in it, older than this, is treated as left by a crash. */
+  staleMs: 60_000,
+} as const;
 
 // ── Defaults for sikrets.json ─────────────────────────────────────────────
 export const DEFAULTS = {
   vault: "ssm",
   envFile: ".env",
   rotateEvery: "30d",
+  /** Lifetime of a resource from `sikrets get` before it is deleted. */
+  getExpires: "24h",
 } as const;
 
 // ── Stand-ins ─────────────────────────────────────────────────────────────
@@ -54,6 +70,10 @@ export const STAND_IN = {
 export const KEYCHAIN_SERVICE = "dev.sikrets";
 /** OS keychain service for one project's values. */
 export const keychainVaultService = (project: string) => `${KEYCHAIN_SERVICE}.vault.${project}`;
+/** OS keychain service holding a rotated credential until it is safely in the project's vault. */
+export const keychainRecoveryService = (project: string) => `${KEYCHAIN_SERVICE}.recovery.${project}`;
+/** Name prefix of provider API keys Sikrets mints; the rest is a timestamp so each is findable. */
+export const MINTED_KEY_PREFIX = "sikrets-";
 /** SSM Parameter Store path prefix; values live at /sikrets/<project>/<KEY>. */
 export const SSM_PREFIX = "/sikrets";
 
