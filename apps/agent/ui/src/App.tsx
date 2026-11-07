@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import { ArrowUp, ChevronRight, KeyRound, PanelLeft, Search, ShieldCheck, ShieldQuestion, Sparkles, Square, SquarePen } from "lucide-react";
-import { api, ApiError, subscribe, type AssistantPart, type Attestation, type Me, type Message, type OcEvent, type PermissionRequest, type SessionInfo, type ToolPart } from "./api.ts";
+import { ArrowUp, BookOpen, ChevronRight, KeyRound, LogOut, Zap, PanelLeft, Search, ShieldCheck, ShieldQuestion, Sparkles, Square, SquarePen } from "lucide-react";
+import { api, ApiError, onSignedOut, subscribe, type AssistantPart, type Attestation, type Command, type McpServer, type Me, type Message, type OcEvent, type PermissionRequest, type SessionInfo, type Skill, type ToolPart } from "./api.ts";
+import { items as menuItems, mentioned, Menu, trigger, withSkills, type Item } from "./composer-menu.tsx";
+import { McpMenu } from "./mcp.tsx";
 import { Markdown, withSecrets } from "./markdown.tsx";
 import { ToolRow } from "./tools.tsx";
 import { cn, IconButton, Kbd, Logo, Tip } from "./ui.tsx";
@@ -33,10 +35,15 @@ const routeSession = () => /^#\/s\/(ses_[\w]+)/.exec(location.hash)?.[1];
 
 export function App() {
   const [me, setMe] = useState<Me>();
-  useEffect(() => void api.me().then(setMe, () => setMe({ authed: false, gated: true, model: "" })), []);
+  useEffect(() => {
+    // Any call the gateway refuses (cookie expired or revoked, code rotated) goes back to the gate.
+    onSignedOut(() => setMe((m) => (m?.authed ? { ...m, authed: false } : m)));
+    void api.me().then(setMe, () => setMe({ authed: false, gated: true, model: "" }));
+  }, []);
   if (!me) return null;
   if (!me.authed) return <Gate onIn={() => api.me().then(setMe)} />;
-  return <Workspace model={me.model} />;
+  const signOut = () => void api.logout().finally(() => setMe({ ...me, authed: false }));
+  return <Workspace model={me.model} fullAccess={Boolean(me.fullAccess)} onSignOut={me.gated ? signOut : undefined} />;
 }
 
 function Gate({ onIn }: { onIn: () => void }) {
@@ -66,32 +73,52 @@ function Gate({ onIn }: { onIn: () => void }) {
   );
 }
 
-function Workspace({ model }: { model: string }) {
+function Workspace({ model, fullAccess: initialAccess, onSignOut }: { model: string; fullAccess: boolean; onSignOut?: () => void }) {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [current, setCurrent] = useState<string | undefined>(routeSession());
   const [messages, setMessages] = useState<Message[]>([]);
   const [pending, setPending] = useState<PermissionRequest[]>([]);
+  const [fullAccess, setFullAccess] = useState(initialAccess);
   const [working, setWorking] = useState<Record<string, number>>({});
-  const [approvals, setApprovals] = useState<Record<string, boolean>>({});
+  /** Per session, the ids of the requests waiting for a decision. */
+  const [approvals, setApprovals] = useState<Record<string, string[]>>({});
   const [unread, setUnread] = useState<Record<string, boolean>>({});
   const [error, setError] = useState("");
   const [sidebar, setSidebar] = useState(() => window.innerWidth >= 768);
   const [live, setLive] = useState(true);
   const [sending, setSending] = useState<string>();
   const [attestation, setAttestation] = useState<Attestation>();
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const [commands, setCommands] = useState<Command[]>([]);
+  const [mcp, setMcp] = useState<McpServer[]>([]);
   const currentRef = useRef(current);
   currentRef.current = current;
   const composer = useRef<HTMLTextAreaElement>(null);
+  const wasDown = useRef(false);
 
+  /** The session list. `resync` (after the event stream reconnects, when events may have been
+   * missed): the server's view of what's running wins over what this page remembers. */
   const refreshSessions = useCallback(
-    () =>
+    (resync = false) =>
       api
         .sessions()
         .then((list) => {
           setSessions(list);
           // Runs that started before this page loaded (a reload, another tab) still show as working.
           const busy = Object.fromEntries(list.filter((s) => s.time.busy && (!s.time.idle || s.time.busy > s.time.idle)).map((s) => [s.id, s.time.busy!]));
-          setWorking((w) => ({ ...busy, ...w }));
+          setWorking((w) => (resync ? busy : { ...busy, ...w }));
+        })
+        .catch(() => {}),
+    [],
+  );
+  const refreshApprovals = useCallback(
+    () =>
+      api
+        .allPermissions()
+        .then((list) => {
+          const by: Record<string, string[]> = {};
+          for (const p of list) (by[p.sessionID] ??= []).push(p.id);
+          setApprovals(by);
         })
         .catch(() => {}),
     [],
@@ -105,11 +132,15 @@ function Workspace({ model }: { model: string }) {
 
   useEffect(() => {
     void refreshSessions();
+    void refreshApprovals();
     void api.attestation().then(setAttestation, () => {});
+    void api.skills().then(setSkills, () => {});
+    void api.commands().then(setCommands, () => {});
+    void api.mcp().then(setMcp, () => {});
     const onHash = () => setCurrent(routeSession());
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
-  }, [refreshSessions]);
+  }, [refreshSessions, refreshApprovals]);
 
   useEffect(() => {
     setMessages([]);
@@ -141,11 +172,15 @@ function Workspace({ model }: { model: string }) {
           if (sid === currentRef.current) void load(sid);
         }
         if (ev.type === "permission.asked" && sid) {
-          setApprovals((a) => ({ ...a, [sid]: true }));
+          const id = (ev.data as unknown as PermissionRequest).id;
+          setApprovals((a) => ({ ...a, [sid]: [...(a[sid] ?? []).filter((x) => x !== id), id] }));
           if (sid === currentRef.current) setPending((p) => [...p.filter((x) => x.id !== (ev.data as unknown as PermissionRequest).id), ev.data as unknown as PermissionRequest]);
         }
         if (ev.type === "permission.replied" && sid) {
-          setApprovals(({ [sid]: _, ...a }) => a);
+          setApprovals(({ [sid]: ids = [], ...a }) => {
+            const left = ids.filter((x) => x !== ev.data.requestID);
+            return left.length ? { ...a, [sid]: left } : a;
+          });
           setPending((p) => p.filter((x) => x.id !== ev.data.requestID));
         }
         if (ev.type === "session.renamed" || ev.type === "session.created") void refreshSessions();
@@ -153,34 +188,83 @@ function Workspace({ model }: { model: string }) {
           setMessages((m) => apply(m, ev));
           if (ev.type === "session.step.failed" || ev.type === "session.execution.failed") setError(String((ev.data.error as { message?: string } | undefined)?.message ?? "The model request failed."));
         }
-      }, setLive),
-    [load, refreshSessions],
+      }, (up) => {
+        setLive(up);
+        // Back after a gap: anything could have finished or asked meanwhile. Reload from the server.
+        if (up && wasDown.current) {
+          void refreshSessions(true);
+          void refreshApprovals();
+          if (currentRef.current) void load(currentRef.current).catch(() => {});
+        }
+        wasDown.current = !up;
+      }),
+    [load, refreshSessions, refreshApprovals],
   );
 
+  /** A message: `/new` and `/compact` run here, `/command args` runs a server command, anything
+   * else is a prompt; `$skill` mentions go along as skill attachments either way. */
   const send = async (text: string) => {
     setError("");
+    const cmd = /^\/([a-z0-9-]+)(?:\s+([\s\S]*))?$/i.exec(text);
+    if (cmd?.[1] === "new") return open();
+    if (cmd?.[1] === "compact") {
+      if (current) await api.compact(current).catch((e) => setError(e instanceof Error ? e.message : String(e)));
+      return;
+    }
+    const command = cmd ? commands.find((c) => c.name === cmd[1]) : undefined;
+    const attached = mentioned(text, skills);
     let id = current;
+    let created = false;
     try {
       if (!id) {
         id = (await api.create()).id;
+        created = true;
         currentRef.current = id;
         location.hash = `#/s/${id}`;
         setCurrent(id);
         void refreshSessions();
       }
       setSending(text);
-      const admitted = (await api.prompt(id, text)) as { data?: { id: string; payload?: { text?: string } } };
+      if (command) {
+        // The expanded prompt arrives as a user message on the event stream.
+        await api.command(id, command.name, cmd?.[2] ?? "", attached);
+        return;
+      }
+      const admitted = (await api.prompt(id, text, attached)) as { data?: { id: string; payload?: { text?: string } } };
       // Show what the agent got: the server's copy, with keys already swapped for placeholders.
       const msg = admitted?.data;
       if (msg?.payload?.text !== undefined) setMessages((m) => (m.some((x) => x.id === msg.id) ? m : [...m, { id: msg.id, type: "user", text: msg.payload!.text!, time: { created: Date.now() } }]));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      // A chat made for this message, which never got it, would sit empty in the list.
+      if (created && id) {
+        void api.remove(id).then(() => refreshSessions(), () => {});
+        if (currentRef.current === id) location.hash = "";
+      }
     } finally {
       setSending(undefined);
     }
   };
 
   const stop = () => current && void api.interrupt(current);
+
+  const switchMcp = async (name: string, on: boolean) => {
+    setMcp((list) => list.map((s) => (s.name === name ? { ...s, enabled: on } : s)));
+    try {
+      await api.mcpSwitch(name, on);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+    setMcp(await api.mcp().catch(() => mcp));
+  };
+
+  const toggleAccess = async () => {
+    try {
+      setFullAccess((await api.fullAccess(!fullAccess)).fullAccess);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   // Shortcuts: new chat, toggle sidebar, previous/next chat, stop; typing anywhere goes to the composer.
   useEffect(() => {
@@ -203,14 +287,14 @@ function Workspace({ model }: { model: string }) {
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const status = (id: string): Status => (approvals[id] ? "approval" : working[id] ? "working" : unread[id] ? "unread" : sessions.find((s) => s.id === id)?.outcome === "failed" ? "failed" : undefined);
+  const status = (id: string): Status => (approvals[id]?.length ? "approval" : working[id] ? "working" : unread[id] ? "unread" : sessions.find((s) => s.id === id)?.outcome === "failed" ? "failed" : undefined);
   const title = sessions.find((s) => s.id === current)?.title;
   const running = current ? working[current] : undefined;
   const empty = !current || (!messages.length && !sending);
 
   return (
     <div className="flex h-dvh overflow-hidden bg-paper">
-      <Sidebar open={sidebar} sessions={sessions} current={current} status={status} working={working} onOpen={open} onClose={() => setSidebar(false)} />
+      <Sidebar open={sidebar} sessions={sessions} current={current} status={status} working={working} onOpen={open} onClose={() => setSidebar(false)} onSignOut={onSignOut} />
       <section className="relative flex min-w-0 flex-1 flex-col bg-white md:my-2 md:mr-2 md:rounded-2xl md:border md:border-line-soft">
         <header className="flex h-[52px] shrink-0 items-center gap-2 px-3">
           {!sidebar && <IconButton label="Show sidebar" shortcut={`${MOD}B`} side="bottom" onClick={() => setSidebar(true)}><PanelLeft className="size-4" /></IconButton>}
@@ -221,18 +305,18 @@ function Workspace({ model }: { model: string }) {
           <EnclaveBadge attestation={attestation} />
         </header>
 
-        <Timeline messages={messages} pending={pending} session={current} running={running} sending={sending} error={error} empty={empty} />
+        <Timeline messages={messages} pending={pending} session={current} running={running} sending={sending} error={error} empty={empty} skills={skills} />
 
         <div className={cn("pointer-events-none absolute inset-x-0 z-20 px-3 sm:px-12", empty ? "inset-y-0 flex flex-col items-center justify-center" : "bottom-0 pb-3 pt-2")}>
           {empty && <Hero />}
-          <Composer ref={composer} model={model} running={Boolean(running)} awaiting={pending.length > 0} onSend={send} onStop={stop} />
+          <Composer ref={composer} model={model} running={Boolean(running)} awaiting={pending.length > 0} fullAccess={fullAccess} onToggleAccess={toggleAccess} onSend={send} onStop={stop} skills={skills} commands={commands} mcp={mcp} onSwitchMcp={switchMcp} />
         </div>
       </section>
     </div>
   );
 }
 
-function Sidebar({ open, sessions, current, status, working, onOpen, onClose }: { open: boolean; sessions: SessionInfo[]; current?: string; status: (id: string) => Status; working: Record<string, number>; onOpen: (id?: string) => void; onClose: () => void }) {
+function Sidebar({ open, sessions, current, status, working, onOpen, onClose, onSignOut }: { open: boolean; sessions: SessionInfo[]; current?: string; status: (id: string) => Status; working: Record<string, number>; onOpen: (id?: string) => void; onClose: () => void; onSignOut?: () => void }) {
   const [query, setQuery] = useState("");
   const shown = sessions.filter((s) => (s.title ?? "Security chat").toLowerCase().includes(query.toLowerCase()));
   return (
@@ -267,10 +351,11 @@ function Sidebar({ open, sessions, current, status, working, onOpen, onClose }: 
             );
           })}
         </nav>
-        <p className="flex items-center gap-1.5 px-4 pb-3 text-[11.5px] text-faint">
+        <div className="flex items-center gap-1.5 pb-2 pl-4 pr-2 text-[11.5px] text-faint">
           <KeyRound className="size-3.5" aria-hidden />
-          Keys you paste never reach the model.
-        </p>
+          <span className="flex-1">Keys you paste never reach the model.</span>
+          {onSignOut && <IconButton label="Sign out" side="top" onClick={onSignOut}><LogOut className="size-4" /></IconButton>}
+        </div>
       </aside>
     </>
   );
@@ -332,14 +417,52 @@ interface ComposerProps {
   model: string;
   running: boolean;
   awaiting: boolean;
+  fullAccess: boolean;
+  onToggleAccess: () => void;
   onSend: (text: string) => Promise<void>;
   onStop: () => void;
+  skills: Skill[];
+  commands: Command[];
+  mcp: McpServer[];
+  onSwitchMcp: (name: string, on: boolean) => void;
   ref: React.Ref<HTMLTextAreaElement>;
 }
 
-function Composer({ model, running, awaiting, onSend, onStop, ref }: ComposerProps) {
+function Composer({ model, running, awaiting, fullAccess, onToggleAccess, onSend, onStop, skills, commands, mcp, onSwitchMcp, ref }: ComposerProps) {
   const [text, setText] = useState("");
   const area = useRef<HTMLTextAreaElement | null>(null);
+  // The `$skill` / `/command` picker: open while the caret is in such a token, until Esc.
+  const [caret, setCaret] = useState(0);
+  const [active, setActive] = useState(0);
+  const [dismissed, setDismissed] = useState<number>();
+  const t = trigger(text, caret);
+  const menu = t && dismissed !== t.start && (t.kind === "skill" ? skills.length : true) ? menuItems(t, skills, commands) : undefined;
+  useEffect(() => setActive(0), [t?.kind, t?.query]);
+  const place = (next: string, at: number) => {
+    setText(next);
+    setCaret(at);
+    requestAnimationFrame(() => {
+      area.current?.focus();
+      area.current?.setSelectionRange(at, at);
+    });
+  };
+  const pick = (item: Item) => {
+    if (!t) return;
+    if (item.kind === "builtin") {
+      setText("");
+      void onSend(`/${item.name}`);
+      return;
+    }
+    const insert = item.kind === "skill" ? `$${item.skill.id} ` : `/${item.command.name} `;
+    place(text.slice(0, t.start) + insert + text.slice(t.end), t.start + insert.length);
+  };
+  const openSkills = () => {
+    const el = area.current;
+    const at = el?.selectionStart ?? text.length;
+    const pad = at > 0 && !/\s/.test(text[at - 1]!) ? " " : "";
+    setDismissed(undefined);
+    place(text.slice(0, at) + pad + "$" + text.slice(at), at + pad.length + 1);
+  };
   const resize = () => {
     const el = area.current;
     if (!el) return;
@@ -354,6 +477,13 @@ function Composer({ model, running, awaiting, onSend, onStop, ref }: ComposerPro
     void onSend(t);
   };
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (menu && t && !e.nativeEvent.isComposing) {
+      const n = menu.length;
+      if (e.key === "ArrowDown" && n) return e.preventDefault(), setActive((a) => (a + 1) % n);
+      if (e.key === "ArrowUp" && n) return e.preventDefault(), setActive((a) => (a - 1 + n) % n);
+      if ((e.key === "Enter" || e.key === "Tab") && !e.shiftKey && n) return e.preventDefault(), pick(menu[Math.min(active, n - 1)]!);
+      if (e.key === "Escape") return e.preventDefault(), e.stopPropagation(), setDismissed(t.start);
+    }
     if (e.key === "Enter" && !e.shiftKey && !e.altKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       submit();
@@ -361,7 +491,8 @@ function Composer({ model, running, awaiting, onSend, onStop, ref }: ComposerPro
   };
   const placeholder = awaiting ? "Reply to decline and redirect the agent" : "Paste code, a repo, or a leak notice…";
   return (
-    <div className="pointer-events-auto mx-auto w-full max-w-[46rem]">
+    <div className="pointer-events-auto relative mx-auto w-full max-w-[46rem]">
+      {menu && t && <Menu items={menu} active={active} kind={t.kind} onPick={pick} onHover={setActive} />}
       <form
         onSubmit={(e) => (e.preventDefault(), submit())}
         className="rounded-2xl border border-line bg-white/90 shadow-[0_1px_2px_rgb(0_0_0/5%),0_8px_24px_-12px_rgb(20_30_25/18%)] backdrop-blur focus-within:border-pine/30"
@@ -376,8 +507,14 @@ function Composer({ model, running, awaiting, onSend, onStop, ref }: ComposerPro
           }}
           rows={2}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => (setText(e.target.value), setCaret(e.target.selectionStart))}
+          onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
           onKeyDown={onKey}
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={Boolean(menu)}
+          aria-controls={menu ? "composer-menu" : undefined}
+          aria-activedescendant={menu?.length ? `composer-item-${active}` : undefined}
           placeholder={placeholder}
           className="block max-h-52 w-full resize-none bg-transparent px-4 pb-1 pt-3.5 text-[14px] leading-relaxed outline-none placeholder:text-faint"
         />
@@ -388,6 +525,21 @@ function Composer({ model, running, awaiting, onSend, onStop, ref }: ComposerPro
               <span className="max-sm:hidden">Keys hidden</span>
             </span>
           </Tip>
+          <Tip label={fullAccess ? "Full access: everything the agent asks for is approved, even with this page closed. Click to ask first again." : "Approve everything the agent asks for without stopping, even with this page closed."}>
+            <button type="button" aria-pressed={fullAccess} onClick={onToggleAccess} className={cn("flex h-7 items-center gap-1.5 rounded-md px-2 text-[12px] transition-colors", fullAccess ? "bg-tan/[0.12] text-tan" : "text-muted hover:text-ink")}>
+              <Zap className={cn("size-3.5", fullAccess && "fill-current")} aria-hidden />
+              <span className="max-sm:hidden">Full access</span>
+            </button>
+          </Tip>
+          {skills.length > 0 && (
+            <Tip label={<>Skills: playbooks for whole jobs. Type <Kbd className="mx-0.5 border-white/20 bg-white/10 text-white/80">$</Kbd> to pick one, <Kbd className="mx-0.5 border-white/20 bg-white/10 text-white/80">/</Kbd> for commands.</>}>
+              <button type="button" onClick={openSkills} aria-label="Pick a skill" className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[12px] text-muted transition-colors hover:text-ink">
+                <BookOpen className="size-3.5" aria-hidden />
+                <span className="max-sm:hidden">Skills</span>
+              </button>
+            </Tip>
+          )}
+          <McpMenu servers={mcp} onSwitch={onSwitchMcp} />
           <span className="flex-1" />
           <span className="flex h-7 items-center gap-1 px-2 font-mono text-[11px] text-faint">
             <Sparkles className="size-3.5" aria-hidden />
@@ -428,7 +580,7 @@ function Examples({ onPick, hidden }: { onPick: (text: string) => void; hidden: 
   );
 }
 
-function Timeline({ messages, pending, session, running, sending, error, empty }: { messages: Message[]; pending: PermissionRequest[]; session?: string; running?: number; sending?: string; error: string; empty: boolean }) {
+function Timeline({ messages, pending, session, running, sending, error, empty, skills }: { messages: Message[]; pending: PermissionRequest[]; session?: string; running?: number; sending?: string; error: string; empty: boolean; skills: Skill[] }) {
   const scroller = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   useEffect(() => {
@@ -441,7 +593,7 @@ function Timeline({ messages, pending, session, running, sending, error, empty }
     <div ref={scroller} onScroll={(e) => (stick.current = e.currentTarget.scrollHeight - e.currentTarget.scrollTop - e.currentTarget.clientHeight < 80)} className="flex-1 overflow-y-auto">
       <div className="mx-auto w-full max-w-[46rem] px-3 pb-44 pt-4 sm:px-12 sm:box-content">
         {turns.map((t, i) => (
-          <Turn key={t.user?.id ?? i} turn={t} live={i === turns.length - 1 ? running : undefined} pending={i === turns.length - 1 ? pending : []} session={session} />
+          <Turn key={t.user?.id ?? i} turn={t} live={i === turns.length - 1 ? running : undefined} pending={i === turns.length - 1 ? pending : []} session={session} skills={skills} />
         ))}
         {sending && (
           <div className="flex flex-col items-end pb-4">
@@ -468,7 +620,7 @@ function group(messages: Message[]): TurnData[] {
   return turns;
 }
 
-function Turn({ turn, live, pending, session }: { turn: TurnData; live?: number; pending: PermissionRequest[]; session?: string }) {
+function Turn({ turn, live, pending, session, skills }: { turn: TurnData; live?: number; pending: PermissionRequest[]; session?: string; skills: Skill[] }) {
   const parts: AssistantPart[] = turn.replies.flatMap((r) => r.content);
   const tools = parts.filter((p): p is ToolPart => p.type === "tool");
   const texts = parts.filter((p): p is Extract<AssistantPart, { type: "text" }> => p.type === "text" && Boolean(p.text.trim()));
@@ -481,7 +633,7 @@ function Turn({ turn, live, pending, session }: { turn: TurnData; live?: number;
     <div className="pb-4">
       {turn.user && (
         <div className="flex flex-col items-end gap-1 pb-3">
-          <div className="max-w-[80%] whitespace-pre-wrap break-words rounded-2xl bg-cream px-3.5 py-2.5 text-[14px] leading-relaxed">{withSecrets(turn.user.text)}</div>
+          <div className="max-w-[80%] whitespace-pre-wrap break-words rounded-2xl bg-cream px-3.5 py-2.5 text-[14px] leading-relaxed">{withSkills(turn.user.text, skills, withSecrets)}</div>
         </div>
       )}
       {tools.length > 0 && live === undefined && started && ended && (
@@ -510,11 +662,14 @@ function Turn({ turn, live, pending, session }: { turn: TurnData; live?: number;
 
 /** A tool call opencode is holding until the user decides: why, then the three choices. */
 function Held({ request, session }: { request: PermissionRequest; session: string }) {
-  const [busy, setBusy] = useState(false);
+  const [state, setState] = useState<"open" | "sending" | "done">("open");
+  const busy = state !== "open";
+  // Answered: gone at once, without waiting for the replied event (which a reconnect can miss).
   const reply = async (decision: "once" | "always" | "reject") => {
-    setBusy(true);
-    await api.reply(session, request.id, decision).catch(() => setBusy(false));
+    setState("sending");
+    await api.reply(session, request.id, decision).then(() => setState("done"), () => setState("open"));
   };
+  if (state === "done") return null;
   const why = request.metadata?.reason ?? `${request.action} on ${request.resources.join(", ")}`;
   return (
     <div role="group" aria-label="Approval needed" className="my-1.5 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-tan/30 bg-tan/[0.07] px-3 py-2.5 text-[13px]">

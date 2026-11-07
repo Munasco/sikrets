@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BookKey, Check, ChevronRight, FileSearch, FolderGit2, Hash, Lock, PackageSearch, RotateCcwKey, ShieldAlert, X } from "lucide-react";
+import { BookKey, BookOpen, Check, ChevronRight, FileSearch, FolderGit2, Hash, Lock, PackageSearch, Plug, RotateCcwKey, ShieldAlert, X } from "lucide-react";
 import type { ToolPart } from "./api.ts";
 import { withSecrets } from "./markdown.tsx";
 import { cn, Tip } from "./ui.tsx";
@@ -15,18 +15,34 @@ interface Finding {
   line?: number;
   file?: string;
   url?: string;
+  /** Generic findings: how sure the rule is, and the model's second look when it wasn't. */
+  confidence?: "high" | "medium" | "low";
+  review?: { verdict: string; reason: string } | "needs review";
+  unreviewed?: "skipped" | "capped" | "failed" | "timeout" | "unanswered";
 }
+
+/** Why the second look didn't settle a finding. */
+const UNREVIEWED: Record<NonNullable<Finding["unreviewed"]>, string> = {
+  skipped: "No model to check it here; check it yourself.",
+  capped: "Too many to check; this one wasn't sent. Check it yourself.",
+  failed: "The check failed; check it yourself.",
+  timeout: "The check timed out; check it yourself.",
+  unanswered: "The check didn't answer for this one; check it yourself.",
+};
 
 type Result = {
   error?: string;
   count?: number;
   findings?: Finding[];
+  generic?: Finding[];
   filesScanned?: number;
   matched?: number;
   matches?: Array<{ sha256: string; redacted: string; file?: string }>;
   results?: Array<{ name: string; rotateAt?: string; envVars?: string[]; sikrets?: string[] }>;
   vulns?: Array<{ id: string; summary?: string; severity?: string; fixedIn?: string[] }>;
   package?: string;
+  /** Plain output: the built-ins', skills' and MCP tools'. */
+  text?: string;
 };
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -35,9 +51,10 @@ function parse(part: ToolPart): Result | undefined {
   const text = part.state.content?.map((c) => c.text ?? "").join("");
   if (!text) return part.state.error ? { error: part.state.error.message } : undefined;
   try {
-    return JSON.parse(text) as Result;
+    const r = JSON.parse(text) as unknown;
+    return r && typeof r === "object" && !Array.isArray(r) ? (r as Result) : { text };
   } catch {
-    return { error: text };
+    return part.state.status === "error" ? { error: text } : { text };
   }
 }
 
@@ -56,8 +73,14 @@ function describe(part: ToolPart, r: Result | undefined) {
       return { icon: RotateCcwKey, live: `Looking up ${String(input.service ?? "")}`, done: `Rotation for ${String(input.service ?? "")}`, result: r?.results ? plural(r.results.length, "service") : undefined };
     case "osv_lookup":
       return { icon: PackageSearch, live: `Checking ${String(input.name ?? "")} on OSV`, done: `${String(input.name ?? "")}${input.version ? `@${String(input.version)}` : ""} on OSV`, result: r?.count !== undefined ? (r.count ? plural(r.count, "known vuln") : "no known vulns") : undefined };
-    default:
+    case "skill":
+      return { icon: BookOpen, live: `Loading ${String(input.id ?? "a skill")}`, done: `Loaded ${String(input.id ?? "a skill")}`, result: undefined };
+    default: {
+      // MCP tools are `<server>_<tool>`; server names have no underscore.
+      const i = part.name.indexOf("_");
+      if (i > 0) return { icon: Plug, live: `${part.name.slice(0, i)} · ${part.name.slice(i + 1)}`, done: `${part.name.slice(0, i)} · ${part.name.slice(i + 1)}`, result: undefined };
       return { icon: BookKey, live: part.name, done: part.name, result: undefined };
+    }
   }
 }
 
@@ -67,7 +90,7 @@ export function ToolRow({ part }: { part: ToolPart }) {
   const d = describe(part, r);
   const live = part.state.status === "pending" || part.state.status === "running";
   const failed = part.state.status === "error" || Boolean(r?.error);
-  const found = (r?.findings?.length ?? 0) + (r?.matched ?? 0) > 0;
+  const found = (r?.findings?.length ?? 0) + (r?.generic?.length ?? 0) + (r?.matched ?? 0) > 0;
   const Icon = d.icon;
   return (
     <div className="text-[13px]">
@@ -87,12 +110,25 @@ export function ToolRow({ part }: { part: ToolPart }) {
   );
 }
 
+/** A generic finding's confidence, with the review's reason on hover. */
+function Sureness({ f }: { f: Finding }) {
+  if (!f.confidence) return null;
+  const label = f.review === "needs review" ? "unreviewed" : f.review ? "confirmed" : f.confidence;
+  const tip = typeof f.review === "object" ? f.review.reason : f.review === "needs review" ? UNREVIEWED[f.unreviewed ?? "unanswered"] : `${f.confidence} confidence`;
+  return (
+    <Tip label={tip}>
+      <span tabIndex={0} className="font-mono text-[11px] text-faint">{label}</span>
+    </Tip>
+  );
+}
+
 function Details({ result: r }: { result: Result }) {
+  const findings = [...(r.findings ?? []), ...(r.generic ?? [])];
   return (
     <div className="mb-1 ms-7 mt-0.5 max-h-96 overflow-auto rounded-lg border border-line-soft bg-white text-[12.5px]">
-      {r.findings?.length ? (
+      {findings.length ? (
         <ul className="divide-y divide-line-soft">
-          {r.findings.map((f, i) => (
+          {findings.map((f, i) => (
             <li key={i} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 px-3 py-2">
               <ShieldAlert className="size-3.5 text-rust" aria-hidden />
               <span className="font-medium">{f.name}</span>
@@ -104,6 +140,7 @@ function Details({ result: r }: { result: Result }) {
               <Tip label={`SHA-256 ${f.sha256}`}>
                 <span tabIndex={0} className="font-mono text-[11px] text-faint">#{f.sha256.slice(0, 8)}</span>
               </Tip>
+              <Sureness f={f} />
             </li>
           ))}
         </ul>
@@ -129,7 +166,7 @@ function Details({ result: r }: { result: Result }) {
           ))}
         </ul>
       ) : (
-        <pre className="whitespace-pre-wrap break-all px-3 py-2 font-mono text-[11.5px] text-ink-soft">{withSecrets(JSON.stringify(r, null, 2))}</pre>
+        <pre className="whitespace-pre-wrap break-all px-3 py-2 font-mono text-[11.5px] text-ink-soft">{withSecrets(r.text ?? JSON.stringify(r, null, 2))}</pre>
       )}
     </div>
   );

@@ -1,0 +1,8 @@
+{
+  "settings.apiKeys.title": "API keys",
+  "settings.apiKeys.rotateKeyButton": "Rotate key",
+  "auth.passwordResetToken.expired": "This reset link has expired.",
+  "tokens": { "inputTokensLabel": "Input tokens", "outputTokensLabel": "Output tokens" },
+  "keyboardShortcuts": { "openCommandPalette": "Mod+K", "toggleSecretVisibility": "Mod+Shift+H" },
+  "secretManagerLink": "https://console.cloud.google.com/security/secret-manager"
+}

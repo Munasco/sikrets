@@ -6,6 +6,15 @@ import { LIMITS } from "./constants.ts";
 // stays in this process's memory, per session, so tools can use it. Nothing here is persisted.
 
 export const tagFor = (redacted: string, sha256: string) => `[[secret ${redacted} #${sha256.slice(0, 8)}]]`;
+const TAG = /\[\[secret [^\n]*? #[0-9a-f]{8}\]\]/;
+
+/** A placeholder this process holds no value for: the key was pasted before the agent restarted
+ * (or in another chat). The tool must not run on the literal placeholder. */
+export class PlaceholderExpired extends Error {
+  constructor() {
+    super("A key pasted in this chat is no longer held (the agent restarted since, or it's from another chat). Ask the user to paste it again.");
+  }
+}
 
 /** Bare tokens that look like a secret but have no recognisable prefix or `name=` around them:
  * long and high-entropy. Over-redacting a commit hash costs nothing; missing a key costs the key.
@@ -25,7 +34,8 @@ export function bareSecrets(text: string): string[] {
 export function shield(text: string): { text: string; secrets: Map<string, string> } {
   const secrets = new Map<string, string>();
   let out = text;
-  for (const { value, finding } of extract(text)) {
+  // Longest first, so a key that contains another match is replaced whole.
+  for (const { value, finding } of extract(text, undefined, { redacting: true }).sort((a, b) => b.value.length - a.value.length)) {
     const tag = tagFor(finding.redacted, finding.sha256);
     secrets.set(tag, value);
     out = out.split(value).join(tag);
@@ -83,13 +93,19 @@ export class Vault {
     return mapStrings(value, (s) => this.shield(session, s).text, true) as T;
   }
 
-  /** A copy of a tool's input with this session's placeholders swapped back for the real values. */
+  /** Redacts every string inside a value (in place), whatever its key: an MCP tool's input or
+   * result, which has no fixed shape. */
+  shieldDeep<T>(session: string, value: T): T {
+    return mapStrings(value, (s) => this.shield(session, s).text) as T;
+  }
+
+  /** A copy of a tool's input with this session's placeholders swapped back for the real values.
+   * Throws PlaceholderExpired if a placeholder is left that this session holds no value for. */
   reveal<T>(session: string, input: T): T {
     const secrets = this.sessions.get(session)?.secrets;
-    const copy = structuredClone(input);
-    if (!secrets?.size) return copy;
-    return mapStrings(copy, (s) => {
-      for (const [tag, value] of secrets) s = s.split(tag).join(value);
+    return mapStrings(structuredClone(input), (s) => {
+      for (const [tag, value] of secrets ?? []) s = s.split(tag).join(value);
+      if (TAG.test(s)) throw new PlaceholderExpired();
       return s;
     }) as T;
   }

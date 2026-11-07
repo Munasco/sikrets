@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Vault } from "./redact.ts";
+import { PlaceholderExpired, Vault } from "./redact.ts";
 import { redact, scan, sha256 } from "./patterns.ts";
 import { checkLeakHashes, howToRotate, osvLookup, scanGithubRepo, scanText, untar } from "./tools.ts";
 
@@ -12,9 +12,9 @@ const FAKE = {
 };
 
 describe("scan", () => {
-  test("finds provider keys with their lines and never returns the value", () => {
+  test("finds provider keys with their lines and never returns the value", async () => {
     const text = `const a = 1;\nGITHUB_TOKEN=${FAKE.github}\nstripe.key = "${FAKE.stripe}"\naws_access_key_id = ${FAKE.aws}\nRESEND=${FAKE.resend}`;
-    const { findings } = scanText({ text });
+    const { findings } = await scanText({ text });
     const types = findings.map((f) => f.type);
     expect(types).toEqual(expect.arrayContaining(["github-token", "stripe-key", "aws-access-key", "resend-key"]));
     expect(findings.find((f) => f.type === "github-token")!.line).toBe(2);
@@ -57,8 +57,11 @@ describe("vault", () => {
     expect(text).not.toContain(FAKE.stripe);
     expect(text).toContain("sk_live_…cdef");
     expect(vault.reveal("s1", { text })).toEqual({ text: `my key is ${FAKE.stripe} help` });
-    // Another session's placeholders don't resolve.
-    expect(vault.reveal("s2", { text })).toEqual({ text });
+    // Another session's placeholders don't resolve, and a tool never gets the literal placeholder.
+    expect(() => vault.reveal("s2", { text })).toThrow(PlaceholderExpired);
+    // Nor after a restart (a new vault), when the chat history still has them.
+    expect(() => new Vault().reveal("s1", { nested: [{ text }] })).toThrow(PlaceholderExpired);
+    expect(new Vault().reveal("s1", { text: "no placeholder here" })).toEqual({ text: "no placeholder here" });
   });
 
   test("redacts bare high-entropy tokens in chat, but not prose or placeholders", () => {

@@ -1,0 +1,19 @@
+{
+  "servers": {
+    "advisories": {
+      "type": "local",
+      "description": "Security advisories for packages",
+      "command": ["bunx", "--bun", "some-advisories-mcp-server"],
+      "environment": { "ADVISORIES_TOKEN": "replace-me" },
+      "tools": ["search", "get_advisory"],
+      "enabled": true
+    },
+    "tickets": {
+      "type": "remote",
+      "description": "Open an incident ticket",
+      "url": "https://mcp.example.com/mcp",
+      "headers": { "Authorization": "Bearer replace-me" },
+      "enabled": false
+    }
+  }
+}

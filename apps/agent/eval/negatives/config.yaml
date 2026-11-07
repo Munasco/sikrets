@@ -1,0 +1,19 @@
+# Config that references secrets instead of holding them.
+auth:
+  api_key: ${OPENAI_API_KEY}
+  client_secret: "{{ .Values.oauth.clientSecret }}"
+  token_url: https://oauth2.googleapis.com/token
+  password_file: /run/secrets/db_password
+  secret_ref:
+    name: payments-stripe
+    key: secret-key
+database:
+  url: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:5432/app
+  local_url: postgres://postgres:postgres@localhost:5432/app_dev
+keys:
+  - name: signing
+    kms_key_arn: arn:aws:kms:us-east-1:123456789012:key/mrk-1234abcd
+env:
+  - name: API_TOKEN
+    valueFrom:
+      secretKeyRef: { name: api, key: token }

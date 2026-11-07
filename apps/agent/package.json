@@ -13,7 +13,9 @@
     "start": "bun src/server.ts",
     "typecheck": "tsc --noEmit && cd ui && tsc --noEmit",
     "test": "bun test --timeout 20000",
-    "build:ui": "cd ui && bun install --frozen-lockfile && bun run build"
+    "build:ui": "cd ui && bun install --frozen-lockfile && bun run build",
+    "build:rules": "bun scripts/gitleaks.ts",
+    "bench": "bun src/redact.bench.ts"
   },
   "type": "module",
   "dependencies": {
