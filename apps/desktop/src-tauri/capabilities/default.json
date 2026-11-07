@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The main window: dialogs for picking a project or import file, and writing references to the clipboard.",
+  "windows": ["main"],
+  "permissions": ["core:default", "dialog:allow-open", "clipboard-manager:allow-write-text"]
+}

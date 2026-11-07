@@ -2,6 +2,7 @@ import { record } from "../core/activity.ts";
 import { projectContext } from "../core/config.ts";
 import { providerEnv } from "../core/credentials.ts";
 import { Secret } from "../core/secret.ts";
+import { markPending, writeBack } from "../core/keys.ts";
 import { state, type Resource } from "../core/state.ts";
 import { after } from "../core/ttl.ts";
 import { openVault } from "../core/vault.ts";
@@ -65,17 +66,24 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   const changed = await plan.run();
   const vault = await openVault(ctx.project, ctx.vault);
   const outputs = { ...res.outputs };
+  const rotated = new Map<string, Secret>();
   for (const [key, value] of Object.entries(changed)) {
     const spec = r.outputs[key];
     if (!spec) throw new Error(`${r.id} returned an unknown output "${key}"`);
     if (spec.sensitive && !(value instanceof Secret)) throw new Error(`${r.id} returned ${key} unwrapped; sensitive outputs must be Secret`);
-    await vault.put(`${envPrefix(res.name)}_${spec.env}`, value instanceof Secret ? value : Secret.of(value));
+    const secret = value instanceof Secret ? value : Secret.of(value);
+    await vault.put(`${envPrefix(res.name)}_${spec.env}`, secret);
+    rotated.set(`${envPrefix(res.name)}_${spec.env}`, secret);
     if (typeof value === "string") outputs[key] = value;
   }
+  // Linked password manager items now hold the old value: record that before anything else can fail.
+  await markPending(root, [...rotated.keys()]);
   const now = new Date().toISOString();
   await state.upsert(root, { ...res, outputs, lastRotatedAt: now, rotateBy: after(config.rotateEvery) });
   await record(root, { kind: "rotate", detail: `${r.id} ${res.name}`, keys });
+  // Keys linked to a password manager item get the new value written back to it.
+  const synced = await writeBack(root, rotated, say);
 
-  if (opts.json) console.log(JSON.stringify({ resource: res.name, rotated: keys, rotateBy: after(config.rotateEvery) }));
+  if (opts.json) console.log(JSON.stringify({ resource: res.name, rotated: keys, rotateBy: after(config.rotateEvery), ...(synced.length ? { writtenBack: synced } : {}) }));
   else say(`Rotated ${keys.join(", ")}. Stand-ins unchanged; apps using @sikrets/sdk pick it up within its cache window, \`sikrets run\` on next start.`);
 }

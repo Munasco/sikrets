@@ -1,0 +1,166 @@
+@import "tailwindcss";
+
+/* Rose Rocket: paper and white surfaces, cream panels, forest and pine for actions, muted grey
+   for secondary words. Geist Sans for the interface, Geist Mono for labels and key names. */
+
+@font-face {
+  font-family: "Geist Sans";
+  src: url("/fonts/GeistSans.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/fonts/GeistMono.woff2") format("woff2");
+  font-weight: 400 500;
+  font-display: swap;
+}
+
+@theme {
+  --font-sans: "Geist Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+
+  --color-paper: #fbfaf7;
+  --color-white: #ffffff;
+  --color-lift: #ffffff;
+  --color-well: #f4f3f1;
+  --color-lift-hover: #f4f3f1;
+  --color-cream: #f4f3f1;
+  --color-sand: #eceae6;
+  --color-line: #e7e4df;
+  --color-ink: #181818;
+  --color-ink-soft: #555555;
+  --color-muted: #b3aea7;
+  --color-dim: #8a837b;
+  --color-forest: #1f3b2d;
+  --color-pine: #1f4a3a;
+  --color-rust: #a8522f;
+  --color-amber: #9a6b1f;
+}
+
+/* Dark: the same tokens on a forest-tinted night palette. "white" is the raised surface and
+   forest/pine turn light, so bg-forest + text-cream buttons and bg-ink tooltips invert as a pair.
+   Follows macOS unless Settings picks one (data-theme on <html>). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --color-paper: #121513;
+    --color-white: #1a1e1b;
+    --color-lift: #2f3631;
+    --color-lift-hover: #3a423d;
+    --color-well: #141715;
+    --color-cream: #1f2420;
+    --color-sand: #272d29;
+    --color-line: #2d3430;
+    --color-ink: #ecebe7;
+    --color-ink-soft: #b4b0aa;
+    --color-muted: #6c6862;
+    --color-dim: #8e8982;
+    --color-forest: #a3d4b7;
+    --color-pine: #8ec7a6;
+    --color-rust: #e3916c;
+    --color-amber: #d8a957;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-paper: #121513;
+  --color-white: #1a1e1b;
+  --color-lift: #2f3631;
+  --color-lift-hover: #3a423d;
+  --color-well: #141715;
+  --color-cream: #1f2420;
+  --color-sand: #272d29;
+  --color-line: #2d3430;
+  --color-ink: #ecebe7;
+  --color-ink-soft: #b4b0aa;
+  --color-muted: #6c6862;
+  --color-dim: #8e8982;
+  --color-forest: #a3d4b7;
+  --color-pine: #8ec7a6;
+  --color-rust: #e3916c;
+  --color-amber: #d8a957;
+}
+
+@layer base {
+  * {
+    @apply border-line;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  html {
+    color-scheme: light;
+  }
+  body {
+    @apply bg-paper font-sans text-ink antialiased;
+    font-size: 13px;
+    line-height: 1.5;
+    letter-spacing: -0.003em;
+    -webkit-user-select: none;
+    user-select: none;
+    cursor: default;
+  }
+  input,
+  textarea,
+  .selectable {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--color-pine) 18%, var(--color-white));
+  }
+  button {
+    cursor: pointer;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-1 outline-pine/50;
+  }
+}
+
+.label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-dim);
+}
+
+/* The chosen segment: a soft lift in light, a pine-edged lift in dark. */
+.seg-on {
+  box-shadow: 0 0 0 1px var(--color-line), 0 1px 2px rgb(0 0 0 / 0.08);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .seg-on {
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-pine) 30%, transparent);
+  }
+}
+:root[data-theme="dark"] .seg-on {
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-pine) 30%, transparent);
+}
+
+.drag {
+  -webkit-app-region: drag;
+}
+
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.rise {
+  animation: rise 160ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rise {
+    animation: none;
+  }
+}
