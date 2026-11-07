@@ -20,12 +20,16 @@ export interface Rule {
   methods?: string[];
 }
 
+/** A session is open until it expires, is revoked, or the proxy stops. Endings are final. */
+export type SessionState = "open" | "expired" | "revoked" | "stopped";
+
 export interface Session {
   readonly token: string;
   readonly bundle: string;
   readonly rules: ReadonlyMap<string, Rule>;
+  /** Wall-clock deadline (ms since epoch). */
   readonly expiresAt: number;
-  revoked: boolean;
+  readonly state: SessionState;
 }
 
 export interface RequestLog {
@@ -53,7 +57,8 @@ export interface ProxyOptions {
 
 const HOP = ["connection", "keep-alive", "proxy-connection", "transfer-encoding", "te", "trailer", "upgrade", "host"];
 
-const alive = (s: Session | undefined): s is Session => !!s && !s.revoked && Date.now() < s.expiresAt;
+// The wall clock decides, not only the timer: a timer can fire late (the Mac slept), the clock can't.
+const alive = (s: Session | undefined): s is Session => !!s && s.state === "open" && Date.now() < s.expiresAt;
 
 function newToken() {
   const bytes = crypto.getRandomValues(new Uint8Array(24));
@@ -68,8 +73,14 @@ function proxyUser(head: string): string | undefined {
   return user === "sikrets" ? pass : user || pass;
 }
 
+interface Live extends Session {
+  state: SessionState;
+  timer?: ReturnType<typeof setTimeout>;
+  onEnd?: (state: Exclude<SessionState, "open">) => void;
+}
+
 export async function startProxy(opts: ProxyOptions) {
-  const sessions = new Map<string, Session>();
+  const sessions = new Map<string, Live>();
   const sockets = new Map<string, Set<net.Socket>>();
   const byPort = new Map<number, Session>();
   const hostToService = new Map<string, Service>();
@@ -158,15 +169,19 @@ export async function startProxy(opts: ProxyOptions) {
       const up = intercept ? net.connect(inner.port!, "127.0.0.1") : net.connect(port, host);
       const own = sockets.get(session.token) ?? new Set();
       sockets.set(session.token, own.add(client).add(up));
+      // The source port is captured here: once the socket is destroyed it can't be read back, and
+      // a stale entry would hand this session to whoever next connects from that port.
+      let mappedPort: number | undefined;
       up.once("connect", () => {
-        if (intercept) byPort.set(up.localPort!, session);
+        if (intercept && up.localPort) byPort.set((mappedPort = up.localPort), session);
         client.write("HTTP/1.1 200 Connection Established\r\n\r\n");
         if (rest.length) up.write(rest);
         client.pipe(up);
         up.pipe(client);
       });
       const close = () => {
-        if (up.localPort) byPort.delete(up.localPort);
+        if (mappedPort !== undefined && byPort.get(mappedPort) === session) byPort.delete(mappedPort);
+        mappedPort = undefined;
         own.delete(client);
         own.delete(up);
         client.destroy();
@@ -189,22 +204,39 @@ export async function startProxy(opts: ProxyOptions) {
     sockets.delete(token);
   };
 
+  /** The one way a session ends: only an open session can, and only once. */
+  const end = (token: string, state: Exclude<SessionState, "open">) => {
+    const s = sessions.get(token);
+    if (!s || s.state !== "open") return;
+    s.state = state;
+    clearTimeout(s.timer);
+    sessions.delete(token);
+    cut(token);
+    s.onEnd?.(state);
+  };
+
+  // setTimeout can't wait longer than about 24.8 days (it fires at once instead), and a sleeping
+  // Mac delays timers, so the deadline is checked against the clock in steps of at most a minute.
+  const arm = (s: Live) => {
+    const left = s.expiresAt - Date.now();
+    if (left <= 0) return end(s.token, "expired");
+    s.timer = setTimeout(() => arm(s), Math.min(left, PROXY.expiryCheckMs));
+    s.timer.unref?.();
+  };
+
   return {
     port,
-    open(bundle: string, rules: readonly Rule[], ttlMs: number): Session {
+    /** Opens a session. `onEnd` hears how it ended (expired, revoked, or the proxy stopped). */
+    open(bundle: string, rules: readonly Rule[], ttlMs: number, onEnd?: (state: Exclude<SessionState, "open">) => void): Session {
       for (const r of rules) if (!opts.tokens.has(r.service)) throw new Error(`No token for ${r.service}. Add one: sikrets proxy add ${r.service}`);
-      const session: Session = { token: newToken(), bundle, rules: new Map(rules.map((r) => [r.service, r])), expiresAt: Date.now() + ttlMs, revoked: false };
+      const session: Live = { token: newToken(), bundle, rules: new Map(rules.map((r) => [r.service, r])), expiresAt: Date.now() + ttlMs, state: "open", onEnd };
       sessions.set(session.token, session);
-      setTimeout(() => cut(session.token), ttlMs).unref();
+      arm(session);
       return session;
     },
-    revoke(token: string) {
-      const s = sessions.get(token);
-      if (s) s.revoked = true;
-      cut(token);
-    },
+    revoke: (token: string) => end(token, "revoked"),
     async stop() {
-      for (const token of sessions.keys()) cut(token);
+      for (const token of [...sessions.keys()]) end(token, "stopped");
       outer.close();
       inner.stop(true);
     },

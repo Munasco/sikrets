@@ -86,6 +86,14 @@ export const PROXY = {
   defaultDuration: "2h",
   /** Folder under the user dir for per-session request logs. */
   sessionsDir: "sessions",
+  /** Longest a session waits between checks of its deadline against the clock. */
+  expiryCheckMs: 60_000,
+  /** When a session expires, the agent gets SIGTERM, then SIGKILL after this long. */
+  killGraceMs: 5_000,
+  /** Prefix of each session's temp folder (CA and host keys); leftovers from crashed sessions are swept. */
+  tempPrefix: "sikrets-session-",
+  /** A session folder with no owner recorded is swept once it's this old (its certificates last 2 days). */
+  staleTempMs: 2 * 86_400_000,
   /** Trust roots the session CA is appended to, for tools that replace the system store. */
   systemRoots: ["/etc/ssl/cert.pem", "/etc/ssl/certs/ca-certificates.crt", "/etc/pki/tls/certs/ca-bundle.crt"],
 } as const;
