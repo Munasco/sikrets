@@ -135,12 +135,20 @@ export function binary(): string {
   return path.join(path.dirname(require.resolve(`${pkg}/package.json`)), "bin", "opencode");
 }
 
-/** A free loopback port. */
-async function freePort() {
-  const probe = Bun.serve({ hostname: OPENCODE.host, port: 0, fetch: () => new Response() });
-  const port = probe.port!;
-  probe.stop(true);
-  return port;
+/** Ports handed to an instance that hasn't bound them yet: two instances starting at once must
+ * not be given the same one. */
+const claimed = new Set<number>();
+
+/** A free loopback port, claimed until `release` is called. */
+function freePort() {
+  for (;;) {
+    const probe = Bun.serve({ hostname: OPENCODE.host, port: 0, fetch: () => new Response() });
+    const port = probe.port!;
+    probe.stop(true);
+    if (claimed.has(port)) continue;
+    claimed.add(port);
+    return { port, release: () => claimed.delete(port) };
+  }
 }
 
 /** Hands the owner's home to their uid (root only; new directories start as root's). */
@@ -158,6 +166,8 @@ export interface Server {
   directory: string;
   /** Calls opencode's API with the server password. */
   fetch(pathname: string, init?: RequestInit): Promise<Response>;
+  /** Settles when the opencode process has exited, whoever stopped it. */
+  exited: Promise<unknown>;
   stop(): void;
 }
 
@@ -174,7 +184,6 @@ async function mcpSettled(server: Server) {
 
 export async function start(opts: Options = {}): Promise<Server> {
   const model: ModelConfig = opts.model ?? MODEL;
-  const port = await freePort();
   const sandbox = opts.sandbox ?? { mode: "none" as const };
   // Resolved (macOS's /var is /private/var), so every path the agent is told matches what it sees.
   mkdirSync(opts.home ?? OPENCODE.home, { recursive: true, mode: 0o700 });
@@ -209,59 +218,71 @@ export async function start(opts: Options = {}): Promise<Server> {
   // stand-in and a loopback relay that swaps it for the real key on the way to the provider.
   const key = Bun.env[OPENCODE.keyEnv] ?? Bun.env[model.keyEnv];
   const relay = key ? modelRelay(model, key) : undefined;
-  if (relay) {
-    env[model.keyEnv] = relay.token;
-    env.OPENCODE_CONFIG_CONTENT = JSON.stringify(config({ ...model, settings: { ...model.settings, baseURL: relay.baseURL } }, opts.plugins, caps, home));
-  }
-
-  const bin = binary();
-  const version = (await Bun.$`${bin} --version`.env(env).quiet().text()).trim();
-  if (!version.endsWith(OPENCODE.version)) throw new Error(`opencode ${OPENCODE.version} expected, found ${version}`);
-  // After the version check, which runs here (as root, on Linux) and may write to the home.
-  if (sandbox.uid !== undefined && process.getuid?.() === 0) chownTree(home, sandbox.uid);
-
-  const cmd = wrap([bin, "serve", "--hostname", OPENCODE.host, "--port", String(port), "--log-level", "warn"], {
-    mode: sandbox.mode,
-    uid: sandbox.uid,
-    home,
-    cwd: dirs.work,
-    app: APP,
-    readOnly: [caps.skillsDir, ...(opts.plugins ?? []), ...(sandbox.readOnly ?? [])],
-    shared: sandbox.shared,
-  });
-  const proc = Bun.spawn(cmd, {
-    cwd: dirs.work,
-    env,
-    stdout: "ignore",
-    stderr: "inherit",
-  });
-  const url = `http://${OPENCODE.host}:${port}`;
-  const auth = `Basic ${Buffer.from(`opencode:${password}`).toString("base64")}`;
-  // Sessions run at the resolved path (macOS's /var is /private/var); every call names the same one,
-  // so opencode keeps one instance of the plugin and the MCP servers rather than one per spelling.
-  const directory = realpathSync(dirs.work);
-  const server: Server = {
-    url,
-    capabilities: caps,
-    directory,
-    fetch: (pathname, init = {}) => fetch(url + pathname, { ...init, headers: { ...init.headers, authorization: auth, "x-opencode-directory": directory } }),
-    stop: () => {
-      proc.kill();
-      relay?.stop();
-    },
-  };
-
-  const deadline = Date.now() + OPENCODE.startupMs;
-  while (Date.now() < deadline) {
-    if (proc.exitCode !== null) {
-      relay?.stop();
-      throw new Error(`opencode exited (${proc.exitCode})`);
+  // From here on, any failure must stop the relay (it holds the real key) and free the port.
+  const { port, release } = freePort();
+  let proc: ReturnType<typeof Bun.spawn> | undefined;
+  try {
+    if (relay) {
+      env[model.keyEnv] = relay.token;
+      env.OPENCODE_CONFIG_CONTENT = JSON.stringify(config({ ...model, settings: { ...model.settings, baseURL: relay.baseURL } }, opts.plugins, caps, home));
     }
-    const ok = await server.fetch("/api/agent").then((r) => r.ok, () => false);
-    // Ready once every MCP server has connected or failed, so the first chat has their tools.
-    if (ok && (await mcpSettled(server))) return server;
-    await Bun.sleep(250);
+
+    const bin = binary();
+    const version = (await Bun.$`${bin} --version`.env(env).quiet().text()).trim();
+    if (!version.endsWith(OPENCODE.version)) throw new Error(`opencode ${OPENCODE.version} expected, found ${version}`);
+    // After the version check, which runs here (as root, on Linux) and may write to the home.
+    if (sandbox.uid !== undefined && process.getuid?.() === 0) chownTree(home, sandbox.uid);
+
+    const cmd = wrap([bin, "serve", "--hostname", OPENCODE.host, "--port", String(port), "--log-level", "warn"], {
+      mode: sandbox.mode,
+      uid: sandbox.uid,
+      home,
+      cwd: dirs.work,
+      app: APP,
+      readOnly: [caps.skillsDir, ...(opts.plugins ?? []), ...(sandbox.readOnly ?? [])],
+      shared: sandbox.shared,
+    });
+    const child = Bun.spawn(cmd, {
+      cwd: dirs.work,
+      env,
+      stdout: "ignore",
+      stderr: "inherit",
+    });
+    proc = child;
+    // However the process ends (stopped, crashed, killed), the relay goes with it.
+    const exited = child.exited.finally(() => relay?.stop());
+    const url = `http://${OPENCODE.host}:${port}`;
+    const auth = `Basic ${Buffer.from(`opencode:${password}`).toString("base64")}`;
+    // Sessions run at the resolved path (macOS's /var is /private/var); every call names the same one,
+    // so opencode keeps one instance of the plugin and the MCP servers rather than one per spelling.
+    const directory = realpathSync(dirs.work);
+    const server: Server = {
+      url,
+      capabilities: caps,
+      directory,
+      fetch: (pathname, init = {}) => fetch(url + pathname, { ...init, headers: { ...init.headers, authorization: auth, "x-opencode-directory": directory } }),
+      exited,
+      stop: () => {
+        child.kill();
+        relay?.stop();
+      },
+    };
+
+    const deadline = Date.now() + OPENCODE.startupMs;
+    while (Date.now() < deadline) {
+      if (child.exitCode !== null) throw new Error(`opencode exited (${child.exitCode})`);
+      const ok = await server.fetch("/api/agent").then((r) => r.ok, () => false);
+      // Ready once every MCP server has connected or failed, so the first chat has their tools.
+      if (ok && (await mcpSettled(server))) return server;
+      await Bun.sleep(250);
+    }
+    throw new Error("opencode didn't start in time");
+  } catch (e) {
+    proc?.kill();
+    relay?.stop();
+    throw e;
+  } finally {
+    // Bound by now, or never will be.
+    release();
   }
-  server.stop();
-  throw new Error("opencode didn't start in time");
 }

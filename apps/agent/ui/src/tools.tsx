@@ -18,7 +18,17 @@ interface Finding {
   /** Generic findings: how sure the rule is, and the model's second look when it wasn't. */
   confidence?: "high" | "medium" | "low";
   review?: { verdict: string; reason: string } | "needs review";
+  unreviewed?: "skipped" | "capped" | "failed" | "timeout" | "unanswered";
 }
+
+/** Why the second look didn't settle a finding. */
+const UNREVIEWED: Record<NonNullable<Finding["unreviewed"]>, string> = {
+  skipped: "No model to check it here; check it yourself.",
+  capped: "Too many to check; this one wasn't sent. Check it yourself.",
+  failed: "The check failed; check it yourself.",
+  timeout: "The check timed out; check it yourself.",
+  unanswered: "The check didn't answer for this one; check it yourself.",
+};
 
 type Result = {
   error?: string;
@@ -104,7 +114,7 @@ export function ToolRow({ part }: { part: ToolPart }) {
 function Sureness({ f }: { f: Finding }) {
   if (!f.confidence) return null;
   const label = f.review === "needs review" ? "unreviewed" : f.review ? "confirmed" : f.confidence;
-  const tip = typeof f.review === "object" ? f.review.reason : f.review === "needs review" ? "The second look didn't answer; check it yourself." : `${f.confidence} confidence`;
+  const tip = typeof f.review === "object" ? f.review.reason : f.review === "needs review" ? UNREVIEWED[f.unreviewed ?? "unanswered"] : `${f.confidence} confidence`;
   return (
     <Tip label={tip}>
       <span tabIndex={0} className="font-mono text-[11px] text-faint">{label}</span>

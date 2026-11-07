@@ -1,6 +1,6 @@
 import { COMMANDS, MCP, OPENCODE, PROXY, SKILLS } from "./constants.ts";
 import type { Server } from "./opencode.ts";
-import { McpSwitches, sync } from "./mcp-switch.ts";
+import { McpSwitches, sync, SyncFailed } from "./mcp-switch.ts";
 import { PoolFull, type Owner, type Pool } from "./pool.ts";
 
 // The gateway's view of opencode's API: a short allowlist. Stock opencode clients (the TUI with
@@ -25,6 +25,8 @@ interface Ctx {
   switches: McpSwitches;
   /** Path parameters from the route pattern. */
   params: Record<string, string>;
+  /** Stops this owner's instance; the next request starts a fresh one from the saved state. */
+  restart: () => void;
 }
 
 type Body = Record<string, unknown>;
@@ -41,6 +43,8 @@ interface Route {
   json?: (data: unknown, ctx: Ctx) => unknown;
   /** Sends a message to the model: counts against the model rate limit. */
   model?: boolean;
+  /** Runs after opencode answered the forwarded request with a success. */
+  after?: (ctx: Ctx) => Promise<void>;
 }
 
 const at = (ctx: Ctx) => ({ location: { directory: ctx.oc.directory } });
@@ -64,7 +68,15 @@ export function routes(): Route[] {
   const toggle = (on: boolean) => async (ctx: Ctx) => {
     if (!ctx.oc.capabilities.mcp[ctx.params.server!]) return Response.json({ error: "Not found" }, { status: 404 });
     ctx.switches.set(ctx.owner, ctx.params.server!, on);
-    await sync(ctx.oc, ctx.switches, ctx.owner);
+    try {
+      await sync(ctx.oc, ctx.switches, ctx.owner);
+    } catch (e) {
+      if (!(e instanceof SyncFailed)) throw e;
+      // The switch is saved, but this instance didn't take it: stop it rather than leave a server
+      // the owner switched off usable. Its replacement gets the saved switches as it starts.
+      ctx.restart();
+      return Response.json({ error: "The agent didn't take the change; it's restarting with it. Try again in a moment." }, { status: 503 });
+    }
     return null;
   };
   return [
@@ -107,7 +119,14 @@ export function routes(): Route[] {
     { method: "GET", path: "/api/session/active" },
     { method: "GET", path: "/api/session/:sessionID" },
     { method: "PATCH", path: "/api/session/:sessionID", body: (b) => pick(b, ["title"]) },
-    { method: "DELETE", path: "/api/session/:sessionID" },
+    {
+      method: "DELETE",
+      path: "/api/session/:sessionID",
+      // The plugin forgets the session's pasted keys with it.
+      after: async (ctx) => {
+        await ctx.oc.fetch(`/api/rpc/${encodeURIComponent(MCP.rpc.id)}/${encodeURIComponent(MCP.rpc.forget)}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ input: { sessionID: ctx.params.sessionID } }) }).catch(() => {});
+      },
+    },
     { method: "GET", path: "/api/session/:sessionID/message" },
     { method: "GET", path: "/api/session/:sessionID/message/:messageID" },
     { method: "GET", path: "/api/session/:sessionID/context" },
@@ -236,7 +255,7 @@ export function proxy(pool: Pool, switches = new McpSwitches(pool.capabilities.m
       return Response.json({ error: e instanceof PoolFull ? e.message : "The agent couldn't start; try again." }, { status: 503 });
     }
     try {
-      const res = await answer(req, url, route, { owner, oc: lease.server, switches, params }, limit);
+      const res = await answer(req, url, route, { owner, oc: lease.server, switches, params, restart: () => pool.stopOwner(owner) }, limit);
       // An open event stream keeps the instance in use; anything else is done once it's answered.
       if ((res.headers.get("content-type") ?? "").includes("text/event-stream")) return holding(res, lease.release, req.signal);
       lease.release();
@@ -280,6 +299,7 @@ export function proxy(pool: Pool, switches = new McpSwitches(pool.capabilities.m
       signal: req.signal,
     });
 
+    if (route.after && res.ok) await route.after(ctx);
     const type = res.headers.get("content-type") ?? "";
     if (type.includes("text/event-stream")) return new Response(res.body, { status: res.status, headers: { "content-type": type, "cache-control": "no-cache, no-transform", "x-accel-buffering": "no" } });
     if (!type.includes("json")) return new Response(res.body, { status: res.status, headers: type ? { "content-type": type } : {} });

@@ -1,6 +1,6 @@
-import { readFileSync, writeFileSync } from "node:fs";
 import type { Server } from "./opencode.ts";
 import type { Owner } from "./pool.ts";
+import { Expiring } from "./store.ts";
 
 // Full access: an owner who turns it on gets every permission request in their sessions approved
 // ("always") by the gateway itself, so the agent never stops to wait, even with no chat open.
@@ -9,20 +9,17 @@ import type { Owner } from "./pool.ts";
 // their own instance (src/pool.ts), so every request an instance raises is its owner's.
 
 export class FullAccess {
-  private on = new Set<Owner>();
-  constructor(private file?: string) {
-    if (!file) return;
-    try {
-      this.on = new Set(JSON.parse(readFileSync(file, "utf8")) as Owner[]);
-    } catch {}
+  /** Owners with it on, until their login expires (a cookie owner's entry goes with the cookie). */
+  private on: Expiring;
+  constructor(file?: string) {
+    this.on = new Expiring(file);
   }
   has(owner: Owner | undefined) {
-    return owner !== undefined && this.on.has(owner);
+    return this.on.has(owner);
   }
-  set(owner: Owner, on: boolean) {
-    if (on) this.on.add(owner);
+  set(owner: Owner, on: boolean, until?: number) {
+    if (on) this.on.add(owner, until);
     else this.on.delete(owner);
-    if (this.file) writeFileSync(this.file, JSON.stringify([...this.on]), { mode: 0o600 });
   }
 }
 
@@ -46,7 +43,7 @@ export function autoApprove(access: FullAccess) {
   }
 
   /** Watches one owner's instance until the returned function is called. */
-  function attach(owner: Owner, oc: Server) {
+  function attach(owner: Owner, oc: Server, retryMs = 2_000) {
     let stopped = false;
     let ctrl: AbortController | undefined;
     void (async () => {
@@ -54,7 +51,11 @@ export function autoApprove(access: FullAccess) {
         ctrl = new AbortController();
         try {
           const res = await oc.fetch("/api/event", { headers: { accept: "text/event-stream" }, signal: ctrl.signal });
-          const reader = res.body!.getReader();
+          if (!res.ok || !res.body) throw new Error(`event stream: ${res.status}`);
+          // Requests raised before this stream opened (at start, or while it was down) have no
+          // event left to see: approve them from the list, after every (re)connect.
+          if (access.has(owner)) void pending(oc);
+          const reader = res.body.getReader();
           const dec = new TextDecoder();
           let buf = "";
           for (;;) {
@@ -73,10 +74,9 @@ export function autoApprove(access: FullAccess) {
             }
           }
         } catch {}
-        if (!stopped) await Bun.sleep(2_000);
+        if (!stopped) await Bun.sleep(retryMs);
       }
     })();
-    if (access.has(owner)) void pending(oc);
     return () => {
       stopped = true;
       ctrl?.abort();

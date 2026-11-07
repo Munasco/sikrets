@@ -94,6 +94,26 @@ describe("review", () => {
     const out = await review([item()], { env: r.env });
     expect(out.reviews.size).toBe(0);
     expect(out.failed).toBe(1);
+    expect(out.unreviewed?.get("0")).toBe("failed");
+  });
+
+  test("each unreviewed item says why: past the cap, or left out of the answer", async () => {
+    // Answers every item it's sent but the first.
+    const r = relay((items) => ({ results: items.filter((i) => i.id !== "0").map((i) => ({ id: i.id, verdict: "secret", reason: "r" })) }));
+    stops.push(r.stop);
+    const items = Array.from({ length: REVIEW.maxItems + 2 }, (_, i) => ({ ...item(), id: String(i) }));
+    const out = await review(items, { env: r.env });
+    expect(out.sent).toBe(REVIEW.maxItems);
+    expect(out.unreviewed?.get("0")).toBe("unanswered");
+    expect(out.unreviewed?.get(String(REVIEW.maxItems))).toBe("capped");
+    expect(out.unreviewed?.get(String(REVIEW.maxItems + 1))).toBe("capped");
+    expect(out.unreviewed?.size).toBe(3);
+  });
+
+  test("no model credential: every item is skipped, none sent", async () => {
+    const out = await review([item()], { env: {} });
+    expect(out.sent).toBe(0);
+    expect(out.unreviewed?.get("0")).toBe("skipped");
   });
 
   test("answers for ids it wasn't asked about, or outside the schema, are ignored", async () => {
@@ -130,6 +150,13 @@ describe("scan_text with the review", () => {
     const r = await scanText({ text }, reviewer(undefined));
     expect(r.generic).toHaveLength(1);
     expect(r.generic[0]!.review).toBe("needs review");
+    expect(r.generic[0]!.unreviewed).toBe("unanswered");
     expect(r.dismissed).toEqual([]);
+  });
+
+  test("the summary counts only what was sent", async () => {
+    const r = await scanText({ text }, async (items) => ({ reviews: new Map(), unreviewed: new Map(items.map((i) => [i.id, "skipped"])), sent: 0, failed: 0, latencies: [], skipped: "no model credential here" }));
+    expect(r.generic[0]!.unreviewed).toBe("skipped");
+    expect(r.review).toMatchObject({ asked: 0, capped: 0, answered: 0 });
   });
 });

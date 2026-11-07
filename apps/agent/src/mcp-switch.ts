@@ -1,8 +1,8 @@
-import { readFileSync, writeFileSync } from "node:fs";
 import { MCP } from "./constants.ts";
 import type { McpServers } from "./capabilities.ts";
 import type { Server } from "./opencode.ts";
 import type { Owner } from "./pool.ts";
+import { load, save } from "./store.ts";
 
 // Each login's MCP switches. The gateway keeps them per owner and tells the owner's instance which
 // servers it may use (over the plugin's RPC, which only the gateway can call), when the instance
@@ -10,15 +10,12 @@ import type { Owner } from "./pool.ts";
 // calls; the proxy answers those here.
 
 export class McpSwitches {
-  private choices = new Map<Owner, Record<string, boolean>>();
+  private choices: Map<Owner, Record<string, boolean>>;
   constructor(
     private servers: McpServers,
     private file?: string,
   ) {
-    if (!file) return;
-    try {
-      this.choices = new Map(Object.entries(JSON.parse(readFileSync(file, "utf8")) as Record<Owner, Record<string, boolean>>));
-    } catch {}
+    this.choices = new Map(Object.entries(load<Record<Owner, Record<string, boolean>>>(file, {})));
   }
   on(owner: Owner, server: string) {
     return this.choices.get(owner)?.[server] ?? this.servers[server]?.enabled !== false;
@@ -29,14 +26,19 @@ export class McpSwitches {
   }
   set(owner: Owner, server: string, on: boolean) {
     this.choices.set(owner, { ...this.choices.get(owner), [server]: on });
-    if (this.file) writeFileSync(this.file, JSON.stringify(Object.fromEntries(this.choices)), { mode: 0o600 });
+    save(this.file, Object.fromEntries(this.choices));
   }
 }
 
-/** Tells the owner's instance which servers it may use. */
+export class SyncFailed extends Error {}
+
+/** Tells the owner's instance which servers it may use. Throws SyncFailed unless the plugin
+ * confirmed it: the caller must not leave an instance running with switches it didn't take. */
 export async function sync(oc: Server, switches: McpSwitches, owner: Owner) {
   if (!Object.keys(oc.capabilities.mcp).length) return;
-  await oc
+  const res = await oc
     .fetch(`/api/rpc/${encodeURIComponent(MCP.rpc.id)}/${encodeURIComponent(MCP.rpc.method)}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ input: { off: switches.off(owner) } }) })
-    .catch(() => {});
+    .catch(() => undefined);
+  const body = (await res?.json().catch(() => undefined)) as { output?: { ok?: unknown } } | undefined;
+  if (body?.output?.ok !== true) throw new SyncFailed(`MCP switches didn't reach the agent (${res?.status ?? "no answer"})`);
 }

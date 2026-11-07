@@ -32,14 +32,29 @@ export interface PoolOptions {
   quiet?: boolean;
 }
 
+/** An instance's lifecycle. `starting` covers the launch and the start hooks; only `ready` serves
+ * `running()`; `stopped` is final (stopped, evicted, swept, or the process died). */
+type Status = "starting" | "ready" | "stopped";
+
 interface Live {
+  status: Status;
   server: Promise<Server>;
-  ready?: Server;
+  /** The process, once launched (still `starting` while the hooks run). */
+  instance?: Server;
   used: number;
   /** Requests (and open event streams) in flight. */
   busy: number;
   /** Undo what the start hooks set up. */
   cleanup: Array<() => void>;
+}
+
+const NEXT: Record<Status, Status[]> = { starting: ["ready", "stopped"], ready: ["stopped"], stopped: [] };
+
+/** Moves an instance to its next status; false (and no change) for a move that isn't allowed. */
+function transition(e: Live, to: Status): boolean {
+  if (!NEXT[e.status].includes(to)) return false;
+  e.status = to;
+  return true;
 }
 
 /** Called for each instance once it's up; may return a function to call when it stops. */
@@ -96,9 +111,10 @@ export class Pool {
     return this.uids[key];
   }
 
-  /** The owner's instance if it's up. */
+  /** The owner's instance if it's up and its start hooks have run. */
   running(owner: Owner): Server | undefined {
-    return this.live.get(owner)?.ready;
+    const e = this.live.get(owner);
+    return e?.status === "ready" ? e.instance : undefined;
   }
 
   owners() {
@@ -109,14 +125,16 @@ export class Pool {
   async acquire(owner: Owner): Promise<{ server: Server; release: () => void }> {
     let entry = this.live.get(owner);
     if (!entry) {
-      if (this.live.size >= (this.opts.max ?? POOL.max)) await this.evict();
-      const created: Live = { server: undefined as never, used: Date.now(), busy: 0, cleanup: [] };
-      created.server = this.launch(owner, created);
+      // In the map before anything is awaited, so a second request from the same owner waits for
+      // this start instead of launching a second instance.
+      const created: Live = { status: "starting", server: undefined as never, used: Date.now(), busy: 0, cleanup: [] };
+      this.live.set(owner, created);
+      created.server = (async () => {
+        if (this.live.size > (this.opts.max ?? POOL.max)) await this.evict(owner);
+        return this.launch(owner, created);
+      })();
       entry = created;
-      this.live.set(owner, entry);
-      entry.server.catch(() => {
-        if (this.live.get(owner) === created) this.live.delete(owner);
-      });
+      created.server.catch(() => this.drop(owner, created));
     }
     entry.busy++;
     entry.used = Date.now();
@@ -143,43 +161,78 @@ export class Pool {
   private async launch(owner: Owner, entry: Live): Promise<Server> {
     const launch = this.opts.launch ?? start;
     const server = await launch({ ...this.opts.base, home: this.home(owner), sandbox: { mode: this.mode, uid: this.uid(owner), readOnly: this.opts.readOnly, shared: this.opts.shared } });
-    entry.ready = server;
-    for (const hook of this.hooks) {
-      const undo = await hook(owner, server);
-      if (undo) entry.cleanup.push(undo);
+    entry.instance = server;
+    // A process that dies (crash, OOM, killed) takes its entry with it, so the next request starts
+    // a fresh one instead of going to a dead port.
+    void server.exited.then(() => this.drop(owner, entry));
+    try {
+      if (entry.status !== "starting") throw new Error("stopped while starting");
+      for (const hook of this.hooks) {
+        const undo = await hook(owner, server);
+        if (undo) entry.cleanup.push(undo);
+        if (entry.status !== "starting") throw new Error("stopped while starting");
+      }
+    } catch (e) {
+      // Undo the hooks that ran and stop the process: nothing may outlive a failed start.
+      this.drop(owner, entry);
+      throw e;
     }
+    transition(entry, "ready");
     return server;
   }
 
-  /** Makes room: stops the longest-idle instance, or refuses when every one is busy. */
-  private async evict() {
-    const idle = [...this.live].filter(([, e]) => e.busy === 0 && e.ready).sort((a, b) => a[1].used - b[1].used);
-    if (!idle.length) throw new PoolFull("Every agent slot is in use; try again in a minute.");
-    this.stopOne(idle[0]![0]);
+  /** No running chat and no request in flight. */
+  private async idle(e: Live): Promise<boolean> {
+    if (e.busy > 0 || e.status !== "ready" || !e.instance) return false;
+    const active = await e.instance
+      .fetch("/api/session/active")
+      .then((r) => r.json() as Promise<{ data?: Record<string, unknown> }>)
+      .then((d) => Object.keys(d.data ?? {}).length > 0, () => false);
+    return !active && e.busy === 0 && e.status === "ready";
   }
 
-  private stopOne(owner: Owner) {
+  /** Makes room for `owner`: stops the longest-idle instance with no chat running, or refuses
+   * when every one is in use. */
+  private async evict(owner: Owner) {
+    const others = [...this.live].filter(([o, e]) => o !== owner && e.status === "ready").sort((a, b) => a[1].used - b[1].used);
+    for (const [o, e] of others) {
+      if (!(await this.idle(e))) continue;
+      this.drop(o, e);
+      return;
+    }
+    throw new PoolFull("Every agent slot is in use; try again in a minute.");
+  }
+
+  /** Stops this entry (not a newer one for the same owner) and forgets it. Safe to call again,
+   * e.g. when a start that was stopped midway finishes launching. */
+  private drop(owner: Owner, e: Live) {
+    if (this.live.get(owner) === e) this.live.delete(owner);
+    transition(e, "stopped");
+    for (const undo of e.cleanup.splice(0)) {
+      try {
+        undo();
+      } catch {}
+    }
+    e.instance?.stop();
+  }
+
+  /** Stops the owner's instance, if one is running or starting (logout, a failed MCP switch). */
+  stopOwner(owner: Owner) {
     const e = this.live.get(owner);
-    if (!e) return;
-    this.live.delete(owner);
-    for (const undo of e.cleanup) undo();
-    e.ready?.stop();
+    if (e) this.drop(owner, e);
   }
 
   /** Stops instances nobody has used for idleMs and with no chat still running. */
   async sweep(now = Date.now()) {
     for (const [owner, e] of [...this.live]) {
-      if (e.busy > 0 || !e.ready || now - e.used < (this.opts.idleMs ?? POOL.idleMs)) continue;
-      const active = await e.ready
-        .fetch("/api/session/active")
-        .then((r) => r.json() as Promise<{ data?: Record<string, unknown> }>)
-        .then((d) => Object.keys(d.data ?? {}).length > 0, () => false);
-      if (!active && e.busy === 0) this.stopOne(owner);
+      if (now - e.used < (this.opts.idleMs ?? POOL.idleMs)) continue;
+      // drop() only stops this entry: if it was replaced while idle() waited, the new one stays.
+      if (await this.idle(e)) this.drop(owner, e);
     }
   }
 
   stop() {
     clearInterval(this.sweeper);
-    for (const owner of [...this.live.keys()]) this.stopOne(owner);
+    for (const [owner, e] of [...this.live]) this.drop(owner, e);
   }
 }

@@ -77,8 +77,15 @@ export class ApiError extends Error {
   }
 }
 
+let signedOut: (() => void) | undefined;
+/** Called when the gateway stops accepting this login (expired, revoked, or the code rotated). */
+export function onSignedOut(fn: () => void) {
+  signedOut = fn;
+}
+
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(path, { ...init, headers: { "content-type": "application/json", ...init.headers } });
+  if (res.status === 401 && path !== "/api/login") signedOut?.();
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
     throw new ApiError(res.status, body.error ?? body.message ?? `Error ${res.status}`);
@@ -91,6 +98,7 @@ const post = <T>(path: string, body: unknown = {}) => call<T>(path, { method: "P
 export const api = {
   me: () => call<Me>("/api/me"),
   login: (code: string) => post<{ ok: true }>("/api/login", { code }),
+  logout: () => post<{ ok: true }>("/api/logout"),
   attestation: () => call<Attestation>("/api/attestation"),
   sessions: async () => (await call<{ data: SessionInfo[] }>("/api/session?limit=100")).data,
   create: async () => (await post<{ data: SessionInfo }>("/api/session")).data,
@@ -107,6 +115,8 @@ export const api = {
   mcpSwitch: (name: string, on: boolean) => post<void>(`/api/experimental/mcp/${encodeURIComponent(name)}/${on ? "connect" : "disconnect"}`),
   interrupt: (id: string) => post<unknown>(`/api/session/${id}/interrupt`),
   permissions: async (id: string) => (await call<{ data: PermissionRequest[] }>(`/api/session/${id}/permission`)).data,
+  /** Every request waiting for a decision, across this login's sessions. */
+  allPermissions: async () => (await call<{ data: PermissionRequest[] }>("/api/permission/request")).data,
   fullAccess: (on: boolean) => call<{ fullAccess: boolean }>("/api/full-access", { method: "PUT", body: JSON.stringify({ on }) }),
   reply: (id: string, request: string, decision: "once" | "always" | "reject") => post<void>(`/api/session/${id}/permission/${request}/reply`, { decision }),
 };

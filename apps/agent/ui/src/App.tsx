@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import { ArrowUp, BookOpen, ChevronRight, KeyRound, Zap, PanelLeft, Search, ShieldCheck, ShieldQuestion, Sparkles, Square, SquarePen } from "lucide-react";
-import { api, ApiError, subscribe, type AssistantPart, type Attestation, type Command, type McpServer, type Me, type Message, type OcEvent, type PermissionRequest, type SessionInfo, type Skill, type ToolPart } from "./api.ts";
+import { ArrowUp, BookOpen, ChevronRight, KeyRound, LogOut, Zap, PanelLeft, Search, ShieldCheck, ShieldQuestion, Sparkles, Square, SquarePen } from "lucide-react";
+import { api, ApiError, onSignedOut, subscribe, type AssistantPart, type Attestation, type Command, type McpServer, type Me, type Message, type OcEvent, type PermissionRequest, type SessionInfo, type Skill, type ToolPart } from "./api.ts";
 import { items as menuItems, mentioned, Menu, trigger, withSkills, type Item } from "./composer-menu.tsx";
 import { McpMenu } from "./mcp.tsx";
 import { Markdown, withSecrets } from "./markdown.tsx";
@@ -35,10 +35,15 @@ const routeSession = () => /^#\/s\/(ses_[\w]+)/.exec(location.hash)?.[1];
 
 export function App() {
   const [me, setMe] = useState<Me>();
-  useEffect(() => void api.me().then(setMe, () => setMe({ authed: false, gated: true, model: "" })), []);
+  useEffect(() => {
+    // Any call the gateway refuses (cookie expired or revoked, code rotated) goes back to the gate.
+    onSignedOut(() => setMe((m) => (m?.authed ? { ...m, authed: false } : m)));
+    void api.me().then(setMe, () => setMe({ authed: false, gated: true, model: "" }));
+  }, []);
   if (!me) return null;
   if (!me.authed) return <Gate onIn={() => api.me().then(setMe)} />;
-  return <Workspace model={me.model} fullAccess={Boolean(me.fullAccess)} />;
+  const signOut = () => void api.logout().finally(() => setMe({ ...me, authed: false }));
+  return <Workspace model={me.model} fullAccess={Boolean(me.fullAccess)} onSignOut={me.gated ? signOut : undefined} />;
 }
 
 function Gate({ onIn }: { onIn: () => void }) {
@@ -68,14 +73,15 @@ function Gate({ onIn }: { onIn: () => void }) {
   );
 }
 
-function Workspace({ model, fullAccess: initialAccess }: { model: string; fullAccess: boolean }) {
+function Workspace({ model, fullAccess: initialAccess, onSignOut }: { model: string; fullAccess: boolean; onSignOut?: () => void }) {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [current, setCurrent] = useState<string | undefined>(routeSession());
   const [messages, setMessages] = useState<Message[]>([]);
   const [pending, setPending] = useState<PermissionRequest[]>([]);
   const [fullAccess, setFullAccess] = useState(initialAccess);
   const [working, setWorking] = useState<Record<string, number>>({});
-  const [approvals, setApprovals] = useState<Record<string, boolean>>({});
+  /** Per session, the ids of the requests waiting for a decision. */
+  const [approvals, setApprovals] = useState<Record<string, string[]>>({});
   const [unread, setUnread] = useState<Record<string, boolean>>({});
   const [error, setError] = useState("");
   const [sidebar, setSidebar] = useState(() => window.innerWidth >= 768);
@@ -88,16 +94,31 @@ function Workspace({ model, fullAccess: initialAccess }: { model: string; fullAc
   const currentRef = useRef(current);
   currentRef.current = current;
   const composer = useRef<HTMLTextAreaElement>(null);
+  const wasDown = useRef(false);
 
+  /** The session list. `resync` (after the event stream reconnects, when events may have been
+   * missed): the server's view of what's running wins over what this page remembers. */
   const refreshSessions = useCallback(
-    () =>
+    (resync = false) =>
       api
         .sessions()
         .then((list) => {
           setSessions(list);
           // Runs that started before this page loaded (a reload, another tab) still show as working.
           const busy = Object.fromEntries(list.filter((s) => s.time.busy && (!s.time.idle || s.time.busy > s.time.idle)).map((s) => [s.id, s.time.busy!]));
-          setWorking((w) => ({ ...busy, ...w }));
+          setWorking((w) => (resync ? busy : { ...busy, ...w }));
+        })
+        .catch(() => {}),
+    [],
+  );
+  const refreshApprovals = useCallback(
+    () =>
+      api
+        .allPermissions()
+        .then((list) => {
+          const by: Record<string, string[]> = {};
+          for (const p of list) (by[p.sessionID] ??= []).push(p.id);
+          setApprovals(by);
         })
         .catch(() => {}),
     [],
@@ -111,6 +132,7 @@ function Workspace({ model, fullAccess: initialAccess }: { model: string; fullAc
 
   useEffect(() => {
     void refreshSessions();
+    void refreshApprovals();
     void api.attestation().then(setAttestation, () => {});
     void api.skills().then(setSkills, () => {});
     void api.commands().then(setCommands, () => {});
@@ -118,7 +140,7 @@ function Workspace({ model, fullAccess: initialAccess }: { model: string; fullAc
     const onHash = () => setCurrent(routeSession());
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
-  }, [refreshSessions]);
+  }, [refreshSessions, refreshApprovals]);
 
   useEffect(() => {
     setMessages([]);
@@ -150,11 +172,15 @@ function Workspace({ model, fullAccess: initialAccess }: { model: string; fullAc
           if (sid === currentRef.current) void load(sid);
         }
         if (ev.type === "permission.asked" && sid) {
-          setApprovals((a) => ({ ...a, [sid]: true }));
+          const id = (ev.data as unknown as PermissionRequest).id;
+          setApprovals((a) => ({ ...a, [sid]: [...(a[sid] ?? []).filter((x) => x !== id), id] }));
           if (sid === currentRef.current) setPending((p) => [...p.filter((x) => x.id !== (ev.data as unknown as PermissionRequest).id), ev.data as unknown as PermissionRequest]);
         }
         if (ev.type === "permission.replied" && sid) {
-          setApprovals(({ [sid]: _, ...a }) => a);
+          setApprovals(({ [sid]: ids = [], ...a }) => {
+            const left = ids.filter((x) => x !== ev.data.requestID);
+            return left.length ? { ...a, [sid]: left } : a;
+          });
           setPending((p) => p.filter((x) => x.id !== ev.data.requestID));
         }
         if (ev.type === "session.renamed" || ev.type === "session.created") void refreshSessions();
@@ -162,8 +188,17 @@ function Workspace({ model, fullAccess: initialAccess }: { model: string; fullAc
           setMessages((m) => apply(m, ev));
           if (ev.type === "session.step.failed" || ev.type === "session.execution.failed") setError(String((ev.data.error as { message?: string } | undefined)?.message ?? "The model request failed."));
         }
-      }, setLive),
-    [load, refreshSessions],
+      }, (up) => {
+        setLive(up);
+        // Back after a gap: anything could have finished or asked meanwhile. Reload from the server.
+        if (up && wasDown.current) {
+          void refreshSessions(true);
+          void refreshApprovals();
+          if (currentRef.current) void load(currentRef.current).catch(() => {});
+        }
+        wasDown.current = !up;
+      }),
+    [load, refreshSessions, refreshApprovals],
   );
 
   /** A message: `/new` and `/compact` run here, `/command args` runs a server command, anything
@@ -179,9 +214,11 @@ function Workspace({ model, fullAccess: initialAccess }: { model: string; fullAc
     const command = cmd ? commands.find((c) => c.name === cmd[1]) : undefined;
     const attached = mentioned(text, skills);
     let id = current;
+    let created = false;
     try {
       if (!id) {
         id = (await api.create()).id;
+        created = true;
         currentRef.current = id;
         location.hash = `#/s/${id}`;
         setCurrent(id);
@@ -199,6 +236,11 @@ function Workspace({ model, fullAccess: initialAccess }: { model: string; fullAc
       if (msg?.payload?.text !== undefined) setMessages((m) => (m.some((x) => x.id === msg.id) ? m : [...m, { id: msg.id, type: "user", text: msg.payload!.text!, time: { created: Date.now() } }]));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      // A chat made for this message, which never got it, would sit empty in the list.
+      if (created && id) {
+        void api.remove(id).then(() => refreshSessions(), () => {});
+        if (currentRef.current === id) location.hash = "";
+      }
     } finally {
       setSending(undefined);
     }
@@ -245,14 +287,14 @@ function Workspace({ model, fullAccess: initialAccess }: { model: string; fullAc
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const status = (id: string): Status => (approvals[id] ? "approval" : working[id] ? "working" : unread[id] ? "unread" : sessions.find((s) => s.id === id)?.outcome === "failed" ? "failed" : undefined);
+  const status = (id: string): Status => (approvals[id]?.length ? "approval" : working[id] ? "working" : unread[id] ? "unread" : sessions.find((s) => s.id === id)?.outcome === "failed" ? "failed" : undefined);
   const title = sessions.find((s) => s.id === current)?.title;
   const running = current ? working[current] : undefined;
   const empty = !current || (!messages.length && !sending);
 
   return (
     <div className="flex h-dvh overflow-hidden bg-paper">
-      <Sidebar open={sidebar} sessions={sessions} current={current} status={status} working={working} onOpen={open} onClose={() => setSidebar(false)} />
+      <Sidebar open={sidebar} sessions={sessions} current={current} status={status} working={working} onOpen={open} onClose={() => setSidebar(false)} onSignOut={onSignOut} />
       <section className="relative flex min-w-0 flex-1 flex-col bg-white md:my-2 md:mr-2 md:rounded-2xl md:border md:border-line-soft">
         <header className="flex h-[52px] shrink-0 items-center gap-2 px-3">
           {!sidebar && <IconButton label="Show sidebar" shortcut={`${MOD}B`} side="bottom" onClick={() => setSidebar(true)}><PanelLeft className="size-4" /></IconButton>}
@@ -274,7 +316,7 @@ function Workspace({ model, fullAccess: initialAccess }: { model: string; fullAc
   );
 }
 
-function Sidebar({ open, sessions, current, status, working, onOpen, onClose }: { open: boolean; sessions: SessionInfo[]; current?: string; status: (id: string) => Status; working: Record<string, number>; onOpen: (id?: string) => void; onClose: () => void }) {
+function Sidebar({ open, sessions, current, status, working, onOpen, onClose, onSignOut }: { open: boolean; sessions: SessionInfo[]; current?: string; status: (id: string) => Status; working: Record<string, number>; onOpen: (id?: string) => void; onClose: () => void; onSignOut?: () => void }) {
   const [query, setQuery] = useState("");
   const shown = sessions.filter((s) => (s.title ?? "Security chat").toLowerCase().includes(query.toLowerCase()));
   return (
@@ -309,10 +351,11 @@ function Sidebar({ open, sessions, current, status, working, onOpen, onClose }: 
             );
           })}
         </nav>
-        <p className="flex items-center gap-1.5 px-4 pb-3 text-[11.5px] text-faint">
+        <div className="flex items-center gap-1.5 pb-2 pl-4 pr-2 text-[11.5px] text-faint">
           <KeyRound className="size-3.5" aria-hidden />
-          Keys you paste never reach the model.
-        </p>
+          <span className="flex-1">Keys you paste never reach the model.</span>
+          {onSignOut && <IconButton label="Sign out" side="top" onClick={onSignOut}><LogOut className="size-4" /></IconButton>}
+        </div>
       </aside>
     </>
   );
@@ -619,11 +662,14 @@ function Turn({ turn, live, pending, session, skills }: { turn: TurnData; live?:
 
 /** A tool call opencode is holding until the user decides: why, then the three choices. */
 function Held({ request, session }: { request: PermissionRequest; session: string }) {
-  const [busy, setBusy] = useState(false);
+  const [state, setState] = useState<"open" | "sending" | "done">("open");
+  const busy = state !== "open";
+  // Answered: gone at once, without waiting for the replied event (which a reconnect can miss).
   const reply = async (decision: "once" | "always" | "reject") => {
-    setBusy(true);
-    await api.reply(session, request.id, decision).catch(() => setBusy(false));
+    setState("sending");
+    await api.reply(session, request.id, decision).then(() => setState("done"), () => setState("open"));
   };
+  if (state === "done") return null;
   const why = request.metadata?.reason ?? `${request.action} on ${request.resources.join(", ")}`;
   return (
     <div role="group" aria-label="Approval needed" className="my-1.5 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-tan/30 bg-tan/[0.07] px-3 py-2.5 text-[13px]">

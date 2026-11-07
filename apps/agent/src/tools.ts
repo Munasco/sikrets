@@ -1,6 +1,6 @@
 import services from "../data/services.json";
 import { candidates, extract, sha256, redact, type Finding } from "./patterns.ts";
-import { describe, review, type Review, type ReviewItem, type Reviewer } from "./review.ts";
+import { describe, review, type Review, type ReviewItem, type Reviewer, type Unreviewed } from "./review.ts";
 import { LIMITS, REVIEW } from "./constants.ts";
 
 // The agent's tools. They run on the server and never hand the model a raw secret: findings are
@@ -43,7 +43,8 @@ const ROTATE: Record<string, { url: string; env: string[]; note?: string }> = {
 // (`api_key = "…"`) are listed apart, ranked by confidence; the unsure ones get the model's second
 // look (src/review.ts), which can set aside placeholders and code, or confirm them.
 
-export type Reported = Finding & { review?: Review | "needs review" };
+/** `unreviewed` says why a finding still needs review (src/review.ts). */
+export type Reported = Finding & { review?: Review | "needs review"; unreviewed?: Unreviewed };
 
 interface Found {
   provider: Finding[];
@@ -70,7 +71,7 @@ async function settle(found: Found, reviewer: Reviewer) {
   const dismissed: Reported[] = [];
   for (const { finding, item } of ranked) {
     if (finding.confidence === "high") kept.push({ f: finding, order: 0 });
-    else if (!item || !r.reviews.has(item.id)) kept.push({ f: { ...finding, review: "needs review" }, order: 2 });
+    else if (!item || !r.reviews.has(item.id)) kept.push({ f: { ...finding, review: "needs review", unreviewed: (item && r.unreviewed?.get(item.id)) || "unanswered" }, order: 2 });
     else if (r.reviews.get(item.id)!.verdict === "secret") kept.push({ f: { ...finding, review: r.reviews.get(item.id) }, order: 1 });
     else dismissed.push({ ...finding, review: r.reviews.get(item.id) });
   }
@@ -78,7 +79,8 @@ async function settle(found: Found, reviewer: Reviewer) {
   return {
     generic,
     dismissed,
-    review: { model: REVIEW.model, asked: items.length, answered: r.reviews.size, failedBatches: r.failed, batchMs: r.latencies, ...(r.skipped ? { skipped: r.skipped } : {}) },
+    // `asked`: items actually sent; `capped`: unsure ones past REVIEW.maxItems, never sent.
+    review: { model: REVIEW.model, asked: r.sent ?? (r.skipped ? 0 : Math.min(items.length, REVIEW.maxItems)), capped: r.skipped ? 0 : Math.max(0, items.length - REVIEW.maxItems), answered: r.reviews.size, failedBatches: r.failed, batchMs: r.latencies, ...(r.skipped ? { skipped: r.skipped } : {}) },
   };
 }
 

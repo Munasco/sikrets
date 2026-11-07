@@ -149,7 +149,7 @@ export const MCP = {
   homeDir: "mcp",
   /** The plugin's RPC: the gateway says which servers each session may use (`method`), and asks
    * which MCP tools opencode has registered (`tools`) before it reports ready. */
-  rpc: { id: "sikrets.guard", method: "mcp", tools: "tools" },
+  rpc: { id: "sikrets.guard", method: "mcp", tools: "tools", forget: "forget" },
   /** opencode's MCP status for a server this login switched off. */
   off: "disabled",
 };
@@ -299,8 +299,12 @@ export const TLS = {
 export const SERVER = {
   port: Number(Bun.env.PORT ?? 8787),
   host: Bun.env.HOST ?? "127.0.0.1",
-  /** When set, the chat needs this code; unset means local and open. */
+  /** When set, the chat needs this code; unset means local and open. Set but empty is refused. */
   accessCode: Bun.env.ACCESS_CODE,
+  /** The access code from a file instead, re-read when it changes (the enclave writes it). */
+  accessCodeFile: Bun.env.ACCESS_CODE_FILE,
+  /** The enclave's key and certificate status, for /healthz (bootstrap.py writes it). */
+  healthFile: Bun.env.HEALTH_FILE,
   cookie: "sikrets_agent",
   sessionDays: 30,
   /** Per client: messages per minute, and model calls per day across everyone. */

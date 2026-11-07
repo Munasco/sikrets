@@ -156,8 +156,16 @@ async function ask(items: ReviewItem[], at: { base: string; key: string }, model
   return out;
 }
 
+/** Why an item has no review: no model credential, past REVIEW.maxItems (never sent), its batch
+ * failed or timed out, or the model left it out (or gave a verdict outside the schema). */
+export type Unreviewed = "skipped" | "capped" | "failed" | "timeout" | "unanswered";
+
 export interface Reviewed {
   reviews: Map<string, Review>;
+  /** Each item without a review, and why. */
+  unreviewed?: Map<string, Unreviewed>;
+  /** Items actually sent to the model. */
+  sent?: number;
   /** Batches that failed or timed out; their items have no review. */
   failed: number;
   /** Milliseconds per batch that answered. */
@@ -171,12 +179,15 @@ export type Reviewer = (items: ReviewItem[]) => Promise<Reviewed>;
 /** Reviews items in batches, a few at a time. Never throws. */
 export async function review(items: ReviewItem[], opts: { env?: Record<string, string | undefined>; model?: string } = {}): Promise<Reviewed> {
   const reviews = new Map<string, Review>();
+  const unreviewed = new Map<string, Unreviewed>();
   const latencies: number[] = [];
-  if (!items.length) return { reviews, failed: 0, latencies };
+  if (!items.length) return { reviews, unreviewed, sent: 0, failed: 0, latencies };
   const at = endpoint(opts.env);
-  if (!at) return { reviews, failed: 0, latencies, skipped: "no model credential here" };
+  if (!at) return { reviews, unreviewed: new Map(items.map((i) => [i.id, "skipped"])), sent: 0, failed: 0, latencies, skipped: "no model credential here" };
+  const sent = Math.min(items.length, REVIEW.maxItems);
+  for (const i of items.slice(sent)) unreviewed.set(i.id, "capped");
   const batches: ReviewItem[][] = [];
-  for (let i = 0; i < Math.min(items.length, REVIEW.maxItems); i += REVIEW.batch) batches.push(items.slice(i, Math.min(i + REVIEW.batch, REVIEW.maxItems)));
+  for (let i = 0; i < sent; i += REVIEW.batch) batches.push(items.slice(i, Math.min(i + REVIEW.batch, sent)));
   let failed = 0;
   let next = 0;
   const worker = async () => {
@@ -186,11 +197,14 @@ export async function review(items: ReviewItem[], opts: { env?: Record<string, s
       try {
         for (const [id, r] of await ask(batch, at, opts.model ?? REVIEW.model)) reviews.set(id, r);
         latencies.push(Math.round(performance.now() - start));
-      } catch {
+      } catch (e) {
         failed++;
+        const why = e instanceof Error && e.name === "TimeoutError" ? "timeout" : "failed";
+        for (const item of batch) unreviewed.set(item.id, why);
       }
     }
   };
   await Promise.all(Array.from({ length: Math.min(REVIEW.concurrency, batches.length) }, worker));
-  return { reviews, failed, latencies };
+  for (const item of items.slice(0, sent)) if (!reviews.has(item.id) && !unreviewed.has(item.id)) unreviewed.set(item.id, "unanswered");
+  return { reviews, unreviewed, sent, failed, latencies };
 }

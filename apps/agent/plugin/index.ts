@@ -146,12 +146,18 @@ const plugin: Plugin.Plugin = {
 
     // The gateway (which alone holds the server password) says which servers a session may use.
     const method = { input: { type: "object" }, output: { type: "object" } };
-    await ctx.rpc.register({ id: MCP.rpc.id, methods: { [MCP.rpc.method]: method, [MCP.rpc.tools]: method }, events: {} } as never, {
+    await ctx.rpc.register({ id: MCP.rpc.id, methods: { [MCP.rpc.method]: method, [MCP.rpc.tools]: method, [MCP.rpc.forget]: method }, events: {} } as never, {
       [MCP.rpc.tools]: async () => ({ tools: (await ctx.tool.list()).map((t) => t.id).filter((id) => mcpTool(servers, id)) }),
       [MCP.rpc.method]: async (input: unknown) => {
         const { off: names } = (input ?? {}) as { off?: unknown };
         if (!Array.isArray(names)) return { ok: false };
         off = new Set(names.filter((n): n is string => typeof n === "string"));
+        return { ok: true };
+      },
+      // A deleted session's pasted keys go with it.
+      [MCP.rpc.forget]: async (input: unknown) => {
+        const { sessionID } = (input ?? {}) as { sessionID?: unknown };
+        if (typeof sessionID === "string") vault.forget(sessionID);
         return { ok: true };
       },
     } as never);
