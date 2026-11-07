@@ -55,6 +55,24 @@ export function moveKey(key: MintedKey, to: MintedKeyStatus): MintedKey {
 /** Keys still valid at the provider that Sikrets no longer uses: the person should revoke them. */
 export const keysToRevoke = (c: Connection | undefined) => (c?.keys ?? []).filter((k) => k.status !== "active" && k.status !== "revoked");
 
+// Last characters of replaced keys, so the person can tell which one to revoke. Per user, 0600,
+// never in the project: even a few characters of a credential don't belong in a committed file.
+const hintsFile = () => path.join(configDir(), FILES.revokeHints);
+const hintKey = (project: string, resource: string) => `${project}/${resource}`;
+
+export const revokeHints = {
+  get: async (project: string, resource: string) => (await readJson<Record<string, string>>(hintsFile(), {}))[hintKey(project, resource)],
+  set: (project: string, resource: string, hint: string) => updateHints((all) => ({ ...all, [hintKey(project, resource)]: hint })),
+  delete: (project: string, resource: string) => updateHints(({ [hintKey(project, resource)]: _, ...rest }) => rest),
+};
+
+function updateHints(change: (all: Record<string, string>) => Record<string, string>) {
+  return withLock(hintsFile(), async () => {
+    const next = change(await readJson<Record<string, string>>(hintsFile(), {}));
+    await writePrivate(hintsFile(), JSON.stringify(next, null, 2) + "\n");
+  });
+}
+
 const connectionsFile = () => path.join(configDir(), FILES.connections);
 
 export const listConnections = () => readJson<Connection[]>(connectionsFile(), []);

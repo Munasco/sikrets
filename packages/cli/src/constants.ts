@@ -33,6 +33,8 @@ export const FILES = {
   connections: "connections.json",
   /** Lock name held while expired personal resources are deleted. */
   sweep: "sweep",
+  /** Per-user (never committed): last characters of replaced keys awaiting revocation. */
+  revokeHints: "revoke-hints.json",
 } as const;
 export const IAC_DIR = "iac/terraform";
 

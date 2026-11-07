@@ -10,6 +10,7 @@ import { envPrefix, type Recipe } from "../recipes/types.ts";
 import { confirm, log } from "../ui.ts";
 import type { Context } from "../core/plan.ts";
 import { keychainRecoveryService } from "../constants.ts";
+import { revokeHints } from "../store.ts";
 import { readSecretInput } from "./secret-input.ts";
 
 // Replaces a resource's credential with a new one. Stand-ins stay the same, so .env files and
@@ -115,8 +116,9 @@ export async function run(args: string[], opts: Record<string, unknown>) {
     outputs,
     lastRotatedAt: now,
     rotateBy: after(config.rotateEvery),
-    ...(old ? { oldKey: { hint: old.hint(), replacedAt: now } } : {}),
+    ...(old ? { oldKey: { replacedAt: now } } : {}),
   }));
+  if (old) await revokeHints.set(ctx.project, res.name, old.hint());
   await recovery.clear(ctx.project, res.name, Object.keys(changed));
   await record(root, { kind: "rotate", detail: `${r.id} ${res.name}`, keys });
 
@@ -130,9 +132,11 @@ export async function run(args: string[], opts: Record<string, unknown>) {
 /** The person revoked the replaced dashboard key; stop reminding them. */
 async function markRevoked(res: Resource, ctx: Context, opts: Record<string, unknown>, say: (m: string) => void) {
   if (!res.oldKey) return say(`${res.name} has no replaced key waiting to be revoked.`);
+  const hint = await revokeHints.get(ctx.project, res.name);
   await state.patch(ctx, res.name, ({ oldKey: _, ...cur }) => cur);
-  if (opts.json) console.log(JSON.stringify({ resource: res.name, revoked: res.oldKey.hint }));
-  else say(`Noted: the old key ${res.oldKey.hint} for ${res.name} is revoked.`);
+  await revokeHints.delete(ctx.project, res.name);
+  if (opts.json) console.log(JSON.stringify({ resource: res.name, revoked: true, ...(hint ? { hint } : {}) }));
+  else say(`Noted: the old key${hint ? ` ${hint}` : ""} for ${res.name} is revoked.`);
 }
 
 /** Rotated credentials, held in the local keychain only until they are in the project's vault. */
