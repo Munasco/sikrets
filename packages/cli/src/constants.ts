@@ -193,6 +193,10 @@ export const MCP = {
   maxCaptureBytes: 16 * 1024 * 1024,
   maxOutputChars: 60_000,
   minRedactLength: 6,
+  // Stopping a command: SIGTERM to its process group, SIGKILL after killGraceMs, and stop reading
+  // its pipes readDeadlineMs after that (a process that left the group can still hold them open).
+  killGraceMs: 2_000,
+  readDeadlineMs: 1_000,
 } as const;
 
 // ── Website logins for agents ─────────────────────────────────────────────
