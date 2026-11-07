@@ -16,6 +16,10 @@ export const ENV = {
   terraform: "SIKRETS_TERRAFORM",
   /** Project name for the SDK when it can't infer one. */
   project: "SIKRETS_PROJECT",
+  /** Bitwarden CLI command to run instead of `bw` (e.g. "bunx @bitwarden/cli"). */
+  bw: "SIKRETS_BW",
+  /** 1Password CLI command to run instead of `op`. */
+  op: "SIKRETS_OP",
 } as const;
 
 // ── Files and folders ─────────────────────────────────────────────────────
@@ -30,8 +34,19 @@ export const FILES = {
   journal: "journal.json",
   activity: "activity.jsonl",
   connections: "connections.json",
+  /** Keys imported or linked from outside Sikrets (names and item references only). */
+  keys: "keys.json",
 } as const;
 export const IAC_DIR = "iac/terraform";
+/** Cross-process lock next to a file another sikrets process may write at the same time. */
+export const FILE_LOCK = {
+  suffix: ".lock",
+  retryMs: 20,
+  /** Give up waiting after this long. */
+  timeoutMs: 10_000,
+  /** A lock older than this (or whose process is gone) was left by a crash and is taken over. */
+  staleMs: 30_000,
+} as const;
 
 // ── Defaults for sikrets.json ─────────────────────────────────────────────
 export const DEFAULTS = {
@@ -74,4 +89,41 @@ export const PROVIDER_URLS = {
   },
   openai: { login: "https://platform.openai.com/login" },
   x: { login: "https://x.com/i/flow/login" },
+} as const;
+
+// ── Password managers ─────────────────────────────────────────────────────
+export const PASSWORD_MANAGERS = {
+  bitwarden: {
+    name: "Bitwarden",
+    bin: "bw",
+    binEnv: ENV.bw,
+    /** Env var the bw CLI reads its unlocked session from. */
+    sessionEnv: "BW_SESSION",
+    /** Where bw points when no self-hosted server is configured. */
+    defaultServer: "https://vault.bitwarden.com",
+    /** Env var we hand the master password through, so it never appears in argv. */
+    passwordEnv: "SIKRETS_BW_PASSWORD",
+    /** Where bw keeps its config and encrypted cache; set it to isolate a test run. */
+    appDataEnv: "BITWARDENCLI_APPDATA_DIR",
+    refScheme: "bw://",
+    install: "https://bitwarden.com/help/cli/",
+  },
+  onepassword: {
+    name: "1Password",
+    bin: "op",
+    binEnv: ENV.op,
+    /** `op signin --raw` sessions go in OP_SESSION_<user uuid>. */
+    sessionEnvPrefix: "OP_SESSION_",
+    /** Service accounts skip sign-in entirely. */
+    serviceAccountEnv: "OP_SERVICE_ACCOUNT_TOKEN",
+    refScheme: "op://",
+    install: "https://developer.1password.com/docs/cli/get-started/",
+  },
+} as const;
+
+// ── Import ────────────────────────────────────────────────────────────────
+export const IMPORT = {
+  /** 1Password's .1pux export is a zip; its items are in this file inside it. */
+  onePuxData: "export.data",
+  unzip: "unzip",
 } as const;
