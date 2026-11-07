@@ -9,7 +9,7 @@ import { Secret } from "./secret.ts";
 import { envValues, outputKeys, standInKey } from "./standin.ts";
 import { after } from "./ttl.ts";
 import { state, type Resource } from "./state.ts";
-import { openVault } from "./vault.ts";
+import { openVault, type VaultName } from "./vault.ts";
 
 export interface AddRequest {
   recipe: string;
@@ -126,15 +126,17 @@ function envFileChange(res: Resource, file: string): Change {
   const keys = outputKeys(res);
   return {
     summary: `Write ${keys.map((k) => `${k.key}${k.sensitive ? " (stand-in)" : ""}`).join(", ")} to ${file}`,
-    async apply(c) {
-      const vault = await openVault(c.project, c.vault);
-      await upsertEnv(c.root, file, await envValues(vault, [{ ...res, applied: true }], false));
+    async apply(c, intend) {
       const standIns = keys.filter((k) => k.sensitive).map((k) => standInKey(k.key));
-      return {
+      const undo = {
         kind: "env.unwrite",
         summary: `Remove ${keys.map((k) => k.key).join(", ")} from ${file} and drop their stand-ins`,
-        data: { project: c.project, file: file, keys: keys.map((k) => k.key).join(","), standIns: standIns.join(",") },
+        data: { project: c.project, vault: c.vault, file: file, keys: keys.map((k) => k.key).join(","), standIns: standIns.join(",") },
       };
+      await intend(undo);
+      const vault = await openVault(c.project, c.vault);
+      await upsertEnv(c.root, file, await envValues(vault, [{ ...res, applied: true }], false));
+      return undo;
     },
   };
 }
@@ -148,21 +150,23 @@ function manualChanges(r: ManualRecipe, res: Resource, read: AddRequest["secret"
     {
       summary: `Ask for ${spec.description} (create it at ${r.instructions.url}), verify it, store it as ${key}`,
       cost: r.estimate(res.inputs),
-      async apply(c) {
+      async apply(c, intend) {
         c.log(`  Create it at ${r.instructions.url}:`);
         for (const [i, s] of r.instructions.steps.entries()) c.log(`    ${i + 1}. ${s}`);
         const value = await read(`${spec.description}: `);
         if (!r.pattern.test(value.reveal())) throw new Error(`That doesn't look like ${spec.description.replace(/^an? /i, "an ")}; nothing was stored`);
         await r.verify(value);
+        const undo = { kind: "vault.delete", summary: `Remove ${key} from the vault`, data: { project: c.project, vault: c.vault, keys: key } };
+        await intend(undo);
         await (await openVault(c.project, c.vault)).put(key, value);
         c.log(`  Verified with ${r.provider} and stored as ${key}`);
-        return { kind: "vault.delete", summary: `Remove ${key} from the vault`, data: { project: c.project, keys: key } };
+        return undo;
       },
     },
     {
       summary: `Record "${res.name}" in .sikrets/state.json`,
       async apply(c) {
-        await state.upsert(c.root, { ...res, applied: true });
+        await state.upsert(c, { ...res, applied: true, vault: c.vault });
         return { kind: "state.remove", summary: `Forget "${res.name}" (revoke the key itself at ${r.instructions.url})`, data: { name: res.name } };
       },
     },
@@ -180,14 +184,21 @@ function apiChanges(r: ApiRecipe, res: Resource): Change[] {
     {
       summary: `Create ${r.id} "${res.name}" at ${r.provider}`,
       cost: r.estimate(res.inputs),
-      async apply() {
-        created = await r.create(await providerEnv([r.provider]), res.name, res.inputs);
-        return { kind: "api.destroy", summary: `Delete ${r.id} "${res.name}" at ${r.provider}`, data: { recipe: r.id, remoteId: created.remoteId } };
+      async apply(_c, intend) {
+        const env = await providerEnv([r.provider]);
+        if (await r.find(env, res.name)) throw new Error(`${r.provider} already has a ${r.id} named "${res.name}"; pick another --name`);
+        // Journaled by name first: if the process dies during the call, rollback finds it by name.
+        const undo = { kind: "api.destroy", summary: `Delete ${r.id} "${res.name}" at ${r.provider}`, data: { recipe: r.id, name: res.name } };
+        await intend(undo);
+        created = await r.create(env, res.name, res.inputs);
+        return { ...undo, data: { ...undo.data, remoteId: created.remoteId } };
       },
     },
     {
       summary: `Store ${res.envKeys.join(", ")} in the vault`,
-      async apply(c) {
+      async apply(c, intend) {
+        const undo = { kind: "vault.delete", summary: `Remove ${res.envKeys.join(", ")} from the vault`, data: { project: c.project, vault: c.vault, keys: res.envKeys.join(",") } };
+        await intend(undo);
         const vault = await openVault(c.project, c.vault);
         for (const [key, spec] of Object.entries(r.outputs)) {
           const value = made().outputs[key];
@@ -195,14 +206,14 @@ function apiChanges(r: ApiRecipe, res: Resource): Change[] {
           if (spec.sensitive && !(value instanceof Secret)) throw new Error(`${r.id} returned ${key} unwrapped; sensitive outputs must be Secret`);
           await vault.put(`${envPrefix(res.name)}_${spec.env}`, value instanceof Secret ? value : Secret.of(value));
         }
-        return { kind: "vault.delete", summary: `Remove ${res.envKeys.join(", ")} from the vault`, data: { project: c.project, keys: res.envKeys.join(",") } };
+        return undo;
       },
     },
     {
       summary: `Record "${res.name}" in .sikrets/state.json`,
       async apply(c) {
         const visible = Object.fromEntries(Object.entries(made().outputs).filter((e): e is [string, string] => typeof e[1] === "string"));
-        await state.upsert(c.root, { ...res, remoteId: made().remoteId, outputs: visible, applied: true });
+        await state.upsert(c, { ...res, remoteId: made().remoteId, outputs: visible, applied: true, vault: c.vault });
         return { kind: "state.remove", summary: `Forget "${res.name}"`, data: { name: res.name } };
       },
     },
@@ -213,10 +224,12 @@ function moduleChange(r: TerraformRecipe): Change {
   const [main] = files.module(r);
   return {
     summary: `Generate module ${main.slice(0, main.lastIndexOf("/"))}/`,
-    async apply(c) {
+    async apply(c, intend) {
+      const undo = { kind: "module.release", summary: `Remove module for ${r.id} if nothing else uses it`, data: { recipe: r.id } };
+      await intend(undo);
       const contents = moduleTf(r);
       for (const [i, path] of files.module(r).entries()) await writeGenerated(c.root, path, contents[i]!);
-      return { kind: "module.release", summary: `Remove module for ${r.id} if nothing else uses it`, data: { recipe: r.id } };
+      return undo;
     },
   };
 }
@@ -228,34 +241,43 @@ function terraformChanges(r: TerraformRecipe, res: Resource): Change[] {
     {
       summary: `${r.id} "${res.name}"${deps.length ? ` (${deps.join(", ")})` : ""} → ${files.root(res.name)}`,
       cost: r.estimate(res.inputs),
-      async apply(c) {
+      async apply(c, intend) {
+        const undo = { kind: "file.delete", summary: `Remove ${files.root(res.name)}`, data: { path: files.root(res.name) } };
+        await intend(undo);
         await writeGenerated(c.root, files.root(res.name), rootTf(res));
-        return { kind: "file.delete", summary: `Remove ${files.root(res.name)}`, data: { path: files.root(res.name) } };
+        return undo;
       },
     },
     {
       summary: `Record "${res.name}" in .sikrets/state.json (publishes ${res.envKeys.join(", ")} after apply)`,
       async apply(c) {
-        await state.upsert(c.root, res);
+        await state.upsert(c, res);
         return { kind: "state.remove", summary: `Forget "${res.name}"`, data: { name: res.name } };
       },
     },
   ];
 }
 
-registerUndo("api.destroy", async ({ recipe: id, remoteId }) => {
+// Undo handlers are idempotent: a step may be pending (never happened) or already partly undone.
+// Undo data names the vault it wrote to; older journals fall back to the current one.
+
+registerUndo("api.destroy", async ({ recipe: id, remoteId, name }, ctx) => {
   const r = recipe(id!);
   if (r.strategy !== "api") throw new Error(`${id} isn't an API recipe`);
-  await r.destroy(await providerEnv([r.provider]), remoteId!);
+  const env = await providerEnv([r.provider]);
+  // Without an id the create may not have returned (or happened); look it up by name.
+  const target = remoteId ?? (await r.find(env, name!));
+  if (!target) return ctx.log(`    nothing named "${name}" at ${r.provider}; nothing to delete`);
+  await r.destroy(env, target);
 });
 
-registerUndo("env.unwrite", async ({ project, file, keys, standIns }, ctx) => {
+registerUndo("env.unwrite", async ({ project, vault: vaultName, file, keys, standIns }, ctx) => {
   await removeEnv(ctx.root, file!, keys!.split(","));
-  const vault = await openVault(project!, ctx.vault);
+  const vault = await openVault(project!, (vaultName as VaultName | undefined) ?? ctx.vault);
   for (const key of standIns ? standIns.split(",") : []) await vault.delete(key);
 });
 
-registerUndo("state.remove", async ({ name }, ctx) => state.remove(ctx.root, name!));
+registerUndo("state.remove", async ({ name }, ctx) => state.remove(ctx, name!));
 
 registerUndo("terraform.versions", async (_, ctx) => {
   const { resources } = await state.load(ctx.root);

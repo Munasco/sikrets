@@ -334,10 +334,11 @@ describe("rotate", () => {
   });
 
   test("Terraform resources are refused with guidance", async () => {
+    await Bun.write(path.join(root, "sikrets.json"), JSON.stringify({ project: "demo" }));
     await applyPlan("add", (await planAdd(request({ recipe: "aws/vpc", name: "main" }), ctx)).changes, ctx);
     const { state: st } = await import("./core/state.ts");
     const [vpc] = (await st.load(root)).resources;
-    await st.upsert(root, { ...vpc!, applied: true });
+    await st.upsert(ctx, { ...vpc!, applied: true });
     const { run } = await import("./commands/rotate.ts");
     const cwd = process.cwd();
     process.chdir(root);
