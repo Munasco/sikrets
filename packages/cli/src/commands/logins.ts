@@ -1,5 +1,5 @@
 import { listGrants, revokeGrants } from "../core/logins/grants.ts";
-import { addLogin, checkName, listLogins, removeLogin } from "../core/logins/store.ts";
+import { addLogin, brokenLogins, checkName, listLogins, removeLogin } from "../core/logins/store.ts";
 import { Secret } from "../core/secret.ts";
 import { promptHidden, promptLine } from "../ui.ts";
 
@@ -46,7 +46,7 @@ export async function run(args: string[], opts: Record<string, unknown>) {
     const grants = await listGrants();
     if (opts.json) return console.log(JSON.stringify(grants));
     if (!grants.length) return console.log("No agent has a standing grant. Each one is asked on first use.");
-    for (const g of grants) console.log(`  ${g.login.padEnd(16)} ${g.agent.padEnd(24)} since ${g.grantedAt.slice(0, 10)}`);
+    for (const g of grants) console.log(`  ${g.login.padEnd(16)} ${g.agent.padEnd(24)} ${g.origin.padEnd(28)} since ${g.grantedAt.slice(0, 10)}`);
     return;
   }
   if (sub === "revoke") {
@@ -58,7 +58,8 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   if (sub !== "ls") throw new Error(`Unknown logins subcommand "${sub}". ${USAGE}`);
 
   const logins = await listLogins();
-  if (opts.json) return console.log(JSON.stringify(logins));
+  const broken = new Set(await brokenLogins());
+  if (opts.json) return console.log(JSON.stringify(logins.map((l) => ({ ...l, missingValues: broken.has(l.name) }))));
   if (!logins.length) return console.log("No logins yet. Add one: sikrets logins add <name> <url>");
-  for (const l of logins) console.log(`  ${l.name.padEnd(16)} ${l.origin}${l.totp ? "  (2FA)" : ""}`);
+  for (const l of logins) console.log(`  ${l.name.padEnd(16)} ${l.origin}${l.totp ? "  (2FA)" : ""}${broken.has(l.name) ? "  (values missing from the keychain: add it again)" : ""}`);
 }

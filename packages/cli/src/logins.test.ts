@@ -2,7 +2,11 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { authorize, listGrants, revokeGrants, type Decision } from "./core/logins/grants.ts";
+import { addGrant, authorize, listGrants, revokeGrants, revokeIdentity, type Decision } from "./core/logins/grants.ts";
+import { touchIdHelper } from "./core/logins/approve.ts";
+import { withFileLock } from "./core/fs.ts";
+import { createServer } from "./commands/mcp.ts";
+import { oneAtATime } from "./commands/mcp-login.ts";
 import { loginOrigin, sameOrigin } from "./core/logins/origin.ts";
 import { hotp, parseTotp, totpCode } from "./core/logins/totp.ts";
 import { Secret } from "./core/secret.ts";
@@ -124,6 +128,7 @@ describe("grants", () => {
     await rm(dir, { recursive: true, force: true });
   });
 
+  const id = (name: string) => ({ name, id: `test:${name}` });
   const approver = (decision: Decision) => {
     const asked: string[] = [];
     return { asked, approve: async (r: { agent: string }) => (asked.push(r.agent), decision) };
@@ -131,35 +136,183 @@ describe("grants", () => {
 
   test("allow once lets this call through but asks again next time", async () => {
     const a = approver("once");
-    expect(await authorize("github", "https://github.com", "claude-code", a.approve)).toEqual({ allowed: true, asked: true });
-    expect(await authorize("github", "https://github.com", "claude-code", a.approve)).toEqual({ allowed: true, asked: true });
+    expect(await authorize("github", "https://github.com", id("claude-code"), a.approve)).toEqual({ allowed: true, asked: true });
+    expect(await authorize("github", "https://github.com", id("claude-code"), a.approve)).toEqual({ allowed: true, asked: true });
     expect(a.asked).toHaveLength(2);
     expect(await listGrants()).toEqual([]);
   });
 
   test("allow for this agent is remembered for that agent and login only", async () => {
     const a = approver("always");
-    await authorize("github", "https://github.com", "claude-code", a.approve);
-    expect(await authorize("github", "https://github.com", "claude-code", a.approve)).toEqual({ allowed: true, asked: false });
-    await authorize("github", "https://github.com", "codex", a.approve);
-    await authorize("gitlab", "https://gitlab.com", "claude-code", a.approve);
+    await authorize("github", "https://github.com", id("claude-code"), a.approve);
+    expect(await authorize("github", "https://github.com", id("claude-code"), a.approve)).toEqual({ allowed: true, asked: false });
+    await authorize("github", "https://github.com", id("codex"), a.approve);
+    await authorize("gitlab", "https://gitlab.com", id("claude-code"), a.approve);
     expect(a.asked).toEqual(["claude-code", "codex", "claude-code"]);
   });
 
   test("deny refuses and remembers nothing; an approver that fails counts as deny", async () => {
-    expect(await authorize("github", "https://github.com", "claude-code", approver("deny").approve)).toEqual({ allowed: false, asked: true });
-    expect(await authorize("github", "https://github.com", "claude-code", async () => Promise.reject(new Error("no display")))).toMatchObject({ allowed: false });
+    expect(await authorize("github", "https://github.com", id("claude-code"), approver("deny").approve)).toEqual({ allowed: false, asked: true });
+    expect(await authorize("github", "https://github.com", id("claude-code"), async () => Promise.reject(new Error("no display")))).toMatchObject({ allowed: false });
     expect(await listGrants()).toEqual([]);
   });
 
   test("revoke one agent, or every agent; revoked agents are asked again", async () => {
     const a = approver("always");
-    for (const agent of ["claude-code", "codex", "cursor"]) await authorize("github", "https://github.com", agent, a.approve);
+    for (const agent of ["claude-code", "codex", "cursor"]) await authorize("github", "https://github.com", id(agent), a.approve);
     expect(await revokeGrants("github", "codex")).toBe(1);
     expect((await listGrants()).map((g) => g.agent)).toEqual(["claude-code", "cursor"]);
-    await authorize("github", "https://github.com", "codex", a.approve);
+    await authorize("github", "https://github.com", id("codex"), a.approve);
     expect(a.asked.at(-1)).toBe("codex");
     expect(await revokeGrants("github")).toBe(3);
     expect(await listGrants()).toEqual([]);
   });
+
+  test("a grant is bound to the agent's identity, not the name it reports", async () => {
+    const a = approver("always");
+    await authorize("github", "https://github.com", id("claude-code"), a.approve);
+    // Another program calling itself claude-code is asked, not let through.
+    expect(await authorize("github", "https://github.com", { name: "claude-code", id: "test:impostor" }, a.approve)).toEqual({ allowed: true, asked: true });
+    expect(a.asked).toEqual(["claude-code", "claude-code"]);
+    // Without a known identity nothing is remembered, even on "always".
+    await authorize("gitlab", "https://gitlab.com", { name: "mystery" }, a.approve);
+    expect((await listGrants()).some((g) => g.login === "gitlab")).toBe(false);
+  });
+
+  test("a grant covers only the origin that was approved", async () => {
+    const a = approver("always");
+    await authorize("github", "https://github.com", id("claude-code"), a.approve);
+    // The login was re-added for another origin: the standing grant doesn't carry over.
+    expect(await authorize("github", "https://github.evil.example", id("claude-code"), a.approve)).toEqual({ allowed: true, asked: true });
+    expect((await listGrants()).map((g) => g.origin)).toEqual(["https://github.com", "https://github.evil.example"]);
+  });
+
+  test("old grants without an origin or identity are ignored", async () => {
+    await Bun.write(path.join(dir, "login-grants.json"), JSON.stringify([{ login: "github", agent: "claude-code", grantedAt: "2026-01-01" }]));
+    expect(await listGrants()).toEqual([]);
+    const a = approver("deny");
+    expect(await authorize("github", "https://github.com", id("claude-code"), a.approve)).toEqual({ allowed: false, asked: true });
+  });
+
+  test("revokeIdentity removes every grant of one client", async () => {
+    await addGrant("github", "https://github.com", id("a"));
+    await addGrant("gitlab", "https://gitlab.com", id("a"));
+    await addGrant("github", "https://github.com", id("b"));
+    expect(await revokeIdentity("test:a")).toBe(2);
+    expect((await listGrants()).map((g) => g.agent)).toEqual(["b"]);
+  });
+
+  test("concurrent writers in several processes don't lose each other's grants", async () => {
+    const grants = path.resolve(import.meta.dir, "core/logins/grants.ts");
+    const script = (n: number) =>
+      `const { addGrant } = await import(${JSON.stringify(grants)}); await Promise.all(Array.from({ length: 10 }, (_, i) => addGrant("l${n}-" + i, "https://x.example", { name: "a", id: "t" })));`;
+    const procs = [0, 1, 2].map((n) => Bun.spawn([process.execPath, "-e", script(n)], { env: { ...Bun.env }, stdout: "ignore", stderr: "inherit" }));
+    expect(await Promise.all(procs.map((p) => p.exited))).toEqual([0, 0, 0]);
+    expect(await listGrants()).toHaveLength(30);
+  }, 20_000);
+
+  test("a lock left by a dead process is taken over", async () => {
+    const file = path.join(dir, "thing.json");
+    await Bun.write(file + ".lock", "999999 0");
+    expect(await withFileLock(file, async () => "ran")).toBe("ran");
+    expect(await Bun.file(file + ".lock").exists()).toBe(false);
+  });
 });
+
+describe("Touch ID helper", () => {
+  let dir: string;
+  beforeEach(async () => (dir = await mkdtemp(path.join(os.tmpdir(), "sikrets-touchid-"))));
+  afterEach(() => rm(dir, { recursive: true, force: true }));
+
+  const setup = () => {
+    let pinned: string | null = null;
+    let builds = 0;
+    return {
+      get builds() {
+        return builds;
+      },
+      opts: {
+        dir,
+        pin: { get: async () => pinned, set: async (h: string) => void (pinned = h) },
+        compile: async (_src: string, out: string) => {
+          builds++;
+          await Bun.sleep(20);
+          await Bun.write(out, "built helper");
+          return true;
+        },
+      },
+    };
+  };
+
+  test("concurrent first uses build it once, then reuse the pinned binary", async () => {
+    const t = setup();
+    const results = await Promise.all([touchIdHelper(t.opts), touchIdHelper(t.opts), touchIdHelper(t.opts)]);
+    expect(t.builds).toBe(1);
+    for (const r of results) expect(new TextDecoder().decode(r)).toBe("built helper");
+    await touchIdHelper(t.opts);
+    expect(t.builds).toBe(1);
+  });
+
+  test("a planted or corrupt binary doesn't match the pin and is rebuilt, never run", async () => {
+    const t = setup();
+    await touchIdHelper(t.opts);
+    const [bin] = (await Array.fromAsync(new Bun.Glob("bin/sikrets-touchid-*").scan({ cwd: dir }))).filter((f) => !f.endsWith(".lock"));
+    await Bun.write(path.join(dir, bin!), "#!/bin/sh\nexit 0\n");
+    const bytes = await touchIdHelper(t.opts);
+    expect(new TextDecoder().decode(bytes)).toBe("built helper");
+    expect(t.builds).toBe(2);
+  });
+
+  test("a failed build leaves nothing cached", async () => {
+    const t = setup();
+    const failing = { ...t.opts, compile: async (_s: string, out: string) => (await Bun.write(out, "half"), false) };
+    expect(await touchIdHelper(failing)).toBeUndefined();
+    const left = await Array.fromAsync(new Bun.Glob("bin/*").scan({ cwd: dir }));
+    expect(left).toEqual([]);
+  });
+});
+
+describe("mcp agent identity", () => {
+  test("only the first initialize names the agent, and approvals carry the server's identity", async () => {
+    const seen: { agent: string; program?: string }[] = [];
+    const stored = { name: "x", origin: "https://x.example", totp: false, addedAt: "", username: Secret.of("fake-user"), password: Secret.of("fake-password") };
+    const s = createServer({
+      root: os.tmpdir(),
+      allow: [],
+      loadEnv: async () => ({}),
+      identify: async (name) => ({ name, id: "test:parent", detail: "/Applications/Agent.app" }),
+      logins: { getLogin: async () => stored, listLogins: async () => [], approve: async (r) => (seen.push(r), "deny") },
+    });
+    const init = (name: string) => s.handle({ jsonrpc: "2.0", id: 0, method: "initialize", params: { clientInfo: { name } } });
+    await init("claude-code");
+    await init("trusted-agent");
+    const reply = (await s.handle({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "login", arguments: { site: "x" } } })) as {
+      result: { content: { text: string }[] };
+    };
+    expect(reply.result.content[0]!.text).toContain("didn't allow claude-code");
+    expect(seen).toEqual([{ login: "x", origin: "https://x.example", agent: "claude-code", program: "/Applications/Agent.app" }] as never);
+  });
+});
+
+test("sign-ins on one browser run one at a time, even from different servers", async () => {
+  let active = 0;
+  let most = 0;
+  const task = async () => {
+    most = Math.max(most, ++active);
+    await Bun.sleep(10);
+    active--;
+  };
+  const failing = oneAtATime("cdp-a", async () => Promise.reject(new Error("boom")));
+  await Promise.all([failing.catch(() => undefined), oneAtATime("cdp-a", task), oneAtATime("cdp-a", task), oneAtATime("cdp-a", task)]);
+  expect(most).toBe(1);
+});
+
+test("something at the DevTools port that doesn't answer is an error, not a reason to start a second Chrome", async () => {
+  const silent = Bun.listen({ hostname: "127.0.0.1", port: 0, socket: { data() {} } });
+  try {
+    const { connectAgentBrowser } = await import("./browser/login.ts");
+    await expect(connectAgentBrowser(`http://127.0.0.1:${silent.port}`)).rejects.toThrow("isn't answering");
+  } finally {
+    silent.stop(true);
+  }
+}, 10_000);

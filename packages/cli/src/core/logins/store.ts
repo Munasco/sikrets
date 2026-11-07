@@ -1,5 +1,5 @@
 import path from "node:path";
-import { readJson, writePrivate } from "../fs.ts";
+import { readJson, updateJson } from "../fs.ts";
 import { Secret } from "../secret.ts";
 import { configDir } from "../../store.ts";
 import { LOGINS } from "../../constants.ts";
@@ -38,9 +38,11 @@ const keychain = {
 
 export const listLogins = () => readJson<LoginInfo[]>(indexFile(), []);
 
-async function saveIndex(all: LoginInfo[]) {
-  await writePrivate(indexFile(), JSON.stringify(all.sort((a, b) => a.name.localeCompare(b.name)), null, 2) + "\n");
-}
+// The index is changed under its lock. Order keeps a crash harmless: the keychain entry is
+// written before the index names it and deleted after the index forgets it, so the worst left
+// behind is an unlisted keychain entry, overwritten when the name is added again.
+const updateIndex = (fn: (all: LoginInfo[]) => LoginInfo[] | undefined) =>
+  updateJson<LoginInfo[]>(indexFile(), [], (all) => fn(all)?.sort((a, b) => a.name.localeCompare(b.name)));
 
 export async function addLogin(input: { name: string; url: string; username: Secret; password: Secret; totpSecret?: Secret }): Promise<LoginInfo> {
   const name = checkName(input.name);
@@ -51,7 +53,7 @@ export async function addLogin(input: { name: string; url: string; username: Sec
     name,
     JSON.stringify({ username: input.username.reveal(), password: input.password.reveal(), ...(input.totpSecret ? { totp: input.totpSecret.reveal() } : {}) }),
   );
-  await saveIndex([...(await listLogins()).filter((l) => l.name !== name), info]);
+  await updateIndex((all) => [...all.filter((l) => l.name !== name), info]);
   return info;
 }
 
@@ -65,9 +67,18 @@ export async function getLogin(name: string): Promise<Login | undefined> {
 }
 
 export async function removeLogin(name: string): Promise<boolean> {
-  const all = await listLogins();
-  if (!all.some((l) => l.name === name)) return false;
-  await keychain.delete(name);
-  await saveIndex(all.filter((l) => l.name !== name));
-  return true;
+  let found = false;
+  await updateIndex((all) => {
+    found = all.some((l) => l.name === name);
+    return found ? all.filter((l) => l.name !== name) : undefined;
+  });
+  if (found) await keychain.delete(name);
+  return found;
+}
+
+/** Index entries whose keychain values are gone (deleted outside Sikrets, or a crash): they can't be used until re-added. */
+export async function brokenLogins(): Promise<string[]> {
+  const broken: string[] = [];
+  for (const l of await listLogins()) if (!(await keychain.get(l.name).catch(() => null))) broken.push(l.name);
+  return broken;
 }

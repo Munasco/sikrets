@@ -1,6 +1,7 @@
 import { connectAgentBrowser, signIn, type AgentBrowser } from "../browser/login.ts";
 import { macApprover } from "../core/logins/approve.ts";
 import { authorize, type Approver } from "../core/logins/grants.ts";
+import type { AgentIdentity } from "../core/logins/identity.ts";
 import { getLogin, listLogins, type Login } from "../core/logins/store.ts";
 import { LOGINS } from "../constants.ts";
 
@@ -35,22 +36,46 @@ export interface LoginToolOptions {
 
 const text = (t: string, isError = false) => ({ content: [{ type: "text", text: t }], isError });
 
+// One sign-in at a time per browser, across every server in this process (each HTTP client has
+// its own): two fills interleaved on one page would mix logins.
+const signInQueue = new Map<string, Promise<unknown>>();
+export function oneAtATime<T>(endpoint: string, fn: () => Promise<T>): Promise<T> {
+  const next = (signInQueue.get(endpoint) ?? Promise.resolve()).then(fn);
+  const settled = next.catch(() => undefined);
+  signInQueue.set(endpoint, settled);
+  void settled.then(() => signInQueue.get(endpoint) === settled && signInQueue.delete(endpoint));
+  return next;
+}
+
 export function createLoginTool(opts: LoginToolOptions) {
   const endpoint = opts.browser ?? Bun.env[LOGINS.cdpEnv] ?? LOGINS.defaultCdp;
+  const connect = opts.connect ?? connectAgentBrowser;
   let browser: Promise<AgentBrowser> | undefined;
-  // One connection per server; a closed browser is reconnected on the next call.
+  // One connection per server. Once Chrome goes away (closed, crashed) the old connection is let
+  // go and a new one is made on the next call.
   const agentBrowser = async () => {
-    browser ??= (opts.connect ?? connectAgentBrowser)(endpoint);
-    const b = await browser.catch((e) => {
+    const current = browser;
+    if (current) {
+      const b = await current.catch(() => undefined);
+      if (b?.connected()) return b;
+      if (browser === current) browser = undefined;
+      await b?.close();
+    }
+    browser ??= connect(endpoint);
+    return browser.catch((e) => {
       browser = undefined;
       throw e;
     });
-    if (b.pages().length) return b;
-    browser = undefined;
-    return (browser = (opts.connect ?? connectAgentBrowser)(endpoint));
   };
 
-  return async function login(args: Record<string, unknown>, agent: string) {
+  /** Lets go of the browser connection (the server is shutting down). */
+  const release = async () => {
+    const b = await browser?.catch(() => undefined);
+    browser = undefined;
+    await b?.close();
+  };
+
+  async function login(args: Record<string, unknown>, agent: AgentIdentity | { name: string }) {
     const site = typeof args.site === "string" ? args.site.trim() : "";
     if (!site) {
       const all = await (opts.listLogins ?? listLogins)();
@@ -60,9 +85,14 @@ export function createLoginTool(opts: LoginToolOptions) {
     if (!stored) return text(`No login named "${site}". Call login with no site to see what's available.`, true);
 
     const { allowed } = await authorize(stored.name, stored.origin, agent, opts.approve ?? macApprover);
-    if (!allowed) return text(`The user didn't allow ${agent} to use ${stored.name}.`, true);
+    if (!allowed) return text(`The user didn't allow ${agent.name} to use ${stored.name}.`, true);
 
-    const result = await signIn(await agentBrowser(), stored);
-    return result.ok ? text(`Signed in to ${stored.name} (${stored.origin}).`) : text(result.error, true);
-  };
+    const result = await oneAtATime(endpoint, async () => signIn(await agentBrowser(), stored));
+    if (result.status === "signed-in") return text(`Signed in to ${stored.name} (${stored.origin}).`);
+    if (result.status === "unverified")
+      return text(`Submitted the sign-in for ${stored.name}, but the site moved to ${result.at}, so Sikrets couldn't confirm it worked. Check the page before relying on it.`);
+    return text(result.error, true);
+  }
+
+  return Object.assign(login, { release });
 }

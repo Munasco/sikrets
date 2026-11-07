@@ -8,6 +8,7 @@ import { MCP } from "../constants.ts";
 import { projectEnv } from "./run.ts";
 import { createLoginTool, LOGIN_TOOL, type LoginToolOptions } from "./mcp-login.ts";
 import { LOGINS } from "../constants.ts";
+import { parentIdentity, type AgentIdentity } from "../core/logins/identity.ts";
 
 // `sikrets mcp`: an MCP server on stdio, so an agent can use this project's secrets without ever
 // holding them. It can list key names, run a command with the values injected (like `sikrets run`),
@@ -34,8 +35,13 @@ export interface ServerOptions {
   /** Injected for tests; defaults to the project's vault. */
   loadEnv?: (root: string) => Promise<Env>;
   version?: string;
-  /** Who the agent is, for login grants. Defaults to the name the client sends in initialize. */
+  /** The agent's name in approvals and the activity log. Defaults to the name the client sends in its first initialize. */
   agent?: string;
+  /**
+   * Who the agent is, for login grants: an id the client can't choose. Defaults to the program that
+   * started this server (see core/logins/identity.ts); over HTTP, the authenticated client.
+   */
+  identify?: (name: string) => Promise<AgentIdentity | undefined>;
   /** For the login tool: the agent's browser, and test doubles. */
   logins?: LoginToolOptions;
 }
@@ -152,8 +158,15 @@ export function createServer(opts: ServerOptions) {
   const root = path.resolve(opts.root);
   const loadEnv = opts.loadEnv ?? projectEnv;
   const login = createLoginTool(opts.logins ?? {});
-  // Clients name themselves in initialize. It's self-reported, so the person sees it when asked to approve.
+  // Clients name themselves in initialize. The name is only a label the person sees; grants are
+  // bound to `identity`. Only the first initialize counts, so a client can't rename itself later.
+  let phase: "uninitialized" | "initialized" = "uninitialized";
   let agent = opts.agent ?? LOGINS.unknownAgent;
+  let identity: Promise<AgentIdentity | undefined> | undefined;
+  const whoIs = async (): Promise<AgentIdentity | { name: string }> => {
+    identity ??= (opts.identify ?? parentIdentity)(agent).catch(() => undefined);
+    return (await identity) ?? { name: agent };
+  };
 
   async function runWithSecrets(args: Record<string, unknown>, signal?: AbortSignal) {
     const command = args.command;
@@ -267,9 +280,10 @@ export function createServer(opts: ServerOptions) {
     }
   }
 
-  /** Stops every running command, e.g. when the client disconnects. */
+  /** Stops every running command, e.g. when the client disconnects, and lets go of the browser. */
   function close() {
     for (const c of inFlight.values()) c.abort();
+    void login.release();
   }
 
   async function dispatch(req: Request, signal: AbortSignal): Promise<Reply> {
@@ -280,7 +294,8 @@ export function createServer(opts: ServerOptions) {
     switch (req.method) {
       case "initialize": {
         const client = (req.params?.clientInfo as { name?: unknown } | undefined)?.name;
-        if (!opts.agent && typeof client === "string" && client.trim()) agent = client.trim().slice(0, 64);
+        if (phase === "uninitialized" && !identity && !opts.agent && typeof client === "string" && client.trim()) agent = client.trim().slice(0, 64);
+        phase = "initialized";
         return ok({
           // Answer with the client's version: this server only uses tools, which every version has.
           protocolVersion: typeof req.params?.protocolVersion === "string" ? req.params.protocolVersion : MCP.protocolVersion,
@@ -303,7 +318,7 @@ export function createServer(opts: ServerOptions) {
           if (name === "list_secrets") return ok(await listSecrets());
           if (name === "run_with_secrets") return ok(await runWithSecrets(args, signal));
           if (name === "recent_activity") return ok(await recentActivity(args));
-          if (name === "login") return ok(await login(args, agent));
+          if (name === "login") return ok(await login(args, await whoIs()));
           return fail(-32602, `Unknown tool: ${String(name)}`);
         } catch (error) {
           // Errors can quote values (a provider error body, a bad path); never pass one through raw.

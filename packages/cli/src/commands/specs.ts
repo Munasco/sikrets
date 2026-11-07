@@ -96,7 +96,7 @@ export const commands: CommandSpec[] = [
     options: [
       { name: "allow", type: "string", multiple: true, argument: "PROGRAM", description: "Only let the agent run these programs (repeatable; default: any)" },
       { name: "root", type: "string", argument: "DIR", description: "Project directory (default: current directory)" },
-      { name: "agent", type: "string", argument: "NAME", description: "Name this agent for login approvals (default: the name its client reports)" },
+      { name: "agent", type: "string", argument: "NAME", description: "Label this agent in login approvals (default: the name its client reports; grants are bound to the program that started the server)" },
       { name: "browser", type: "string", argument: "URL", description: "DevTools endpoint of the agent's Chrome for `login` (default: http://127.0.0.1:9222)" },
     ],
     examples: ["sikrets mcp", "sikrets mcp --allow bun --allow terraform", "claude mcp add sikrets -- sikrets mcp"],
