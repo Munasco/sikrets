@@ -46,13 +46,14 @@ export async function standInFor(vault: Vault, key: string): Promise<Secret> {
 }
 
 /** What a project's env file gets: stand-ins for secrets (unless `real`), real values for the rest. */
-export async function envValues(vault: Vault, resources: readonly Resource[], real: boolean): Promise<Map<string, Secret>> {
+export async function envValues(vault: Vault | ((res: Resource) => Promise<Vault>), resources: readonly Resource[], real: boolean): Promise<Map<string, Secret>> {
   const out = new Map<string, Secret>();
   for (const res of resources.filter((r) => r.applied)) {
+    const v = typeof vault === "function" ? await vault(res) : vault;
     for (const { key, sensitive } of outputKeys(res)) {
-      if (sensitive && !real) out.set(key, await standInFor(vault, key));
+      if (sensitive && !real) out.set(key, await standInFor(v, key));
       else {
-        const value = await vault.get(key);
+        const value = await v.get(key);
         if (value) out.set(key, value);
       }
     }

@@ -2,7 +2,7 @@ import { lastUsed, readActivity } from "../core/activity.ts";
 import { projectContext } from "../core/config.ts";
 import { providerEnv } from "../core/credentials.ts";
 import { state, type Resource } from "../core/state.ts";
-import { until } from "../core/ttl.ts";
+import { after, until } from "../core/ttl.ts";
 import { recipe } from "../recipes/index.ts";
 
 // One view of the project: each resource, how it's provisioned, when its keys were last used, and
@@ -24,13 +24,15 @@ const ago = (iso?: string) => {
 
 export async function run(_args: string[], opts: Record<string, unknown>) {
   const root = process.cwd();
-  const { ctx } = await projectContext(root, { log: () => {} });
+  const { config, ctx } = await projectContext(root, { log: () => {} });
+  // Due dates follow sikrets.json's current rotateEvery, so changing it reschedules every key.
+  const due = (r: Resource) => (r.strategy === "terraform" ? null : after(config.rotateEvery, Date.parse(r.lastRotatedAt ?? r.createdAt)));
   const { resources } = await state.load(root);
   const used = lastUsed(await readActivity(root));
   const rows = await Promise.all(
     resources.map(async (r) => {
       const last = r.envKeys.map((k) => used.get(k)).filter((x): x is string => Boolean(x)).sort().at(-1);
-      return { name: r.name, recipe: r.recipe, strategy: r.strategy, live: r.applied, created: r.createdAt, lastUsed: last ?? null, rotateBy: r.rotateBy ?? null, keys: r.envKeys, spend: await spend(r) };
+      return { name: r.name, recipe: r.recipe, strategy: r.strategy, live: r.applied, created: r.createdAt, lastUsed: last ?? null, rotateBy: due(r), rotation: r.rotation?.status ?? null, revokeOld: r.oldKey?.hint ?? null, keys: r.envKeys, spend: await spend(r) };
     }),
   );
   if (opts.json) return console.log(JSON.stringify({ project: ctx.project, vault: ctx.vault, resources: rows }));
@@ -40,5 +42,9 @@ export async function run(_args: string[], opts: Record<string, unknown>) {
   console.log(`${"NAME".padEnd(w)}  ${"RECIPE".padEnd(18)} ${"STATE".padEnd(12)} ${"CREATED".padEnd(10)} ${"LAST USED".padEnd(10)} ${"ROTATE".padEnd(14)} COST`);
   for (const r of rows) {
     console.log(`${r.name.padEnd(w)}  ${r.recipe.padEnd(18)} ${(r.live ? "live" : "declared").padEnd(12)} ${ago(r.created).padEnd(10)} ${ago(r.lastUsed ?? undefined).padEnd(10)} ${(r.rotateBy ? until(r.rotateBy) : "—").padEnd(14)} ${r.spend}`);
+  }
+  for (const r of rows) {
+    if (r.rotation) console.log(`\n${r.name}: a rotation didn't finish; run sikrets rotate ${r.name} to complete it`);
+    if (r.revokeOld) console.log(`\n${r.name}: revoke the replaced key ${r.revokeOld}, then run sikrets rotate ${r.name} --revoked`);
   }
 }

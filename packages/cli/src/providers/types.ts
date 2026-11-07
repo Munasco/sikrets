@@ -17,5 +17,13 @@ export interface Provider {
   /** Types the credentials into the provider's own login screens, one human-paced step at a time. */
   login: (page: Page, creds: Credentials, step: Step) => Promise<void>;
   /** For API-backed providers: once signed in, create an API key in the dashboard and return it. */
-  mint?: { readonly key: string; readonly run: (page: Page, step: Step) => Promise<string> };
+  mint?: {
+    readonly key: string;
+    /** Where keys are listed and revoked. */
+    readonly manageUrl: string;
+    /** Creates a key called `name` and returns its value. */
+    readonly run: (page: Page, step: Step, name: string) => Promise<string>;
+    /** One cheap API call with the new key; throws if the provider rejects it. */
+    readonly verify: (account: string, key: string) => Promise<void>;
+  };
 }

@@ -33,6 +33,17 @@ export const FILES = {
 } as const;
 export const IAC_DIR = "iac/terraform";
 
+// ── Cross-process file locks ──────────────────────────────────────────────
+export const LOCK = {
+  /** Suffix of the lock file next to the file it guards. */
+  suffix: ".lock",
+  /** How long to wait for another sikrets process before giving up. */
+  waitMs: 15_000,
+  retryMs: 50,
+  /** A lock older than this whose owner can't be confirmed alive is treated as left by a crash. */
+  staleMs: 60_000,
+} as const;
+
 // ── Defaults for sikrets.json ─────────────────────────────────────────────
 export const DEFAULTS = {
   vault: "ssm",
@@ -54,6 +65,10 @@ export const STAND_IN = {
 export const KEYCHAIN_SERVICE = "dev.sikrets";
 /** OS keychain service for one project's values. */
 export const keychainVaultService = (project: string) => `${KEYCHAIN_SERVICE}.vault.${project}`;
+/** OS keychain service holding a rotated credential until it is safely in the project's vault. */
+export const keychainRecoveryService = (project: string) => `${KEYCHAIN_SERVICE}.recovery.${project}`;
+/** Name prefix of provider API keys Sikrets mints; the rest is a timestamp so each is findable. */
+export const MINTED_KEY_PREFIX = "sikrets-";
 /** SSM Parameter Store path prefix; values live at /sikrets/<project>/<KEY>. */
 export const SSM_PREFIX = "/sikrets";
 

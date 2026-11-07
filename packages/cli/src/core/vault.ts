@@ -65,7 +65,13 @@ async function ssmVault(project: string): Promise<Vault> {
 
 export const openVault = async (project: string, name: VaultName): Promise<Vault> => (name === "ssm" ? ssmVault(project) : keychainVault(project));
 
-registerUndo("vault.delete", async ({ project, keys }, ctx) => {
-  const vault = await openVault(project!, ctx.vault);
+/** Opens each vault once; for reading resources that were stored in different vaults. */
+export function vaults(project: string) {
+  const open = new Map<VaultName, Promise<Vault>>();
+  return (name: VaultName) => open.get(name) ?? open.set(name, openVault(project, name)).get(name)!;
+}
+
+registerUndo("vault.delete", async ({ project, vault: name, keys }, ctx) => {
+  const vault = await openVault(project!, (name as VaultName | undefined) ?? ctx.vault);
   for (const key of keys!.split(",")) await vault.delete(key);
 });
