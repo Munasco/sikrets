@@ -225,7 +225,7 @@ export function createServer(opts: ServerOptions) {
     for (const t of timers) clearTimeout(t);
     signal?.removeEventListener("abort", onAbort);
     const ms = Date.now() - started;
-    await record(root, { kind: "run", detail: `mcp: ${program} (${state === "exited" ? `exit ${code}` : state}, ${(ms / 1000).toFixed(1)}s)`, keys: Object.keys(env), exitCode: code, ms });
+    await record(root, { kind: "run", detail: `mcp: ${program} by ${agent} (${state === "exited" ? `exit ${code}` : state}, ${(ms / 1000).toFixed(1)}s)`, keys: Object.keys(env), exitCode: code, ms });
 
     const status =
       state === "timed-out" ? `timed out after ${timeout}s`
