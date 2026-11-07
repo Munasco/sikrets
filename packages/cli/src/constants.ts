@@ -75,3 +75,63 @@ export const PROVIDER_URLS = {
   openai: { login: "https://platform.openai.com/login" },
   x: { login: "https://x.com/i/flow/login" },
 } as const;
+
+// ── Recovery ──────────────────────────────────────────────────────────────
+export const RECOVERY = {
+  /** Per-user file holding the wrapped data key (never the key or the code). */
+  file: "recovery.json",
+  /** Keychain slot for this device's copy of the data key. */
+  dataKeyProvider: "datakey",
+  dataKeyAccount: "default",
+  /** Lock file (under the user folder) held while creating the data key. */
+  dataKeyLock: "datakey",
+  dataKeyBytes: 32,
+  /** Random bytes in a recovery code (160 bits), before the checksum group. */
+  codeBytes: 20,
+  /** Crockford base32: no I, L, O or U, so codes survive being read aloud or handwritten. */
+  alphabet: "0123456789ABCDEFGHJKMNPQRSTVWXYZ",
+  groupSize: 4,
+  checksumChars: 4,
+  sharePrefix: "S",
+  shares: 3,
+  threshold: 2,
+  /** Argon2id per RFC 9106's second recommendation (64 MiB, 3 passes). scrypt is the fallback. */
+  argon2: { memoryKiB: 65_536, passes: 3, parallelism: 4 },
+  scrypt: { N: 131_072, r: 8, p: 1, maxmem: 256 * 1024 * 1024 },
+  saltBytes: 16,
+  ivBytes: 12,
+  /** Bound into every wrap as AES-GCM associated data. */
+  aad: "sikrets-recovery-v1",
+  fingerprintLabel: "sikrets-datakey-fingerprint",
+} as const;
+
+// ── Doorman (human approval before rotating) ──────────────────────────────
+export const APPROVALS_FILE = "approvals.json";
+/** Pending requests lapse after this long without a decision; a failed rotation gets a fresh window to retry. */
+export const APPROVAL_TTL = "24h";
+/** A rotation still marked running after this long, or whose process is gone, is recorded as failed. */
+export const APPROVAL_ROTATING_MAX_MS = 60 * 60_000;
+/** What a person is told. Generic on purpose: never the detection source. */
+export const APPROVAL_REASONS = {
+  exposed: "We think this key may be exposed",
+  expired: "This key is past its rotation date",
+  requested: "An agent asked to rotate this key",
+} as const;
+export const DOORMAN = {
+  title: "Sikrets",
+  /** Compiled Touch ID helpers are cached here, under the user folder. */
+  binDir: "bin",
+  helperName: "sikrets-touchid",
+  dialogTimeoutSeconds: 120,
+  approveButton: "Approve",
+  denyButton: "Deny",
+} as const;
+
+// ── Local state-file locks ────────────────────────────────────────────────
+export const LOCK = {
+  /** How long to wait for another sikrets process to finish with a file. */
+  waitMs: 10_000,
+  retryMs: 25,
+  /** A lock older than this is assumed abandoned even if its pid looks alive. */
+  staleMs: 30_000,
+} as const;
