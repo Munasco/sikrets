@@ -16,6 +16,8 @@ export const ENV = {
   terraform: "SIKRETS_TERRAFORM",
   /** Project name for the SDK when it can't infer one. */
   project: "SIKRETS_PROJECT",
+  /** One project's key (base64) for a deployed app's SDK, which has no keychain data key. */
+  projectKey: "SIKRETS_PROJECT_KEY",
   /** Agent a command hands keys to (same as --agent); see `sikrets agent`. */
   agent: "SIKRETS_AGENT",
   /** Bitwarden CLI command to run instead of `bw` (e.g. "bunx @bitwarden/cli"). */
@@ -178,6 +180,10 @@ export const ENVELOPE = {
   ivBytes: 12,
   tagBytes: 16,
 } as const;
+/** SSM parameter (beside the project's values) naming the data key they're sealed under; not a vault key. */
+export const DATA_KEY_MARKER = "sikrets.datakey";
+/** Under the user dir: serialises writes to one project's keychain vault (CLI and desktop). */
+export const vaultLockFile = (project: string) => `locks/vault-${project}`;
 /** SSM Parameter Store's Standard tier value limit, which the sealed value has to fit. */
 export const SSM_STANDARD_MAX_BYTES = 4096;
 

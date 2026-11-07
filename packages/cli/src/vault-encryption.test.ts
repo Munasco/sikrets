@@ -19,6 +19,17 @@ import { ENVELOPE, REVEAL } from "./constants.ts";
 
 const keychain = new Map<string, string>();
 const ssm = new Map<string, string>();
+/** Every version each SSM parameter has had, like GetParameterHistory. */
+const ssmHistory = new Map<string, string[]>();
+/** Runs once just before the next PutParameter: another writer slipping in. */
+let beforeNextPut: (() => void) | undefined;
+const ssmPut = (name: string, value: string) => {
+  ssm.set(name, value);
+  const h = ssmHistory.get(name) ?? [];
+  h.push(value);
+  ssmHistory.set(name, h);
+  return h.length;
+};
 let root: string;
 let home: string;
 let cwd: string;
@@ -27,7 +38,7 @@ let out: string[];
 const REAL = ["tok", "live", "fakefakefakefakefake"].join("_");
 const ssmName = (project: string, key: string) => `/sikrets/${project}/${key}`;
 
-/** Just enough of SSMClient: Get/Put/Delete one parameter and list by path. */
+/** Just enough of SSMClient: Get/Put/Delete one parameter (with versions and history) and list by path. */
 const fakeSsm: SsmClient = {
   async send(command: object) {
     const input = (command as { input: Record<string, any> }).input;
@@ -35,12 +46,20 @@ const fakeSsm: SsmClient = {
       case "GetParameterCommand": {
         const value = ssm.get(input.Name);
         if (value === undefined) throw Object.assign(new Error("not found"), { name: "ParameterNotFound" });
-        return { Parameter: { Name: input.Name, Value: value } };
+        return { Parameter: { Name: input.Name, Value: value, Version: ssmHistory.get(input.Name)?.length } };
       }
-      case "PutParameterCommand":
+      case "PutParameterCommand": {
         if (input.Value.length > 4096) throw new Error("SSM would reject this: over 4 KB");
-        return void ssm.set(input.Name, input.Value);
+        if (input.Overwrite === false && ssm.has(input.Name)) throw Object.assign(new Error("exists"), { name: "ParameterAlreadyExists" });
+        const slip = beforeNextPut;
+        beforeNextPut = undefined;
+        slip?.();
+        return { Version: ssmPut(input.Name, input.Value) };
+      }
+      case "GetParameterHistoryCommand":
+        return { Parameters: (ssmHistory.get(input.Name) ?? []).map((Value, i) => ({ Name: input.Name, Value, Version: i + 1 })) };
       case "DeleteParameterCommand":
+        ssmHistory.delete(input.Name);
         return void ssm.delete(input.Name);
       case "GetParametersByPathCommand":
         return { Parameters: [...ssm].filter(([n]) => n.startsWith(`${input.Path}/`)).map(([Name, Value]) => ({ Name, Value })) };
@@ -53,6 +72,8 @@ const fakeSsm: SsmClient = {
 beforeEach(async () => {
   keychain.clear();
   ssm.clear();
+  ssmHistory.clear();
+  beforeNextPut = undefined;
   out = [];
   root = await mkdtemp(path.join(os.tmpdir(), "sikrets-seal-"));
   home = await mkdtemp(path.join(os.tmpdir(), "sikrets-seal-home-"));
@@ -146,18 +167,17 @@ describe("sealed vault", () => {
     expect((await vault.get("API_KEY"))?.reveal()).toBe(REAL);
   });
 
-  test("legacy plaintext is read, then re-stored sealed", async () => {
-    await ensureDataKey();
+  test("legacy plaintext is refused on read, and a read writes nothing and creates no key", async () => {
     keychain.set("dev.sikrets.vault.demo/OLD_KEY", REAL);
-    ssm.set(ssmName("demo", "OLD_KEY"), REAL);
+    ssmPut(ssmName("demo", "OLD_KEY"), REAL);
     for (const [vault, read] of [
       [await openVault("demo", "keychain"), () => raw("demo", "OLD_KEY")],
       [await openVault("demo", "ssm", { ssm: fakeSsm }), () => ssm.get(ssmName("demo", "OLD_KEY"))],
     ] as const) {
-      expect((await vault.get("OLD_KEY"))?.reveal()).toBe(REAL);
-      expect(envelopeKind(read()!)).toBe("sealed");
-      expect((await vault.get("OLD_KEY"))?.reveal()).toBe(REAL);
+      await expect(vault.get("OLD_KEY")).rejects.toThrow("sikrets seal");
+      expect(read()).toBe(REAL); // untouched
     }
+    expect(await loadDataKey()).toBeUndefined();
   });
 
   test("the first write creates the data key; a device without it can't read sealed values", async () => {
@@ -276,5 +296,78 @@ describe("env pull --real", () => {
     await (await command("env")).run(["pull"], { real: true });
     expect(ask).toHaveBeenCalledTimes(1);
     expect(await Bun.file(path.join(root, ".env")).text()).toContain(REAL);
+  });
+});
+
+describe("sikrets seal", () => {
+  test("lists plaintext values on a dry run, seals them with --apply, and a re-run has nothing left", async () => {
+    await state.upsert(root, { name: "anthropic", recipe: "anthropic/api-key", provider: "anthropic", strategy: "manual", inputs: {}, dependsOn: {}, envKeys: ["ANTHROPIC_API_KEY"], outputs: {}, applied: true, createdAt: new Date().toISOString() });
+    keychain.set("dev.sikrets.vault.demo/ANTHROPIC_API_KEY", REAL);
+    await (await command("seal")).run([], { json: true });
+    expect(JSON.parse(out.at(-1)!)).toMatchObject({ apply: false, keys: [{ key: "ANTHROPIC_API_KEY", action: "seal" }] });
+    expect(raw("demo", "ANTHROPIC_API_KEY")).toBe(REAL);
+    await (await command("seal")).run([], { apply: true, json: true });
+    expect(JSON.parse(out.at(-1)!).keys).toEqual([{ key: "ANTHROPIC_API_KEY", action: "seal", result: "sealed" }]);
+    expect(envelopeKind(raw("demo", "ANTHROPIC_API_KEY")!)).toBe("sealed");
+    expect((await (await openVault("demo", "keychain")).get("ANTHROPIC_API_KEY"))?.reveal()).toBe(REAL);
+    await (await command("seal")).run([], { apply: true, json: true });
+    expect(JSON.parse(out.at(-1)!).keys).toEqual([{ key: "ANTHROPIC_API_KEY", action: "sealed" }]);
+  });
+
+  test("a value rotated after it was read isn't overwritten by the old one", async () => {
+    keychain.set("dev.sikrets.vault.demo/API_KEY", REAL);
+    const vault = await openVault("demo", "keychain");
+    const before = (await vault.store.getVersioned("API_KEY"))!;
+    await vault.put("API_KEY", Secret.of(`${REAL}_rotated`)); // a rotation lands in between
+    expect(await vault.store.replaceIf("API_KEY", before, vault.seal("API_KEY", await vault.writeKey("API_KEY"), before.value))).toBe(false);
+    expect((await vault.get("API_KEY"))?.reveal()).toBe(`${REAL}_rotated`);
+  });
+
+  test("ssm: a write that slips in between the check and the put is put back", async () => {
+    ssmPut(ssmName("demo", "API_KEY"), REAL);
+    const vault = await openVault("demo", "ssm", { ssm: fakeSsm });
+    const rotated = vault.seal("API_KEY", await vault.writeKey("API_KEY"), `${REAL}_rotated`);
+    const before = (await vault.store.getVersioned("API_KEY"))!;
+    beforeNextPut = () => void ssmPut(ssmName("demo", "API_KEY"), rotated);
+    expect(await vault.store.replaceIf("API_KEY", before, vault.seal("API_KEY", await vault.writeKey("API_KEY"), before.value))).toBe(false);
+    expect((await vault.get("API_KEY"))?.reveal()).toBe(`${REAL}_rotated`);
+  });
+
+  test("ssm: two fresh devices can't both create a data key for one project", async () => {
+    await (await openVault("demo", "ssm", { ssm: fakeSsm })).put("API_KEY", Secret.of(REAL)); // device A claims the marker
+    expect(ssm.get(ssmName("demo", "sikrets.datakey"))).toBeDefined();
+    keychain.delete("dev.sikrets.datakey/default");
+    ssm.delete(ssmName("demo", "API_KEY")); // nothing sealed for B to see, only the marker
+    await expect((await openVault("demo", "ssm", { ssm: fakeSsm })).put("OTHER_KEY", Secret.of(REAL))).rejects.toThrow("sikrets recovery restore");
+    expect(await loadDataKey()).toBeUndefined();
+  });
+
+  test("ssm: lists the whole project folder, not just keys this checkout knows", async () => {
+    process.env.SIKRETS_VAULT = "ssm";
+    ssmPut(ssmName("demo", "SOMEONE_ELSES_KEY"), REAL);
+    const vault = await openVault("demo", "ssm", { ssm: fakeSsm });
+    expect(await vault.store.list!()).toEqual(["SOMEONE_ELSES_KEY"]);
+  });
+});
+
+describe("deployed apps", () => {
+  test("env pull --project-key needs Touch ID, and the key lets the SDK open values without a keychain", async () => {
+    await stored(REAL);
+    authAs(false);
+    await expect((await command("env")).run(["pull"], { "project-key": true })).rejects.toThrow("stays hidden");
+    authAs(true);
+    await (await command("env")).run(["pull"], { "project-key": true });
+    const env = Object.fromEntries((await Bun.file(path.join(root, ".env")).text()).split("\n").filter((l) => l.includes("=")).map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1).replace(/^"|"$/g, "")]));
+    expect(env.SIKRETS_PROJECT_KEY).toBeDefined();
+    keychain.delete("dev.sikrets.datakey/default"); // a server: no data key
+    const { createSikrets } = await import("../../sdk/src/index.ts");
+    expect(await createSikrets({ env: { SIKRETS_PROJECT_KEY: env.SIKRETS_PROJECT_KEY }, project: "demo", vault: "keychain" }).get("ANTHROPIC_API_KEY")).toBe(REAL);
+    await expect(createSikrets({ env: {}, project: "demo", vault: "keychain" }).get("ANTHROPIC_API_KEY")).rejects.toThrow("SIKRETS_PROJECT_KEY");
+  });
+
+  test("the SDK refuses plaintext too", async () => {
+    keychain.set("dev.sikrets.vault.demo/OLD_KEY", REAL);
+    const { createSikrets } = await import("../../sdk/src/index.ts");
+    await expect(createSikrets({ env: {}, project: "demo", vault: "keychain" }).get("OLD_KEY")).rejects.toThrow("sikrets seal");
   });
 });

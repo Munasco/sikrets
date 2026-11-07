@@ -8,7 +8,9 @@
 //   1. The environment already holds the real value (under `sikrets run`, or injected in prod) → use it.
 //   2. It holds a stand-in, or nothing → fetch the real value from the project's vault with the
 //      app's own credentials (an IAM role in production, your AWS profile locally). The CLI seals
-//      values on the client, so opening them also takes the user's data key from the keychain.
+//      values on the client, so opening them also takes the project key: SIKRETS_PROJECT_KEY in a
+//      deployment (`sikrets env pull --project-key`), else the user's data key from the keychain.
+//      Plaintext from the vault is refused, as the CLI does: seal it with `sikrets seal --apply`.
 // Values are cached briefly so a rotated key is picked up without a restart.
 
 import { createDecipheriv, hkdfSync } from "node:crypto";
@@ -21,6 +23,8 @@ export interface SikretsOptions {
   readonly project?: string;
   /** Vault backend; defaults to SIKRETS_VAULT, then "ssm". */
   readonly vault?: VaultName;
+  /** Base64 project key for sealed values; defaults to SIKRETS_PROJECT_KEY, then the keychain data key. */
+  readonly projectKey?: string;
   /** How long a fetched value is reused before asking the vault again. Default 5 minutes. */
   readonly ttlMs?: number;
   /** Environment to read; defaults to process.env. */
@@ -64,16 +68,27 @@ function defaultProject(env: SikretsOptions["env"]): string {
 
 const bunSecrets = () => (globalThis as { Bun?: { secrets: { get(o: { service: string; name: string }): Promise<string | null> } } }).Bun?.secrets;
 
-/**
- * Opens a value the CLI sealed on the client (`sk1:…`) with the data key from this user's keychain.
- * Legacy plaintext passes through. Errors name the key, never the value.
- */
-async function openSealed(project: string, key: string, stored: string | undefined): Promise<string | undefined> {
-  if (!stored || !ENVELOPE.versionPattern.test(stored)) return stored;
-  if (!stored.startsWith(ENVELOPE.prefix)) throw new Error("written by a newer Sikrets; update @sikrets/sdk");
+/** This project's key: the one given (a deployment), else derived from the keychain data key. */
+async function projectKeyFor(project: string, given: string | undefined): Promise<Buffer> {
+  if (given) {
+    const k = Buffer.from(given, "base64");
+    if (k.length !== 32) throw new Error(`${ENV.projectKey} isn't a project key (expected 32 bytes, base64)`);
+    return k;
+  }
   const dataKey = await bunSecrets()?.get(DATA_KEY);
-  if (!dataKey) throw new Error("the value is encrypted on the client and this process has no Sikrets data key (run under `sikrets run`, or on a machine where `sikrets recovery restore` has run)");
-  const k = Buffer.from(hkdfSync("sha256", Buffer.from(dataKey, "base64"), ENVELOPE.hkdfSalt, ENVELOPE.hkdfInfo(project), 32));
+  if (!dataKey) throw new Error(`the value is encrypted on the client and this process has no key: set ${ENV.projectKey} (sikrets env pull --project-key), run under \`sikrets run\`, or restore your data key (sikrets recovery restore)`);
+  return Buffer.from(hkdfSync("sha256", Buffer.from(dataKey, "base64"), ENVELOPE.hkdfSalt, ENVELOPE.hkdfInfo(project), 32));
+}
+
+/**
+ * Opens a value the CLI sealed on the client (`sk1:…`). Plaintext is refused: anyone who can
+ * write the vault could have put it there. Errors name the key, never the value.
+ */
+async function openSealed(project: string, key: string, stored: string | undefined, given: string | undefined): Promise<string | undefined> {
+  if (!stored) return stored;
+  if (!ENVELOPE.versionPattern.test(stored)) throw new Error("stored unencrypted, so it isn't trusted; seal it with: sikrets seal --apply");
+  if (!stored.startsWith(ENVELOPE.prefix)) throw new Error("written by a newer Sikrets; update @sikrets/sdk");
+  const k = await projectKeyFor(project, given);
   const raw = Buffer.from(stored.slice(ENVELOPE.prefix.length), "base64");
   try {
     const decipher = createDecipheriv("aes-256-gcm", k, raw.subarray(0, ENVELOPE.ivBytes)).setAAD(Buffer.from(ENVELOPE.aad(project, key)));
@@ -84,9 +99,9 @@ async function openSealed(project: string, key: string, stored: string | undefin
   }
 }
 
-function vaultFetch(name: VaultName): (project: string, key: string) => Promise<string | undefined> {
+function vaultFetch(name: VaultName, projectKey: () => string | undefined): (project: string, key: string) => Promise<string | undefined> {
   const read = rawFetch(name);
-  return async (project, key) => openSealed(project, key, await read(project, key));
+  return async (project, key) => openSealed(project, key, await read(project, key), projectKey());
 }
 
 function rawFetch(name: VaultName): (project: string, key: string) => Promise<string | undefined> {
@@ -123,7 +138,7 @@ export function createSikrets(opts: SikretsOptions = {}): Sikrets {
   const ttl = opts.ttlMs ?? DEFAULT_TTL_MS;
   const now = opts.now ?? Date.now;
   const vault = (opts.vault ?? (env[ENV.vault] as VaultName | undefined) ?? DEFAULT_VAULT) satisfies VaultName;
-  const fetchValue = opts.fetch ?? vaultFetch(vault);
+  const fetchValue = opts.fetch ?? vaultFetch(vault, () => opts.projectKey ?? env[ENV.projectKey]);
   let project: string | undefined = opts.project;
   const cache = new Map<string, { value: string; until: number }>();
   const inflight = new Map<string, Promise<string>>();

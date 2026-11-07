@@ -116,6 +116,6 @@ describe("client-side encryption", () => {
 
   test("without a data key the error says so", async () => {
     keychain({ "dev.sikrets.vault.demo/API_KEY": sealed("demo", "API_KEY", REAL) });
-    await expect(createSikrets({ env: {}, project: "demo", vault: "keychain" }).get("API_KEY")).rejects.toThrow("no Sikrets data key");
+    await expect(createSikrets({ env: {}, project: "demo", vault: "keychain" }).get("API_KEY")).rejects.toThrow("SIKRETS_PROJECT_KEY");
   });
 });

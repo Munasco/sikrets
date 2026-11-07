@@ -145,10 +145,19 @@ export const commands: CommandSpec[] = [
     options: [
       { name: "file", type: "string", argument: "FILE", description: "Where `env pull` writes (default: .env)" },
       { name: "real", type: "boolean", short: "r", description: "Write real secrets instead of stand-ins, after you authenticate with Touch ID or your Mac password" },
+      { name: "project-key", type: "boolean", description: "Also write SIKRETS_PROJECT_KEY, which lets a deployed app's SDK open this project's sealed values (after Touch ID)" },
       jsonOption,
     ],
-    examples: ["sikrets env", "sikrets env pull", "sikrets env pull --real --file .env.local"],
+    examples: ["sikrets env", "sikrets env pull", "sikrets env pull --real --file .env.local", "sikrets env pull --project-key --file .env.production"],
     load: () => import("./env.ts"),
+  },
+  {
+    name: "seal",
+    description: "Encrypt values still stored as plaintext from before client-side encryption (dry run unless --apply)",
+    arguments: [],
+    options: [{ name: "apply", type: "boolean", description: "Seal them (default: list what would be sealed)" }, jsonOption],
+    examples: ["sikrets seal", "sikrets seal --apply"],
+    load: () => import("./seal.ts"),
   },
   {
     name: "catalog",
