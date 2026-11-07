@@ -1,9 +1,10 @@
 import { createECDH, createHash, createPrivateKey, createPublicKey, diffieHellman, generateKeyPairSync, hkdfSync, randomBytes, sign as signWith, verify, type KeyObject } from "node:crypto";
-import { rm } from "node:fs/promises";
+import { rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { configDir } from "../store.ts";
 import { open, seal, type Sealed } from "./datakey.ts";
 import { privateDir, readJson, readText, remove, writePrivate } from "./fs.ts";
+import { withLock } from "./lock.ts";
 import { swiftHelper } from "./swift.ts";
 import deviceSource from "../native/device.swift" with { type: "text" };
 import { DEVICE, ENV } from "../constants.ts";
@@ -18,8 +19,10 @@ import { DEVICE, ENV } from "../constants.ts";
 // need a signed app with a keychain access group, and the CLI's helper is compiled locally and
 // only signed ad hoc. The Enclave protects the key either way; the file only names it.
 //
-// Where there's no Enclave (Linux, CI, older Intel Macs) the same two keys are software P-256
-// keys in 0600 files, and every place that shows the device says it is not hardware-bound.
+// Where there's no Enclave (Linux, CI, older Intel Macs) the same two keys can be software P-256
+// keys in 0600 files, but only when asked for (SIKRETS_DEVICE_KEYS=software): a Mac whose helper
+// fails to build must not quietly end up with keys anyone who copies ~/.sikrets can use. Every
+// place that shows the device says software keys are not hardware-bound.
 
 export type KeyRole = "signing" | "agreement";
 export type DeviceKind = "secure-enclave" | "software";
@@ -211,17 +214,55 @@ let current: { dir: string; device: Promise<Device> } | undefined;
 /** Forgets the cached device, e.g. after a test swaps the config dir or the backend. */
 export const resetDeviceCache = () => void (current = undefined);
 
+/**
+ * Gives this device new keys and runs `then` with them (restore --force, when the keys here were
+ * copied from another Mac and don't work). The old folder is moved aside first, deleted only once
+ * `then` succeeded, and put back if it didn't: there's never a moment with neither.
+ */
+export async function replaceDevice<T>(then: (device: Device) => Promise<T>): Promise<T> {
+  const dir = deviceDir();
+  const aside = `${dir}.replaced-${Date.now()}`;
+  await rename(dir, aside);
+  resetDeviceCache();
+  try {
+    const result = await then(await thisDevice());
+    await rm(aside, { recursive: true, force: true });
+    return result;
+  } catch (error) {
+    await rm(dir, { recursive: true, force: true });
+    await rename(aside, dir);
+    resetDeviceCache();
+    throw error;
+  }
+}
+
 /** Deletes this device's keys, wrapped data key and session; the next use creates new keys. */
 export async function resetDevice() {
   await rm(deviceDir(), { recursive: true, force: true });
   resetDeviceCache();
 }
 
+/** The Enclave, or software keys when explicitly chosen. Never a silent fallback. */
+async function chooseBackend(): Promise<KeyBackend> {
+  if (Bun.env[ENV.deviceKeys] === DEVICE.forceSoftware) return software;
+  if (await enclave.available()) return enclave;
+  throw new DeviceKeyError(
+    `No usable Secure Enclave here (it needs a Mac with one, and swiftc: xcode-select --install). Sikrets doesn't fall back to software keys on its own, because anyone who copies ~/.sikrets can use them. To use software keys anyway (not hardware-bound), set ${ENV.deviceKeys}=${DEVICE.forceSoftware}`,
+  );
+}
+
 async function load(): Promise<Device> {
   const existing = await readDeviceMeta();
   if (existing) return bind(existing);
-  const forced = Bun.env[ENV.deviceKeys] === DEVICE.forceSoftware;
-  const backend = !forced && (await enclave.available()) ? enclave : software;
+  // One first run creates the keys; another waiting on the lock then finds them and uses the same ones.
+  await privateDir(deviceDir());
+  return withLock(file(DEVICE.createLock), create);
+}
+
+async function create(): Promise<Device> {
+  const existing = await readDeviceMeta();
+  if (existing) return bind(existing);
+  const backend = await chooseBackend();
   // No metadata means no identity yet; clear what a half-finished setup left behind, unless a
   // data key is wrapped to it (then the metadata was lost, and deleting the key would lose that too).
   if (await Bun.file(file(DEVICE.dataKeyFile)).exists()) throw new DeviceMismatchError(`${file(DEVICE.metaFile)} is missing, so the wrapped data key next to it can't be opened`);
@@ -235,9 +276,9 @@ async function load(): Promise<Device> {
 }
 
 /**
- * This device, creating its keys on first use: in the Secure Enclave when there is one, otherwise
- * software keys. Once created, the kind never changes silently; if the Enclave helper stops
- * working, operations fail instead of falling back to keys that aren't hardware-bound.
+ * This device, creating its keys on first use: in the Secure Enclave, or software keys only when
+ * SIKRETS_DEVICE_KEYS=software asks for them. Once created, the kind never changes; if the Enclave
+ * helper stops working, operations fail instead of falling back to keys that aren't hardware-bound.
  */
 export async function thisDevice(): Promise<Device> {
   const dir = deviceDir();

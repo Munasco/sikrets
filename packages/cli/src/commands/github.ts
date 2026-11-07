@@ -1,4 +1,4 @@
-import { authorize, currentAgent } from "../core/agents.ts";
+import { authorize, currentAgent, leaseSeconds } from "../core/agents.ts";
 import { projectContext } from "../core/config.ts";
 import { installationToken } from "../core/github-app.ts";
 import { state, type Resource } from "../core/state.ts";
@@ -45,11 +45,16 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   );
 
   const agent = currentAgent(opts);
-  if (agent) await authorize(root, agent, [{ key: keyName, resource: res.name }]);
+  const grant = agent ? await authorize(root, agent, [{ key: keyName, resource: res.name }]) : undefined;
+  // Installation tokens always last an hour, so an agent that expires sooner gets none.
+  leaseSeconds(grant?.agent, GITHUB.tokenLifetimeSeconds, GITHUB.tokenLifetimeSeconds);
   const key = await (await openVault(ctx.project, ctx.vault)).get(keyName);
   if (!key) throw new Error(`${keyName} is missing from the ${ctx.vault} vault; add the key again`);
 
   const t = await installationToken({ appId, installationId, key, repositories: list(opts.repo), permissions });
+  if (grant?.agent.expiresAt && Date.parse(t.expiresAt) > Date.parse(grant.agent.expiresAt)) {
+    throw new Error(`GitHub's token outlives agent "${agent}" (expires ${until(grant.agent.expiresAt)}); not handing it out`);
+  }
   await recordUse(ctx.project, { keys: [keyName], via: "github.token", app: to, ...(agent ? { agent } : {}) });
   const scope = Object.entries(t.permissions).map(([k, v]) => `${k}:${v}`).join(", ");
   log({}, `sikrets: GitHub token for installation ${installationId} (${t.repositories} repos${scope ? `; ${scope}` : ""}), expires ${until(t.expiresAt)}`);

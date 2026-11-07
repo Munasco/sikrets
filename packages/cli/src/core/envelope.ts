@@ -6,6 +6,10 @@ import { ENVELOPE } from "../constants.ts";
 // project's key (derived from the data key), with the value's project and key name bound in as
 // associated data. A ciphertext copied to another key or project fails to open instead of
 // decrypting to the wrong secret. Errors name the key, never the value.
+//
+// Not bound yet: an environment or a version. Nothing in this vault has either (one value per key),
+// so a writer to the backend can still put back an older envelope of the same key. A later
+// envelope (sk2) should add both once a store keeps a version it can vouch for.
 
 export class EnvelopeError extends Error {}
 

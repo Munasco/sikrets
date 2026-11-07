@@ -1,7 +1,7 @@
 import { Secret } from "../core/secret.ts";
-import { keychain, listConnections, saveConnection } from "../store.ts";
+import { keychain, listConnections, removeConnection, saveConnection } from "../store.ts";
 import { runCli, type RunOptions } from "./exec.ts";
-import type { ManagerEntry, PasswordManager } from "./types.ts";
+import { statusMessage, type ManagerEntry, type ManagerStatus, type PasswordManager } from "./types.ts";
 import { PASSWORD_MANAGERS } from "../constants.ts";
 
 // 1Password through the `op` CLI, using its own secret references: op://<vault>/<item>/[section/]<field>.
@@ -35,17 +35,53 @@ export function parseRef(ref: string): { vault: string; item: string; section?: 
   return b === undefined ? { vault, item, field: a } : { vault, item, section: a, field: b };
 }
 
-async function auth(): Promise<{ env: Record<string, string>; args: string[]; secrets: Secret[] }> {
+type Auth =
+  | { kind: "service-account" }
+  /** Signed in through the 1Password app: op authenticates itself, there is no token to keep. */
+  | { kind: "app"; account: string }
+  | { kind: "token"; account: string; token: Secret };
+
+/** How to reach op. With no connection record (never unlocked, or locked) there is none: locked is enforced. */
+async function auth(): Promise<Auth | undefined> {
+  if (Bun.env[OP.serviceAccountEnv]) return { kind: "service-account" };
   const conn = (await listConnections()).find((c) => c.provider === ID);
-  if (!conn || Bun.env[OP.serviceAccountEnv]) return { env: {}, args: [], secrets: [] };
+  if (!conn) return undefined;
   const token = await keychain.get(ID, sessionAccount(conn.account));
-  if (!token) return { env: {}, args: ["--account", conn.account], secrets: [] };
-  return { env: { [`${OP.sessionEnvPrefix}${conn.account}`]: token }, args: ["--account", conn.account], secrets: [Secret.of(token)] };
+  return token ? { kind: "token", account: conn.account, token: Secret.of(token) } : { kind: "app", account: conn.account };
+}
+
+async function opWith(a: Auth, args: string[], opts: RunOptions = {}) {
+  const env = a.kind === "token" ? { [`${OP.sessionEnvPrefix}${a.account}`]: a.token.reveal() } : {};
+  const extra = a.kind === "service-account" ? [] : ["--account", a.account];
+  return runCli(OP, [...args, ...extra], { ...opts, env: { ...env, ...opts.env }, secrets: [...(a.kind === "token" ? [a.token] : []), ...(opts.secrets ?? [])] });
+}
+
+async function status(): Promise<ManagerStatus> {
+  const a = await auth();
+  if (!a) {
+    const accounts = JSON.parse(await runCli(OP, ["account", "list", "--format", "json"])) as { email: string }[];
+    return accounts.length ? { state: "locked", account: accounts[0]!.email } : { state: "unauthenticated" };
+  }
+  if (a.kind === "service-account") return { state: "unlocked", account: "service-account" };
+  try {
+    await opWith(a, ["whoami", "--format", "json"]);
+    return { state: "unlocked", account: a.account };
+  } catch {
+    // A token op no longer takes has expired; with the app, the app itself is locked.
+    return a.kind === "token" ? { state: "expired", account: a.account } : { state: "locked", account: a.account };
+  }
 }
 
 async function op(args: string[], opts: RunOptions = {}) {
   const a = await auth();
-  return runCli(OP, [...args, ...a.args], { ...opts, env: { ...a.env, ...opts.env }, secrets: [...a.secrets, ...(opts.secrets ?? [])] });
+  if (!a) throw new Error(statusMessage(OP.name, ID, { state: "locked" }));
+  try {
+    return await opWith(a, args, opts);
+  } catch (error) {
+    const now = await status().catch(() => undefined);
+    if (now && now.state !== "unlocked") throw new Error(statusMessage(OP.name, ID, now));
+    throw error;
+  }
 }
 
 const matches = (f: Field, name: string, section?: string) =>
@@ -106,7 +142,11 @@ export const onepassword: PasswordManager = {
   async lock() {
     const conn = (await listConnections()).find((c) => c.provider === ID);
     if (!conn) return;
-    await op(["signout"]).catch(() => undefined);
+    const a = await auth();
+    if (a && a.kind !== "service-account") await opWith(a, ["signout"]).catch(() => undefined);
     await keychain.delete(ID, sessionAccount(conn.account));
+    await removeConnection(ID);
   },
+
+  status,
 };

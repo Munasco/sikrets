@@ -1,16 +1,17 @@
 import { useState } from "react";
 import { Fingerprint, ShieldCheck, X } from "lucide-react";
-import { sikrets, type Approval } from "../api.ts";
-import { ago, Button, Chip, Empty, ErrorLine, message, until, useLoad, useToast, cn } from "../ui.tsx";
+import { needsAnswer, sikrets, type Approval } from "../api.ts";
+import { ago, Button, Chip, Empty, ErrorLine, message, shown, until, useLoad, useRefresh, useToast, cn } from "../ui.tsx";
 
 // Doorman requests waiting for a person. Approve asks for Touch ID, then rotates; deny leaves the
-// key as it is.
+// key as it is. A failed rotation can be approved again (retry) or denied.
 
-const TONE = { pending: "warn", rotated: "good", approved: "good", denied: "plain", expired: "info", failed: "bad" } as const;
+const TONE = { pending: "warn", rotating: "info", rotated: "good", denied: "plain", expired: "info", failed: "bad" } as const;
 
 export function Approvals() {
   const [all, setAll] = useState(false);
-  const { data, error, loading, reload } = useLoad(() => sikrets<Approval[]>(["approvals", "list", ...(all ? ["--all"] : [])]), [all]);
+  const list = useLoad(() => sikrets<Approval[]>(["approvals", "list", ...(all ? ["--all"] : [])]), [all]);
+  const data = shown(list);
 
   return (
     <div className="flex flex-col gap-4 p-5">
@@ -27,10 +28,10 @@ export function Approvals() {
           ))}
         </div>
       </div>
-      <ErrorLine error={error} />
+      {list.status === "error" && <ErrorLine error={list.error} />}
       <div className="flex flex-col gap-2">
-        {data?.map((a) => <Request key={a.id} req={a} onDone={reload} />)}
-        {!loading && !error && !data?.length && (
+        {data?.map((a) => <Request key={a.id} req={a} />)}
+        {list.status === "ready" && !list.data.length && (
           <div className="rounded-lg border border-line bg-white">
             <Empty icon={<ShieldCheck className="size-4" />} title="Nothing waiting" />
           </div>
@@ -40,8 +41,10 @@ export function Approvals() {
   );
 }
 
-function Request({ req: a, onDone }: { req: Approval; onDone: () => void }) {
+function Request({ req: a }: { req: Approval }) {
   const toast = useToast();
+  // Reloads every screen, the sidebar badge and the menu-bar count, not just this list.
+  const refresh = useRefresh();
   const [busy, setBusy] = useState<"approve" | "deny">();
 
   async function act(kind: "approve" | "deny") {
@@ -50,13 +53,13 @@ function Request({ req: a, onDone }: { req: Approval; onDone: () => void }) {
       const out = await sikrets<Approval>(["approvals", kind, a.id]);
       if (out.status === "rotated") toast(`Approved · ${a.resource} rotated`);
       else if (out.status === "denied") toast(`Denied · ${a.resource} unchanged`);
-      else if (out.status === "failed") toast(`Approved, but the rotation failed`, "bad");
       else toast("No answer; still waiting");
-      onDone();
     } catch (e) {
-      toast(message(e), "bad");
+      // A rotation that fails after approval exits non-zero; the request is now "failed" and can be retried.
+      toast(kind === "approve" ? `Rotation of ${a.resource} failed: ${message(e)}` : message(e), "bad");
     } finally {
       setBusy(undefined);
+      refresh();
     }
   }
 
@@ -71,19 +74,20 @@ function Request({ req: a, onDone }: { req: Approval; onDone: () => void }) {
           <Chip tone={TONE[a.status]}>{a.status}</Chip>
         </div>
         <p className="mt-0.5 text-[12.5px] text-ink-soft">{a.message}</p>
+        {a.status === "failed" && a.error && <p className="selectable mt-0.5 text-[12px] text-rust">{a.error}</p>}
       </div>
       <div className="text-right font-mono text-[11px] text-dim">
         <div>{ago(a.createdAt)}</div>
-        {a.status === "pending" && <div>expires {until(a.expiresAt)}</div>}
+        {needsAnswer(a) && <div>expires {until(a.expiresAt)}</div>}
         {a.decidedBy && <div>via {a.decidedBy}</div>}
       </div>
-      {a.status === "pending" && (
+      {needsAnswer(a) && (
         <div className="flex gap-1.5">
           <Button variant="quiet" busy={busy === "deny"} disabled={!!busy} onClick={() => act("deny")} aria-label={`Deny ${a.id}`}>
             <X className="size-3.5" /> Deny
           </Button>
           <Button variant="primary" busy={busy === "approve"} disabled={!!busy} onClick={() => act("approve")} aria-label={`Approve ${a.id} with Touch ID`}>
-            {busy !== "approve" && <Fingerprint className="size-3.5" />} Approve
+            {busy !== "approve" && <Fingerprint className="size-3.5" />} {a.status === "failed" ? "Retry" : "Approve"}
           </Button>
         </div>
       )}

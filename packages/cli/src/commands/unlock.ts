@@ -4,10 +4,16 @@ import { readSecretInput } from "./secret-input.ts";
 
 // `sikrets unlock <manager>` signs in to a password manager's CLI and keeps the session in the OS
 // keychain, so link, import and rotate write-back can use it without asking again.
-// `sikrets lock <manager>` locks it and forgets the session.
+// `sikrets unlock <manager> --lock` locks it and forgets the session; `--status` checks it with the
+// manager's CLI: unauthenticated, locked, expired or unlocked.
 export async function run(args: string[], opts: Record<string, unknown>) {
   const m = manager(args[0]!);
   const say = (s: string) => log(opts, s);
+  if (opts.status) {
+    const s = await m.status();
+    if (opts.json) return console.log(JSON.stringify({ manager: m.id, ...s }));
+    return say(`${m.name}: ${s.state}${"account" in s && s.account ? ` (${s.account})` : ""}`);
+  }
   if (opts.lock) {
     await m.lock();
     if (opts.json) return console.log(JSON.stringify({ manager: m.id, locked: true }));

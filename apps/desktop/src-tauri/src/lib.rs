@@ -42,6 +42,8 @@ struct Settings {
 
 struct AppState {
     settings: Mutex<Settings>,
+    /// Why settings.json couldn't be read at start, if it couldn't; shown in the window.
+    settings_error: Option<String>,
     approvals_item: Mutex<Option<MenuItem<tauri::Wry>>>,
 }
 
@@ -60,25 +62,35 @@ struct Info {
     /// Whether the project folder has a sikrets.json yet.
     initialized: bool,
     version: String,
+    settings_error: Option<String>,
 }
 
 fn settings_path(app: &AppHandle) -> Option<PathBuf> {
     app.path().app_config_dir().ok().map(|d| d.join(SETTINGS_FILE))
 }
 
-fn load_settings(app: &AppHandle) -> Settings {
-    settings_path(app)
-        .and_then(|p| std::fs::read_to_string(p).ok())
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default()
+/// No file yet is a fresh install; a file that can't be read or parsed is an error to show.
+fn load_settings(app: &AppHandle) -> Result<Settings, String> {
+    let Some(path) = settings_path(app) else { return Ok(Settings::default()) };
+    match std::fs::read_to_string(&path) {
+        Ok(text) => serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display())),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Settings::default()),
+        Err(e) => Err(format!("{}: {e}", path.display())),
+    }
 }
 
+/// Writes a temp file beside settings.json and renames it over, so a crash never leaves half a file.
 fn save_settings(app: &AppHandle, settings: &Settings) -> Result<(), String> {
     let path = settings_path(app).ok_or("No config folder for the app")?;
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
-    std::fs::write(path, serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
+    let tmp = path.with_extension(format!("json.{}.tmp", std::process::id()));
+    std::fs::write(&tmp, serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, &path).map_err(|e| {
+        let _ = std::fs::remove_file(&tmp);
+        e.to_string()
+    })
 }
 
 /// The sidecar sits next to the app's own executable, in dev and in the bundle.
@@ -161,6 +173,7 @@ fn info(state: State<'_, AppState>) -> Result<Info, String> {
         initialized: project.as_ref().is_some_and(|p| Path::new(p).join(CONFIG_FILE).is_file()),
         project,
         version: env!("CARGO_PKG_VERSION").to_string(),
+        settings_error: state.settings_error.clone(),
     })
 }
 
@@ -169,9 +182,12 @@ fn set_project(app: AppHandle, state: State<'_, AppState>, path: String) -> Resu
     if !Path::new(&path).is_dir() {
         return Err(format!("{path} is not a folder"));
     }
+    // Saved first, switched second: if the save fails, the app keeps using the old project and says so.
     let mut settings = state.settings.lock().map_err(|e| e.to_string())?;
-    settings.project = Some(path);
-    save_settings(&app, &settings)
+    let next = Settings { project: Some(path), ..settings.clone() };
+    save_settings(&app, &next).map_err(|e| format!("Couldn't save the project choice: {e}"))?;
+    *settings = next;
+    Ok(())
 }
 
 /// Single-quotes a word for a POSIX shell.
@@ -268,7 +284,11 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
             let handle = app.handle().clone();
-            app.manage(AppState { settings: Mutex::new(load_settings(&handle)), approvals_item: Mutex::new(None) });
+            let (settings, settings_error) = match load_settings(&handle) {
+                Ok(s) => (s, None),
+                Err(e) => (Settings::default(), Some(e)),
+            };
+            app.manage(AppState { settings: Mutex::new(settings), settings_error, approvals_item: Mutex::new(None) });
 
             let open = MenuItem::with_id(app, "open", "Open Sikrets", true, None::<&str>)?;
             let approvals = MenuItem::with_id(app, "approvals", "Approvals", true, None::<&str>)?;

@@ -1,4 +1,4 @@
-import { deviceClient, readSession, writeSession, type Approval } from "../core/device-auth.ts";
+import { deviceClient, readSession, revokeStale, writeSession, type Approval } from "../core/device-auth.ts";
 import { describeKind, thisDevice } from "../core/device.ts";
 import { log } from "../ui.ts";
 import { DEVICE_AUTH, ENV, REVEAL } from "../constants.ts";
@@ -30,10 +30,15 @@ export async function run(_args: string[], opts: Record<string, unknown>) {
     say(`Check the page shows ${userCode}.`);
     if (!opts["no-browser"]) browser.open(url);
   };
-  const session = await deviceClient({ server, device }).login({ approve });
+  const client = deviceClient({ server, device });
+  const fresh = await client.login({ approve });
+  await writeSession(fresh); // signed in, whatever happens next
+  // This key's earlier sign-ins on this server (and ones left by replaced keys) are revoked now,
+  // so the key isn't still accepted under an old id. Any that fail are kept, for logout or next login.
+  const session = await revokeStale(client, fresh, previous);
   await writeSession(session);
-  // The old registration is replaced; it stays listed (and usable until revoked) on its server.
-  if (previous && previous.deviceId !== session.deviceId) say(`Replaced the earlier sign-in (${previous.deviceId}); revoke it with: sikrets devices revoke ${previous.deviceId}`);
+  const left = (session.registrations ?? []).filter((id) => id !== session.deviceId);
+  if (left.length) say(`Couldn't revoke the earlier sign-in${left.length > 1 ? "s" : ""} ${left.join(", ")}; sikrets logout will try again.`);
 
   if (opts.json) return console.log(JSON.stringify({ server: session.server, user: session.user, deviceId: session.deviceId, kind: session.kind, hardwareBound: session.hardwareBound }));
   say(`Signed in as ${session.user} on ${session.server}. This device is ${session.deviceId}, with a ${describeKind(session)}.`);

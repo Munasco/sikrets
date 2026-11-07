@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { CheckCircle2, CircleAlert, CircleDashed, FolderOpen, Loader2, Terminal } from "lucide-react";
 import { chooseProject, openTerminal, sikrets, type Info, type Recovery } from "../api.ts";
 import { savedTheme, setTheme, type Theme } from "../theme.ts";
-import { Button, Chip, message, Panel, Segmented, Snippet, useLoad, useToast, useRefresh } from "../ui.tsx";
+import { Button, Chip, message, Panel, Segmented, Snippet, shown, useLoad, useToast, useRefresh } from "../ui.tsx";
 
 // Project folder, recovery status (setup runs in Terminal: the code is shown once, to a person),
 // how to connect ChatGPT and Claude to this project over MCP, and the theme.
@@ -19,6 +19,14 @@ function Group({ title, aside, children }: { title: string; aside?: ReactNode; c
     </section>
   );
 }
+
+const RECOVERY_NOTE: Record<Recovery["state"], string> = {
+  ok: "A code you keep offline restores your vault on a new Mac.",
+  "not set up": "Without it, losing this Mac loses the vault key.",
+  mismatch: "Unlocks a different key than this device's. Rotate it.",
+  used: "This code was used to restore. Rotate it for a fresh one.",
+  "no key on this device": "This Mac has no vault key yet. Restore with: sikrets recovery restore",
+};
 
 export function Settings({ info }: { info: Info }) {
   const toast = useToast();
@@ -40,8 +48,9 @@ export function Settings({ info }: { info: Info }) {
     chatgpt: `codex mcp add sikrets -- ${sh(cli)} mcp --root ${sh(root)}`,
   };
 
-  const r = recovery.data;
-  const recoveryIcon = !info.project ? <CircleDashed className="size-4 shrink-0 text-dim" /> : !r && !recovery.error ? <Loader2 className="size-4 shrink-0 animate-spin text-dim" /> : r?.setUp ? <CheckCircle2 className="size-4 shrink-0 text-pine" /> : <CircleAlert className="size-4 shrink-0 text-amber" />;
+  const r = shown(recovery);
+  const recoveryError = recovery.status === "error" ? recovery.error : undefined;
+  const recoveryIcon = !info.project ? <CircleDashed className="size-4 shrink-0 text-dim" /> : !r && !recoveryError ? <Loader2 className="size-4 shrink-0 animate-spin text-dim" /> : r?.state === "ok" ? <CheckCircle2 className="size-4 shrink-0 text-pine" /> : <CircleAlert className="size-4 shrink-0 text-amber" />;
   return (
     <div className="flex max-w-[880px] flex-col gap-5 p-5">
       <Group title="Project">
@@ -69,7 +78,7 @@ export function Settings({ info }: { info: Info }) {
               Set up here
             </Button>
           )}
-          <Button variant={info.project ? "quiet" : "primary"} onClick={async () => (await chooseProject()) && refresh()}>
+          <Button variant={info.project ? "quiet" : "primary"} onClick={() => chooseProject().then((p) => p && refresh(), (e) => toast(`Couldn't switch project: ${message(e)}`, "bad"))}>
             {info.project ? "Change" : "Choose…"}
           </Button>
         </div>
@@ -85,13 +94,11 @@ export function Settings({ info }: { info: Info }) {
           <div className="flex min-h-[52px] items-center gap-3 p-3">
             {recoveryIcon}
             <div className="min-w-0 flex-1">
-              <p className="text-[13px]">{recovery.error ? "Couldn't check" : !r ? "Checking…" : r.setUp ? `Set up ${r.createdAt?.slice(0, 10)}${r.split ? " · split 2 of 3" : ""}` : "Not set up"}</p>
-              <p className="text-[12px] text-ink-soft">
-                {recovery.error ? message(recovery.error) : r?.setUp ? (r.matchesThisDevice === false ? "Unlocks a different key than this device's. Rotate it." : "A code you keep offline restores your vault on a new Mac.") : "Without it, losing this Mac loses the vault key."}
-              </p>
+              <p className="text-[13px]">{recoveryError ? "Couldn't check" : !r ? "Checking…" : r.setUp ? `Set up ${r.createdAt?.slice(0, 10)}${r.split ? " · split 2 of 3" : ""}` : "Not set up"}</p>
+              <p className="text-[12px] text-ink-soft">{recoveryError ? message(recoveryError) : r ? RECOVERY_NOTE[r.state] : null}</p>
             </div>
             {r && (
-              <Button variant={r.setUp ? "quiet" : "primary"} onClick={() => openTerminal(["recovery", r.setUp ? "rotate" : "setup"]).catch((e) => toast(message(e), "bad"))}>
+              <Button variant={r.state === "ok" ? "quiet" : "primary"} onClick={() => openTerminal(["recovery", r.setUp ? "rotate" : "setup"]).catch((e) => toast(message(e), "bad"))}>
                 <Terminal className="size-3.5" /> {r.setUp ? "Rotate code" : "Set up"}
               </Button>
             )}

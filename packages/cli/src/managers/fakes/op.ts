@@ -31,6 +31,10 @@ const [cmd, sub, target] = args;
 if (cmd === "account" && sub === "list") console.log(JSON.stringify([{ url: "my.1password.com", email: "dev@example.com", user_uuid: USER, account_uuid: "ACCT" }]));
 else if (cmd === "signin") process.stdout.write(SESSION);
 else if (cmd === "signout") void 0;
+else if (cmd === "whoami") {
+  signedIn();
+  console.log(JSON.stringify({ user_uuid: USER, email: "dev@example.com" }));
+}
 else if (cmd === "read") {
   signedIn();
   const [vault, title, ...rest] = sub!.slice("op://".length).split("/");

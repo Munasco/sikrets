@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { KeyRound, Link2, RotateCw, Search } from "lucide-react";
 import { sikrets, type Approval, type KeyRow } from "../api.ts";
 import type { Route } from "../App.tsx";
-import { ago, Chip, CopyButton, Empty, ErrorLine, IconButton, Kbd, message, Tip, useLoad, useToast } from "../ui.tsx";
+import { ago, Chip, CopyButton, Empty, ErrorLine, IconButton, Kbd, message, shown, Tip, useLoad, useRefresh, useToast } from "../ui.tsx";
 
 // The inventory: every stored key with its age and use. Names and dates only, never a value.
 // Rotating files a Doorman request, which asks for Touch ID before anything changes.
 
 export function Keys({ go }: { go: (r: Route) => void }) {
-  const { data, error, loading, reload } = useLoad(() => sikrets<{ keys: KeyRow[] }>(["inventory"]));
+  const inventory = useLoad(() => sikrets<{ keys: KeyRow[] }>(["inventory"]));
+  const data = shown(inventory);
   const [q, setQ] = useState("");
   const search = useRef<HTMLInputElement>(null);
 
@@ -42,7 +43,7 @@ export function Keys({ go }: { go: (r: Route) => void }) {
         </label>
       </div>
 
-      <ErrorLine error={error} />
+      {inventory.status === "error" && <ErrorLine error={inventory.error} />}
 
       <div className="scroll-thin overflow-x-auto rounded-lg border border-line bg-white">
         <table className="w-full text-left text-[12.5px] whitespace-nowrap">
@@ -55,16 +56,16 @@ export function Keys({ go }: { go: (r: Route) => void }) {
           </thead>
           <tbody>
             {rows.map((r) => (
-              <KeyLine key={r.key} row={r} onRotated={reload} go={go} />
+              <KeyLine key={r.key} row={r} go={go} />
             ))}
           </tbody>
         </table>
-        {!loading && !rows.length && !error && (
+        {inventory.status === "ready" && !rows.length && (
           <Empty icon={<KeyRound className="size-4" />} title={q ? "No keys match" : "No keys yet"}>
             {!q && <>Add one with <span className="font-mono">sikrets add</span>, or use Import.</>}
           </Empty>
         )}
-        {loading && !data && <div className="h-24 animate-pulse bg-cream/40" />}
+        {inventory.status === "loading" && !data && <div className="h-24 animate-pulse bg-cream/40" />}
       </div>
     </div>
   );
@@ -79,8 +80,9 @@ function Stat({ n, label, tone }: { n?: number; label: string; tone?: "warn" | "
   );
 }
 
-function KeyLine({ row: r, onRotated, go }: { row: KeyRow; onRotated: () => void; go: (r: Route) => void }) {
+function KeyLine({ row: r, go }: { row: KeyRow; go: (r: Route) => void }) {
   const toast = useToast();
+  const refresh = useRefresh();
   const [busy, setBusy] = useState(false);
   const usedBy = [...r.apps, ...r.agents.map((a) => `agent:${a}`)];
   const imported = !r.resource;
@@ -97,11 +99,11 @@ function KeyLine({ row: r, onRotated, go }: { row: KeyRow; onRotated: () => void
         toast(`Waiting for approval`);
         go("approvals");
       }
-      onRotated();
     } catch (e) {
       toast(message(e), "bad");
     } finally {
       setBusy(false);
+      refresh(); // keys, approvals and the pending badge all changed
     }
   }
 

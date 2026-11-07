@@ -18,7 +18,7 @@ export async function projectEnv(root: string, agent?: string): Promise<Env> {
   const live = resources.filter((x) => x.applied);
   const external = (await externalKeys(root)).map(({ key }) => key);
   const offers = [...live.flatMap((r) => r.envKeys.map((key) => ({ key, resource: r.name }))), ...external.map((key) => ({ key }))];
-  const allowed = agent ? new Set(await authorize(root, agent, offers)) : undefined;
+  const allowed = agent ? new Set((await authorize(root, agent, offers)).keys) : undefined;
   const env: Env = {};
   for (const r of live) {
     for (const key of r.envKeys.filter((k) => !allowed || allowed.has(k))) {
