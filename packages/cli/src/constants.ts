@@ -38,6 +38,15 @@ export const FILES = {
   keys: "keys.json",
 } as const;
 export const IAC_DIR = "iac/terraform";
+/** Cross-process lock next to a file another sikrets process may write at the same time. */
+export const FILE_LOCK = {
+  suffix: ".lock",
+  retryMs: 20,
+  /** Give up waiting after this long. */
+  timeoutMs: 10_000,
+  /** A lock older than this (or whose process is gone) was left by a crash and is taken over. */
+  staleMs: 30_000,
+} as const;
 
 // ── Defaults for sikrets.json ─────────────────────────────────────────────
 export const DEFAULTS = {
@@ -90,6 +99,8 @@ export const PASSWORD_MANAGERS = {
     binEnv: ENV.bw,
     /** Env var the bw CLI reads its unlocked session from. */
     sessionEnv: "BW_SESSION",
+    /** Where bw points when no self-hosted server is configured. */
+    defaultServer: "https://vault.bitwarden.com",
     /** Env var we hand the master password through, so it never appears in argv. */
     passwordEnv: "SIKRETS_BW_PASSWORD",
     /** Where bw keeps its config and encrypted cache; set it to isolate a test run. */
