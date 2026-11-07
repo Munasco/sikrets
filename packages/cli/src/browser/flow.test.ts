@@ -3,7 +3,7 @@ import { mkdtemp } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { Driver } from "./driver.ts";
-import { EXIT_CODES, FlowError, runFlow, waitFor, type Step } from "./flow.ts";
+import { EXIT_CODES, expectOutput, FlowError, runFlow, waitFor, type Step } from "./flow.ts";
 
 // A scripted page and a fake clock: every run of these tests sees exactly the same timeline.
 function harness() {
@@ -113,5 +113,97 @@ describe("runFlow", () => {
       return runFlow(h.driver, [h.step({ retries: 1, done: async (_d, s) => s.runs >= 2 })], { runs: 0 }, await h.opts());
     };
     expect(await outcome()).toEqual(await outcome());
+  });
+});
+
+describe("site changes", () => {
+  test("a missing element while signed in is a site change, and gets recorded", async () => {
+    const h = harness();
+    const drifts: { flow: string; step: string }[] = [];
+    const opts = { ...(await h.opts()), signedIn: async () => true, onDrift: async (d: { flow: string; step: string }) => void drifts.push(d) };
+    const step = h.step({ id: "create", run: async (d) => void (await waitFor(d, { css: "#create" }, "create", 200, opts)) });
+    const err = await runFlow(h.driver, [step], { runs: 0 }, opts).catch((e) => e);
+    expect(err).toBeInstanceOf(FlowError);
+    expect((err as FlowError).kind).toBe("site-changed");
+    expect((err as FlowError).exitCode).toBe(EXIT_CODES["site-changed"]);
+    expect(drifts).toEqual([{ flow: "test", step: "create", url: "https://console.example.com/", message: expect.any(String) } as never]);
+  });
+
+  test("the same failure while signed out is a lost session, not a site change", async () => {
+    const h = harness();
+    const drifts: unknown[] = [];
+    const opts = { ...(await h.opts()), signedIn: async () => false, onDrift: async (d: unknown) => void drifts.push(d) };
+    const step = h.step({ id: "create", run: async (d) => void (await waitFor(d, { css: "#create" }, "create", 200, opts)) });
+    const err = (await runFlow(h.driver, [step], { runs: 0 }, opts).catch((e) => e)) as FlowError;
+    expect(err.kind).toBe("signed-out");
+    expect(drifts).toEqual([]);
+  });
+
+  test("a timeout while signed in is not a site change", async () => {
+    const h = harness();
+    const drifts: unknown[] = [];
+    const opts = { ...(await h.opts()), signedIn: async () => true, onDrift: async (d: unknown) => void drifts.push(d) };
+    const err = (await runFlow(h.driver, [h.step({ id: "slow", timeoutMs: 100 })], { runs: 0 }, opts).catch((e) => e)) as FlowError;
+    expect(err.kind).toBe("timeout");
+    expect(drifts).toEqual([]);
+  });
+
+  test("a sign-in check that fails is not taken as signed in", async () => {
+    const h = harness();
+    const drifts: unknown[] = [];
+    const opts = { ...(await h.opts()), signedIn: async () => Promise.reject(new Error("browser gone")), onDrift: async (d: unknown) => void drifts.push(d) };
+    const step = h.step({ id: "create", run: async (d) => void (await waitFor(d, { css: "#create" }, "create", 200, opts)) });
+    const err = (await runFlow(h.driver, [step], { runs: 0 }, opts).catch((e) => e)) as FlowError;
+    expect(err.kind).toBe("missing");
+    expect(drifts).toEqual([]);
+  });
+
+  test("the Upstash mint uses the same rule: a slow page is not drift, a missing button on a loaded one is", async () => {
+    const { evidence } = await import("../providers/upstash/index.ts");
+    const timeout = Object.assign(new Error("locator.click: Timeout 30000ms exceeded"), { name: "TimeoutError" });
+    const page = (readyState: string) => ({ evaluate: async () => readyState }) as never;
+    expect(await evidence(page("loading"), timeout)).toBe("timeout");
+    expect(await evidence(page("complete"), timeout)).toBe("missing");
+    expect(await evidence(page("complete"), new Error("net::ERR_INTERNET_DISCONNECTED"))).toBe("driver");
+    const { classify } = await import("./drift.ts");
+    expect(classify("missing", true)).toBe("site-changed");
+    expect(classify("timeout", true)).toBe("timeout");
+    expect(classify("missing", undefined)).toBe("missing");
+  });
+
+  test("output that no longer matches is a site change once signed in is confirmed", async () => {
+    const { classify } = await import("./drift.ts");
+    expect(classify("unexpected-output", true)).toBe("site-changed");
+    expect(() => expectOutput("Your key: (hidden)", /[A-Za-z0-9_-]{30,}/, "read-key")).toThrow("unexpected-output");
+    expect(expectOutput("x".repeat(32), /[A-Za-z0-9_-]{30,}/, "read-key")).toBe("x".repeat(32));
+  });
+});
+
+describe("drift log", () => {
+  test("keeps origin and path only, and builds an issue link without page content", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "sikrets-drift-"));
+    const prev = Bun.env.SIKRETS_CONFIG_DIR;
+    Bun.env.SIKRETS_CONFIG_DIR = dir;
+    try {
+      const { recordDrift, driftLog, driftIssueUrl } = await import("./drift.ts");
+      const { drift: d, report } = await recordDrift({ flow: "upstash/api-key", step: "Submit", url: "https://console.upstash.com/account/api?token=abc#x", message: "button never appeared" });
+      expect(report).toBe(true);
+      expect(d.page).toBe("https://console.upstash.com/account/api");
+      expect(await driftLog()).toEqual([d]);
+      const url = new URL(driftIssueUrl(d));
+      expect(url.searchParams.get("title")).toBe("Site changed: upstash/api-key (Submit)");
+      expect(url.search).not.toContain("token");
+
+      // The same drift again in this version: logged, but the link isn't offered again.
+      const again = await recordDrift({ flow: "upstash/api-key", step: "Submit", url: "https://console.upstash.com/account/api", message: "button never appeared" });
+      expect(again.report).toBe(false);
+      expect(again.drift.reportedAt).toBeUndefined();
+      // A torn line from a crash mid-append doesn't break reading.
+      await Bun.write(path.join(dir, "drift.jsonl"), (await Bun.file(path.join(dir, "drift.jsonl")).text()) + '{"flow":"x","st');
+      expect(await driftLog()).toHaveLength(2);
+    } finally {
+      if (prev === undefined) delete Bun.env.SIKRETS_CONFIG_DIR;
+      else Bun.env.SIKRETS_CONFIG_DIR = prev;
+    }
   });
 });

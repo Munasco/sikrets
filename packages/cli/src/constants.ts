@@ -5,6 +5,7 @@
 export const SITE_URL = "https://sikrets.usetennant.com";
 export const SCHEMA_URL = `${SITE_URL}/schema.json`;
 export const USER_AGENT = "sikrets-cli";
+export const REPO_URL = "https://github.com/Munasco/sikrets";
 
 // ── Environment variables Sikrets reads ───────────────────────────────────
 export const ENV = {
@@ -30,6 +31,8 @@ export const FILES = {
   journal: "journal.json",
   activity: "activity.jsonl",
   connections: "connections.json",
+  /** Per-user log of provider sites that no longer match their flows. */
+  drift: "drift.jsonl",
 } as const;
 export const IAC_DIR = "iac/terraform";
 

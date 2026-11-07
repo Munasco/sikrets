@@ -1,6 +1,7 @@
 import path from "node:path";
 import { writeJson } from "../core/fs.ts";
 import { configDir } from "../store.ts";
+import { classify } from "./drift.ts";
 import { describeTarget, type Driver, type Target } from "./driver.ts";
 
 // Deterministic flows. Every step states what "done" looks like, so the runner can:
@@ -8,10 +9,12 @@ import { describeTarget, type Driver, type Target } from "./driver.ts";
 //   - retry a step a fixed number of times, with a fixed timeout, then stop,
 //   - classify every failure into one of a few kinds with a fixed exit code,
 //   - save a screenshot, URL and step log for each failure,
-//   - hand a step to the person at the keyboard when the flow says it may, then carry on.
+//   - hand a step to the person at the keyboard when the flow says it may, then carry on,
+//   - tell "the site changed" apart from "you're signed out" using the flow's signed-in check,
+//     and record site changes so the flow gets fixed (see drift.ts).
 // The same inputs and the same page state always produce the same sequence of actions and outcome.
 
-export type FailureKind = "timeout" | "missing" | "unexpected-page" | "needs-human" | "driver";
+export type FailureKind = "timeout" | "missing" | "unexpected-page" | "unexpected-output" | "needs-human" | "driver" | "site-changed" | "signed-out";
 
 export const EXIT_CODES: Readonly<Record<FailureKind, number>> = {
   timeout: 20,
@@ -19,6 +22,9 @@ export const EXIT_CODES: Readonly<Record<FailureKind, number>> = {
   "unexpected-page": 22,
   "needs-human": 23,
   driver: 24,
+  "site-changed": 25,
+  "signed-out": 26,
+  "unexpected-output": 27,
 };
 
 export class FlowError extends Error {
@@ -67,6 +73,19 @@ export interface FlowOptions {
   readonly now?: () => number;
   readonly sleep?: (ms: number) => Promise<void>;
   readonly artifactsDir?: string;
+  /**
+   * True while the provider shows a signed-in page (e.g. the account menu is there). Lets a step
+   * that can't find its element be reported as a site change rather than a lost session.
+   */
+  readonly signedIn?: (driver: Driver) => Promise<boolean>;
+  /** Records a site change. Defaults to the local drift log; tests pass their own. */
+  readonly onDrift?: (d: { flow: string; step: string; url: string; message: string }) => Promise<unknown>;
+}
+
+/** The page's own output didn't have the expected shape (e.g. no key in the dialog). A site change if still signed in. */
+export function expectOutput(value: string | undefined, pattern: RegExp, step: string): string {
+  if (value === undefined || !pattern.test(value)) throw new FlowError("unexpected-output", step, `the page no longer shows what this step reads (expected ${pattern})`);
+  return value;
 }
 
 export async function runFlow<S>(driver: Driver, steps: readonly Step<S>[], state: S, opts: FlowOptions): Promise<StepRecord[]> {
@@ -136,6 +155,16 @@ export async function runFlow<S>(driver: Driver, steps: readonly Step<S>[], stat
       }
       record.failure = "needs-human";
       await fail(step, "needs-human", `handed off after: ${lastMessage}`);
+    }
+    // One rule (drift.ts classify): missing/unexpected while confirmed signed in is a site change,
+    // signed out a lost session; timeouts, driver errors and an unknown sign-in state keep their kind.
+    if (lastKind === "missing" || lastKind === "unexpected-page" || lastKind === "unexpected-output") {
+      const signedIn = opts.signedIn ? await opts.signedIn(driver).catch(() => undefined) : undefined;
+      lastKind = classify(lastKind, signedIn);
+    }
+    if (lastKind === "site-changed") {
+      const onDrift = opts.onDrift ?? (async (d) => (await import("./drift.ts")).recordDrift(d));
+      await onDrift({ flow: opts.name, step: step.id, url: await driver.url().catch(() => ""), message: lastMessage }).catch(() => {});
     }
     record.failure = lastKind;
     await fail(step, lastKind, lastMessage);
