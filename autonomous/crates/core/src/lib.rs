@@ -77,6 +77,18 @@ pub enum Posture {
     Compromised = 3,
 }
 
+impl Posture {
+    pub const fn from_code(code: u8) -> Option<Self> {
+        Some(match code {
+            0 => Posture::Healthy,
+            1 => Posture::Unknown,
+            2 => Posture::Suspicious,
+            3 => Posture::Compromised,
+            _ => return None,
+        })
+    }
+}
+
 /// One request to do something. `Copy`, 40 bytes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Action {
@@ -110,6 +122,31 @@ pub enum Reason {
 }
 
 impl Reason {
+    pub const ALL: [Reason; 11] = [
+        Reason::UnknownResource,
+        Reason::KindNotAllowed,
+        Reason::NoGrant,
+        Reason::GrantExpired,
+        Reason::GrantMismatch,
+        Reason::DevicePosture,
+        Reason::DestinationNotAllowed,
+        Reason::CeilingExceeded,
+        Reason::Frozen,
+        Reason::NeedsApproval,
+        Reason::GrantRevoked,
+    ];
+
+    pub const fn from_code(code: u8) -> Option<Self> {
+        let mut i = 0;
+        while i < Self::ALL.len() {
+            if Self::ALL[i] as u8 == code {
+                return Some(Self::ALL[i]);
+            }
+            i += 1;
+        }
+        None
+    }
+
     pub const fn describe(self) -> &'static str {
         match self {
             Reason::UnknownResource => "resource has no policy",
@@ -148,6 +185,18 @@ impl Decision {
             Decision::Escalate(r) => 0x80 | r as u8,
         }
     }
+    /// Inverse of [`Decision::code`], for decisions read back from a ledger.
+    pub const fn from_code(code: u8) -> Option<Self> {
+        if code == 0 {
+            return Some(Decision::Allow);
+        }
+        match Reason::from_code(code & 0x7f) {
+            Some(r) if code & 0x80 != 0 => Some(Decision::Escalate(r)),
+            Some(r) => Some(Decision::Deny(r)),
+            None => None,
+        }
+    }
+
     pub const fn reason(self) -> Option<Reason> {
         match self {
             Decision::Allow => None,
@@ -251,5 +300,13 @@ mod tests {
     fn decision_codes_are_distinct() {
         assert_eq!(Decision::Allow.code(), 0);
         assert_ne!(Decision::Deny(Reason::NeedsApproval).code(), Decision::Escalate(Reason::NeedsApproval).code());
+        for r in Reason::ALL {
+            for d in [Decision::Deny(r), Decision::Escalate(r)] {
+                assert_eq!(Decision::from_code(d.code()), Some(d));
+            }
+        }
+        assert_eq!(Decision::from_code(0), Some(Decision::Allow));
+        assert_eq!(Decision::from_code(0x7f), None);
+        assert_eq!(Posture::from_code(Posture::Compromised as u8), Some(Posture::Compromised));
     }
 }

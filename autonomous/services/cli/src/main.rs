@@ -5,7 +5,7 @@ mod report;
 
 use clap::{Parser, Subcommand};
 use ed25519_dalek::VerifyingKey;
-use sikrets_audit::{Item, Namespace, read};
+use sikrets_audit::{Event, Item, Namespace, read};
 use sikrets_core::format_usd;
 use sikrets_policy::Engine;
 use sikrets_scan::{AccessGraph, Graph, scan};
@@ -189,6 +189,37 @@ fn ledger(command: LedgerCommand) -> Result<ExitCode> {
                         v.resize(id as usize + 1, String::new());
                     }
                     v[id as usize] = name.to_owned();
+                }
+                Item::Event(event) => {
+                    if blocked {
+                        return;
+                    }
+                    let at = |ms: u64| {
+                        jiff::Timestamp::from_millisecond(ms as i64).map(|t| t.strftime("%H:%M:%S").to_string()).unwrap_or_default()
+                    };
+                    let (when, what) = match event {
+                        Event::Grant { at: t, id, principal, resource, not_after, .. } => (
+                            t,
+                            format!(
+                                "grant #{} issued: {} on {} until {}",
+                                id.0,
+                                name(&names, Namespace::Principal, principal.0),
+                                name(&names, Namespace::Resource, resource.0),
+                                at(not_after)
+                            ),
+                        ),
+                        Event::Revoke { at: t, grant } => (t, format!("grant #{} revoked", grant.0)),
+                        Event::Posture { at: t, device, posture } => {
+                            (t, format!("device {} is {posture:?}", name(&names, Namespace::Device, device.0)).to_lowercase())
+                        }
+                        Event::Unfreeze { at: t, resource } => {
+                            (t, format!("{} unfrozen early", name(&names, Namespace::Resource, resource.0)))
+                        }
+                        Event::Resolve { at: t, seq, approved } => {
+                            (t, format!("hold {seq} {}", if approved { "approved" } else { "denied" }))
+                        }
+                    };
+                    println!("{:>5}  {}  {what}", "·", at(when));
                 }
                 Item::Decision(e) => {
                     let code = e.decision_code;

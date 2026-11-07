@@ -10,23 +10,9 @@ pub fn outcome(code: u8) -> String {
         return "allowed".into();
     }
     let held = code & 0x80 != 0;
-    let reason = REASONS.iter().find(|r| **r as u8 == code & 0x7f).map(|r| format!("{r:?}")).unwrap_or_else(|| format!("code {code}"));
+    let reason = Reason::ALL.iter().find(|r| **r as u8 == code & 0x7f).map(|r| format!("{r:?}")).unwrap_or_else(|| format!("code {code}"));
     format!("{} {}", if held { "held" } else { "denied" }, snake(&reason))
 }
-
-const REASONS: [Reason; 11] = [
-    Reason::UnknownResource,
-    Reason::KindNotAllowed,
-    Reason::NoGrant,
-    Reason::GrantExpired,
-    Reason::GrantMismatch,
-    Reason::DevicePosture,
-    Reason::DestinationNotAllowed,
-    Reason::CeilingExceeded,
-    Reason::Frozen,
-    Reason::NeedsApproval,
-    Reason::GrantRevoked,
-];
 
 fn snake(camel: &str) -> String {
     let mut s = String::new();

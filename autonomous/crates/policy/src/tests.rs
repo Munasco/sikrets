@@ -141,3 +141,34 @@ fn rejects_bad_policy() {
     let typo = r#"{"resources":{"x":{"allow":["read"],"requires_grants":true}}}"#;
     assert!(Engine::from_json(typo).is_err(), "unknown fields are errors, not silently ignored");
 }
+
+#[test]
+fn replaying_recorded_decisions_restores_ceilings_and_freezes() {
+    // What a restarted gateway does: a fresh engine, then the ledger in order.
+    let mut live = fixture();
+    let mut log = Vec::new();
+    for i in 0..6 {
+        let a = transfer(&live, MIN + i * 1_000, 4_000_000, live.cold);
+        log.push((a, live.e.evaluate(&a)));
+    }
+    let mut f = fixture();
+    for (a, d) in &log {
+        f.e.replay(a, *d);
+    }
+    assert_eq!(f.e.frozen_until(f.wallet, 2 * MIN), Some(MIN + 5_000 + 60 * MIN));
+    assert_eq!(f.e.evaluate(&transfer(&f, 2 * MIN, 1, f.cold)), Decision::Deny(Reason::Frozen));
+    f.e.unfreeze(f.wallet);
+    // The window still holds the $20m that got out, so the next dollar trips it again.
+    assert_eq!(f.e.evaluate(&transfer(&f, 2 * MIN, 1, f.cold)), Decision::Deny(Reason::CeilingExceeded));
+}
+
+#[test]
+fn restored_grants_keep_their_ids() {
+    let f = fixture();
+    let g = f.e.grant_info(f.grant).unwrap();
+    let mut e = Engine::from_json(POLICY).unwrap();
+    e.restore_grant(GrantId(3), g);
+    assert_eq!(e.next_grant(), GrantId(4), "ids after a restore never collide with restored ones");
+    assert!(e.grant_info(GrantId(1)).unwrap().revoked, "skipped ids are void");
+    assert!(!e.revoke(GrantId(1)));
+}

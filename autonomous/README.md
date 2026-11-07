@@ -44,7 +44,7 @@ The internal architecture in `scenarios/` is illustrative, built from public rep
 | `crates/audit` | Append-only ledger: BLAKE3-keyed hash chain, Ed25519-signed checkpoints, self-describing names |
 | `crates/scan` | Proactive exposure scan: every standing path from a compromisable entry point to a value-moving action, in one reverse BFS |
 | `crates/triage` | Model triage behind a `Reasoner` trait (Gemini today). Schema-constrained output, proposals from a fixed action list, invented targets dropped, falls back to deterministic fixes when the model is down |
-| `services/gateway` | HTTP gateway: `POST /v1/decide`, grants, revocation, device posture, ledger head. An `allow` returns only after its ledger entry is on disk |
+| `services/gateway` | HTTP gateway: `POST /v1/decide`, grants, revocation, device posture, hold approval, early unfreeze, ledger head. An `allow` returns only after its ledger entry is on disk; on start it rebuilds grants, posture, freezes, ceilings and pending holds from the ledger |
 | `services/cli` | `sikrets-auto scan`, `replay`, `ledger verify`, `ledger show` |
 
 ## Performance
@@ -73,7 +73,7 @@ curl localhost:7878/v1/decide -d '{"principal":"withdrawal-service","device":"de
 {"decision":"deny","reason":"no_grant","detail":"no access grant; standing access is not allowed here","seq":0}
 ```
 
-Admin routes (grants, revocation, device posture) need `SIKRETS_ADMIN_TOKEN` and are off without it. The ledger key is created on first start (`data/ledger.key`, mode 0600); `ledger.pub` verifies it.
+Admin routes (grants, revocation, device posture, `POST /v1/holds/{seq}/approve|deny`, `POST /v1/resources/{name}/unfreeze`) need `SIKRETS_ADMIN_TOKEN` and are off without it. The ledger key is created on first start (`data/ledger.key`, mode 0600); `ledger.pub` verifies it. If `ledger.bin` exists without its key, the gateway refuses to start.
 
 ## Model triage
 

@@ -4,6 +4,10 @@
 //! no strings, no allocation, no locks, no I/O. A policy is compiled once from JSON into
 //! per-resource [`Rule`]s; grants and device posture change at runtime.
 //!
+//! Runtime state (grants, posture, freezes, ceiling windows) lives only in memory. The gateway
+//! rebuilds it on start by replaying its ledger through [`Engine::restore_grant`],
+//! [`Engine::replay`] and the setters, in ledger order.
+//!
 //! Order of checks, cheapest and most absolute first:
 //! frozen → kind → grant → device posture → destination → approval threshold → value ceilings.
 //! A ceiling breach freezes the resource, so a burst of withdrawals stops at the first one over.
@@ -118,6 +122,13 @@ pub struct Grant {
     pub kinds: Kinds,
     pub not_after: Millis,
     pub revoked: bool,
+}
+
+impl Grant {
+    /// Holds the id of a grant that can't be restored (its resource left the policy), so the id is
+    /// never handed out again. Matches nothing.
+    pub const VOID: Grant =
+        Grant { principal: PrincipalId(u32::MAX), resource: ResourceId(u32::MAX), kinds: Kinds(0), not_after: 0, revoked: true };
 }
 
 /// Names for every id an [`Engine`] knows.
@@ -238,6 +249,21 @@ impl Engine {
         GrantId(self.grants.len() as u32 - 1)
     }
 
+    /// The id the next [`Engine::grant`] returns. Write it to the ledger before issuing.
+    pub fn next_grant(&self) -> GrantId {
+        GrantId(self.grants.len() as u32)
+    }
+
+    /// Puts a grant read back from the ledger at its original id, so ids issued before a restart
+    /// keep meaning the same grant and are never reissued. Skipped ids become [`Grant::VOID`].
+    pub fn restore_grant(&mut self, id: GrantId, grant: Grant) {
+        let i = id.index();
+        if i >= self.grants.len() {
+            self.grants.resize(i + 1, Grant::VOID);
+        }
+        self.grants[i] = grant;
+    }
+
     pub fn revoke(&mut self, grant: GrantId) -> bool {
         self.grants.get_mut(grant.index()).is_some_and(|g| !std::mem::replace(&mut g.revoked, true))
     }
@@ -318,6 +344,32 @@ impl Engine {
             w.add(a.at, a.usd_cents);
         }
         Decision::Allow
+    }
+
+    /// Applies what a decision recorded in the ledger did to runtime state, without deciding again:
+    /// an allowed value counts against the ceilings, and a ceiling breach freezes the resource from
+    /// the time it happened. Replaying a ledger in order rebuilds the windows and freezes.
+    pub fn replay(&mut self, a: &Action, recorded: Decision) {
+        let Some(rule) = self.rules.get_mut(a.resource.index()) else {
+            return;
+        };
+        match recorded {
+            Decision::Allow if a.usd_cents > 0 => {
+                for w in rule.windows.iter_mut() {
+                    w.advance(a.at);
+                    w.add(a.at, a.usd_cents);
+                }
+            }
+            Decision::Deny(Reason::CeilingExceeded) => {
+                rule.frozen_until = rule.frozen_until.max(a.at.saturating_add(rule.freeze_ms));
+            }
+            _ => {}
+        }
+    }
+
+    /// When the resource's freeze ends, if it is frozen at `now`.
+    pub fn frozen_until(&self, r: ResourceId, now: Millis) -> Option<Millis> {
+        self.rules.get(r.index()).map(|rule| rule.frozen_until).filter(|&t| now < t)
     }
 
     /// Lifts a freeze early (a human decided the burst was legitimate).
