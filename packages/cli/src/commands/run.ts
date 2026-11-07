@@ -11,7 +11,7 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   const root = process.cwd();
   const { resources } = await state.load(root);
   const { ctx } = await projectContext(root, { log: () => {} });
-  const vault = await openVault(ctx.project, ctx.vault);
+  const vault = await openVault(ctx.project, ctx.vault, ctx);
 
   const env: Env = {};
   for (const r of resources.filter((x) => x.applied)) {

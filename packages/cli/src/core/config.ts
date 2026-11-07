@@ -3,7 +3,7 @@ import { readJson, writeJson } from "./fs.ts";
 import type { Context } from "./plan.ts";
 import { parseDuration } from "./ttl.ts";
 import type { VaultName } from "./vault.ts";
-import { DEFAULTS, ENV, FILES, IAC_DIR, SCHEMA_URL } from "../constants.ts";
+import { DEFAULTS, ENCRYPTION_REQUIRED, ENV, FILES, IAC_DIR, SCHEMA_URL } from "../constants.ts";
 
 // sikrets.json: the committed, hand-editable project file (like vercel.json). Machine-written
 // state stays in .sikrets/. Validation is strict so a typo fails loudly instead of being ignored.
@@ -20,11 +20,17 @@ export interface ProjectConfig {
   readonly connections: Readonly<Record<string, string>>;
   /** How often provisioned credentials should be rotated, e.g. "30d". */
   readonly rotateEvery: string;
+  /**
+   * "required" once every value is sealed (set by `init` and `migrate encrypt`): a plaintext value
+   * in the vault is then refused rather than trusted. Absent on older projects, which still read
+   * legacy plaintext until they're migrated.
+   */
+  readonly encryption?: typeof ENCRYPTION_REQUIRED;
 }
 
 export const CONFIG_FILE = FILES.config;
 const PROJECT = /^[a-z0-9][a-z0-9-]{0,62}$/;
-const KEYS = ["$schema", "project", "vault", "env", "iac", "connections", "rotateEvery"] as const;
+const KEYS = ["$schema", "project", "vault", "env", "iac", "connections", "rotateEvery", "encryption"] as const;
 
 export const defaultConfig = (root: string): ProjectConfig => ({
   $schema: SCHEMA_URL,
@@ -52,6 +58,7 @@ export function validateConfig(raw: unknown, root: string): ProjectConfig {
   if (typeof c.connections !== "object" || c.connections === null || Object.values(c.connections).some((v) => typeof v !== "string")) {
     fail(`"connections" must map provider ids to connection names`);
   }
+  if (c.encryption !== undefined && c.encryption !== ENCRYPTION_REQUIRED) fail(`"encryption" can only be "${ENCRYPTION_REQUIRED}"`);
   try {
     parseDuration(c.rotateEvery);
   } catch {
@@ -82,5 +89,6 @@ export function effectiveVault(config: ProjectConfig): VaultName {
 /** Everything a command needs about the project in the current directory. */
 export async function projectContext(root: string, opts: { dryRun?: boolean; log: (m: string) => void }): Promise<{ config: ProjectConfig; ctx: Context }> {
   const config = await loadConfig(root);
-  return { config, ctx: { root, project: config.project, vault: effectiveVault(config), dryRun: opts.dryRun ?? false, log: opts.log } };
+  const ctx = { root, project: config.project, vault: effectiveVault(config), requireSealed: config.encryption === ENCRYPTION_REQUIRED, dryRun: opts.dryRun ?? false, log: opts.log };
+  return { config, ctx };
 }

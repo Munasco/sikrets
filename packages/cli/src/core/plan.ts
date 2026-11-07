@@ -5,6 +5,8 @@ export interface Context {
   root: string;
   project: string;
   vault: VaultName;
+  /** sikrets.json "encryption": "required" — legacy plaintext values are refused. */
+  requireSealed?: boolean;
   dryRun: boolean;
   log: (message: string) => void;
 }

@@ -16,6 +16,8 @@ export const ENV = {
   terraform: "SIKRETS_TERRAFORM",
   /** Project name for the SDK when it can't infer one. */
   project: "SIKRETS_PROJECT",
+  /** One project's derived key (base64), for deployed apps that read the ssm vault without a keychain. */
+  projectKey: "SIKRETS_PROJECT_KEY",
 } as const;
 
 // ── Files and folders ─────────────────────────────────────────────────────
@@ -103,6 +105,49 @@ export const RECOVERY = {
   /** Bound into every wrap as AES-GCM associated data. */
   aad: "sikrets-recovery-v1",
   fingerprintLabel: "sikrets-datakey-fingerprint",
+} as const;
+
+// ── Client-side encryption ────────────────────────────────────────────────
+export const ENVELOPE = {
+  /** Every value written to a remote vault starts with this; anything else is legacy plaintext. */
+  prefix: "sk1:",
+  /** Matches any envelope version, so a newer one fails loudly instead of being read as plaintext. */
+  versionPattern: /^sk(\d+):/,
+  /** HKDF from the data key to one project's key: a deployed app holds that, never the data key. */
+  hkdfSalt: "sikrets-project-key",
+  hkdfInfo: (project: string) => `sikrets-project-v1|${project}`,
+  /** Bound into every value as AES-GCM associated data, with the full parameter name. */
+  aad: (name: string) => `sikrets-value-v1|${name}`,
+  ivBytes: 12,
+  tagBytes: 16,
+} as const;
+/** sikrets.json "encryption" value that refuses legacy plaintext once a project is migrated. */
+export const ENCRYPTION_REQUIRED = "required";
+/** SSM names beside a project's values. Lowercase with a dot, so they never parse as a vault key. */
+export const SSM_META = {
+  /** Fingerprint of the data key this project's values are sealed with, created once (Overwrite: false). */
+  dataKeyMarker: "sikrets.datakey",
+  /** Suffix of the copy `migrate encrypt --purge-history` keeps while it recreates a parameter. */
+  stagedSuffix: ".sikrets-staged",
+} as const;
+
+// ── Backups ───────────────────────────────────────────────────────────────
+export const BACKUP = {
+  format: "sikrets-backup",
+  version: 1,
+  /** Default folder, under the per-user folder, so a backup never lands inside a repo by accident. */
+  dir: "backups",
+  extension: ".sikrets-backup",
+  /** Default file name: sikrets-<project>-<timestamp>.sikrets-backup */
+  fileName: (project: string, at: Date) => `sikrets-${project}-${at.toISOString().replace(/[:.]/g, "-")}.sikrets-backup`,
+  /** Matches only fileName()'s output for this project, so pruning never touches another project's files. */
+  filePattern: (project: string) => new RegExp(`^sikrets-${project}-\\d{4}-\\d{2}-\\d{2}T\\d{2}-\\d{2}-\\d{2}-\\d{3}Z\\.sikrets-backup$`),
+  /** HKDF info for the data-key mode, so a backup key never equals a project key. */
+  hkdfInfo: "sikrets-backup-v1",
+  aad: "sikrets-backup-v1",
+  minPassphrase: 12,
+  /** --keep default for --dir backups: older files in that folder are pruned. */
+  keep: 14,
 } as const;
 
 // ── Doorman (human approval before rotating) ──────────────────────────────

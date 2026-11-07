@@ -123,7 +123,7 @@ type Argon2 = (algorithm: string, params: Record<string, unknown>) => Promise<Bu
 const argon2 = (crypto as unknown as { argon2?: Function }).argon2 ? (promisify((crypto as unknown as { argon2: Function }).argon2) as Argon2) : undefined;
 const scrypt = promisify(crypto.scrypt) as (pw: Uint8Array, salt: Uint8Array, len: number, opts: object) => Promise<Buffer>;
 
-function newKdf(): KdfParams {
+export function newKdf(): KdfParams {
   const salt = randomBytes(RECOVERY.saltBytes).toString("base64");
   return argon2 ? { name: "argon2id", salt, ...RECOVERY.argon2 } : { name: "scrypt", salt, ...RECOVERY.scrypt };
 }

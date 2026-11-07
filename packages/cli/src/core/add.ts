@@ -127,7 +127,7 @@ function envFileChange(res: Resource, file: string): Change {
   return {
     summary: `Write ${keys.map((k) => `${k.key}${k.sensitive ? " (stand-in)" : ""}`).join(", ")} to ${file}`,
     async apply(c) {
-      const vault = await openVault(c.project, c.vault);
+      const vault = await openVault(c.project, c.vault, c);
       await upsertEnv(c.root, file, await envValues(vault, [{ ...res, applied: true }], false));
       const standIns = keys.filter((k) => k.sensitive).map((k) => standInKey(k.key));
       return {
@@ -154,7 +154,7 @@ function manualChanges(r: ManualRecipe, res: Resource, read: AddRequest["secret"
         const value = await read(`${spec.description}: `);
         if (!r.pattern.test(value.reveal())) throw new Error(`That doesn't look like ${spec.description.replace(/^an? /i, "an ")}; nothing was stored`);
         await r.verify(value);
-        await (await openVault(c.project, c.vault)).put(key, value);
+        await (await openVault(c.project, c.vault, c)).put(key, value);
         c.log(`  Verified with ${r.provider} and stored as ${key}`);
         return { kind: "vault.delete", summary: `Remove ${key} from the vault`, data: { project: c.project, keys: key } };
       },
@@ -188,7 +188,7 @@ function apiChanges(r: ApiRecipe, res: Resource): Change[] {
     {
       summary: `Store ${res.envKeys.join(", ")} in the vault`,
       async apply(c) {
-        const vault = await openVault(c.project, c.vault);
+        const vault = await openVault(c.project, c.vault, c);
         for (const [key, spec] of Object.entries(r.outputs)) {
           const value = made().outputs[key];
           if (value === undefined) throw new Error(`${r.id} returned no ${key}`);
@@ -251,7 +251,7 @@ registerUndo("api.destroy", async ({ recipe: id, remoteId }) => {
 
 registerUndo("env.unwrite", async ({ project, file, keys, standIns }, ctx) => {
   await removeEnv(ctx.root, file!, keys!.split(","));
-  const vault = await openVault(project!, ctx.vault);
+  const vault = await openVault(project!, ctx.vault, ctx);
   for (const key of standIns ? standIns.split(",") : []) await vault.delete(key);
 });
 
