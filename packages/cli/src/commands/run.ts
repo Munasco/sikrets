@@ -19,7 +19,7 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   const agent = currentAgent(opts);
   if (agent && opts.providers) throw new Error("Agents don't get provider admin credentials; run that yourself");
   const live = resources.filter((x) => x.applied);
-  const allowed = agent ? new Set(await authorize(root, agent, live.flatMap((r) => r.envKeys.map((key) => ({ key, resource: r.name }))))) : undefined;
+  const allowed = agent ? new Set((await authorize(root, agent, live.flatMap((r) => r.envKeys.map((key) => ({ key, resource: r.name }))))).keys) : undefined;
 
   const env: Env = {};
   for (const r of live) {

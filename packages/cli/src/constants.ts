@@ -36,6 +36,15 @@ export const FILES = {
 } as const;
 /** Folder under the user dir for per-project usage logs (local only, never in the project). */
 export const USAGE_DIR = "usage";
+/** Cross-process lock next to a file another sikrets process may write at the same time. */
+export const FILE_LOCK = {
+  suffix: ".lock",
+  retryMs: 20,
+  /** Give up waiting after this long. */
+  timeoutMs: 10_000,
+  /** A lock older than this (or whose process is gone) was left by a crash and is taken over. */
+  staleMs: 30_000,
+} as const;
 export const IAC_DIR = "iac/terraform";
 
 // ── Defaults for sikrets.json ─────────────────────────────────────────────
@@ -96,6 +105,8 @@ export const GITHUB = {
   /** App JWTs: backdated for clock drift, and under GitHub's 10-minute limit. */
   jwtBackdateSeconds: 60,
   jwtLifetimeSeconds: 540,
+  /** Installation tokens always live this long; GitHub can't issue shorter ones. */
+  tokenLifetimeSeconds: 3600,
   /** Env vars an installation token is exported as. */
   tokenEnv: ["GITHUB_TOKEN", "GH_TOKEN"],
 } as const;
