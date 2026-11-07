@@ -3,7 +3,8 @@ import { mkdtemp, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { ensureDataKey, fingerprint, loadDataKey, open, saveDataKey, seal } from "./core/datakey.ts";
-import { decodeCode, deriveKey, encodeCode, newCode, readRecord, recoveryFile, secretFrom, unwrap, wrap, writeRecord, WrongCodeError } from "./core/recovery.ts";
+import { createRecord, decodeCode, deriveKey, encodeCode, markUsed, newCode, readRecord, recordState, recoveryFile, replaceRecord, secretFrom, unwrap, wrap, writeRecord, WrongCodeError } from "./core/recovery.ts";
+import { recoveryStatus } from "./commands/recovery.ts";
 import { combine, split } from "./core/shamir.ts";
 
 // In-memory keychain and a throwaway config dir, so nothing real is touched.
@@ -108,5 +109,45 @@ describe("wrap and restore", () => {
     expect(current.id).not.toBe(first.id);
     await expect(unwrap(current, oldCode)).rejects.toBeInstanceOf(WrongCodeError);
     expect((await unwrap(current, newer)).equals(dataKey)).toBe(true);
+  });
+});
+
+describe("recovery record lifecycle", () => {
+  test("two first-time setups at once: one wins, the other changes nothing", async () => {
+    const dataKey = await ensureDataKey();
+    const [a, b] = [await wrap(dataKey, newCode().secret), await wrap(dataKey, newCode().secret)];
+    const results = await Promise.allSettled([createRecord(a), createRecord(b)]);
+    expect(results.map((r) => r.status).sort()).toEqual(["fulfilled", "rejected"]);
+    const winner = results[0]!.status === "fulfilled" ? a : b;
+    expect((await readRecord())!.id).toBe(winner.id);
+    expect((await stat(recoveryFile())).mode & 0o777).toBe(0o600);
+  });
+
+  test("rotate refuses to replace a record that changed after it was read", async () => {
+    const dataKey = await ensureDataKey();
+    const first = await wrap(dataKey, newCode().secret);
+    await createRecord(first);
+    await replaceRecord(await wrap(dataKey, newCode().secret), first.id); // another run rotated
+    await expect(replaceRecord(await wrap(dataKey, newCode().secret), first.id)).rejects.toThrow("changed");
+  });
+
+  test("a restore marks the code used; status then asks for a new one", async () => {
+    const dataKey = await ensureDataKey();
+    const record = await wrap(dataKey, newCode().secret);
+    await createRecord(record);
+    expect(recoveryStatus(record, dataKey)).toBe("ok");
+    await markUsed(record.id);
+    const used = (await readRecord())!;
+    expect(recordState(used)).toBe("used");
+    expect(used.usedAt).toBeString();
+    expect(recoveryStatus(used, dataKey)).toBe("used");
+    expect(recoveryStatus(used, undefined)).toBe("no key on this device");
+    expect(recoveryStatus(used, Buffer.alloc(32, 7))).toBe("mismatch");
+    expect(recoveryStatus(undefined, dataKey)).toBe("not set up");
+  });
+
+  test("first use on two processes at once makes one data key, not two", async () => {
+    const keys = await Promise.all([ensureDataKey(), ensureDataKey(), ensureDataKey()]);
+    expect(new Set(keys.map((k) => k.toString("hex"))).size).toBe(1);
   });
 });
