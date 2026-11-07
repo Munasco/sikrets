@@ -1,6 +1,6 @@
 import path from "node:path";
 import { ensureDataKey, fingerprint, loadDataKey, saveDataKey } from "../core/datakey.ts";
-import { isShare, newCode, readRecord, recoveryFile, secretFrom, unwrap, wrap, writeRecord, type RecoveryRecord } from "../core/recovery.ts";
+import { createRecord, isShare, markUsed, newCode, readRecord, recordState, recoveryFile, replaceRecord, secretFrom, unwrap, wrap, writeRecord, type RecoveryRecord } from "../core/recovery.ts";
 import { log, promptHidden, promptLine } from "../ui.ts";
 import { RECOVERY } from "../constants.ts";
 
@@ -23,19 +23,34 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   }
 }
 
+/** What `status` reports. Only "ok" means the code you hold restores this device's key. */
+export type RecoveryStatus = "not set up" | "no key on this device" | "mismatch" | "used" | "ok";
+
+export function recoveryStatus(record: RecoveryRecord | undefined, key: Uint8Array | undefined): RecoveryStatus {
+  if (!record) return "not set up";
+  if (!key) return "no key on this device";
+  if (fingerprint(key) !== record.fingerprint) return "mismatch";
+  return recordState(record) === "used" ? "used" : "ok";
+}
+
 async function status(opts: Record<string, unknown>) {
   const [record, key] = [await readRecord(), await loadDataKey()];
+  const state = recoveryStatus(record, key);
   const out = {
+    state,
     setUp: Boolean(record),
     createdAt: record?.createdAt,
     split: record?.split,
+    usedAt: record?.usedAt,
     matchesThisDevice: record && key ? fingerprint(key) === record.fingerprint : undefined,
     file: recoveryFile(),
   };
   if (opts.json) return console.log(JSON.stringify(out));
   if (!record) return console.log("Recovery isn't set up. Run: sikrets recovery setup");
   console.log(`Recovery set up ${record.createdAt.slice(0, 10)}${record.split ? ` (split ${RECOVERY.threshold}-of-${RECOVERY.shares})` : ""}.`);
-  if (out.matchesThisDevice === false) console.log("Warning: it unlocks a different data key than this device's. Run: sikrets recovery rotate");
+  if (state === "mismatch") console.log("Warning: it unlocks a different data key than this device's. Run: sikrets recovery rotate");
+  if (state === "used") console.log(`The code was used to restore on ${record.usedAt?.slice(0, 10)}. Replace it: sikrets recovery rotate`);
+  if (state === "no key on this device") console.log("This device has no data key yet. To bring yours here, run: sikrets recovery restore");
 }
 
 /** setup and rotate: new code, new wrap. Rotating replaces the record, so the old code unlocks nothing. */
@@ -65,7 +80,8 @@ async function issue(action: "setup" | "rotate", opts: Record<string, unknown>, 
   const typed = await promptLine(`To confirm you saved it, type the last group${split ? " of share 1" : ""}: `);
   if (typed.toUpperCase() !== last) throw new Error(`That doesn't match. Nothing changed; run sikrets recovery ${action} again`);
 
-  await writeRecord(record);
+  if (action === "setup") await createRecord(record);
+  else await replaceRecord(record, existing!.id);
   say(action === "rotate" ? "New recovery code active. The previous code no longer unlocks anything." : "Recovery is set up.");
   say(`The wrapped key is in ${recoveryFile()}. It is useless without the code; keep a copy off this device.`);
 }
@@ -79,13 +95,17 @@ async function restore(opts: Record<string, unknown>, say: (m: string) => void) 
   say("Checking the code…");
   const key = await unwrap(record, secret);
   const current = await loadDataKey();
-  if (current && fingerprint(current) === record.fingerprint) return say("This device already has that data key. Nothing changed.");
-  if (current && !opts.force) throw new Error("This device already has a different data key. Re-run with --force to replace it");
+  if (current && fingerprint(current) !== record.fingerprint && !opts.force) throw new Error("This device already has a different data key. Re-run with --force to replace it");
+  const already = Boolean(current && fingerprint(current) === record.fingerprint);
 
-  await saveDataKey(key);
+  if (!already) await saveDataKey(key);
   if (file !== recoveryFile()) await writeRecord(record);
-  if (opts.json) console.log(JSON.stringify({ restored: true, fingerprint: record.fingerprint }));
-  else say("Restored. This device can open your vault again. Consider `sikrets recovery rotate` if the code was written somewhere exposed.");
+  // The code has now been typed on a device; it stays usable, but status asks for a fresh one.
+  await markUsed(record.id);
+  if (opts.json) console.log(JSON.stringify({ restored: !already, fingerprint: record.fingerprint, state: "used" }));
+  else if (already) say("This device already has that data key. Nothing changed.");
+  else say("Restored. This device can open your vault again.");
+  if (!opts.json) say("That code has now been used. Replace it with a new one: sikrets recovery rotate");
 }
 
 /** One code or enough shares, from stdin (one per line) or hidden prompts. Never from argv. */

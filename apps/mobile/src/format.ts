@@ -17,7 +17,8 @@ export function statusBadge(req: RequestView, sent?: "approve" | "deny"): { labe
       return { label: "Rotation failed", tone: "bad" };
     case "rotated":
       return { label: "Rotated", tone: "good" };
-    case "approved":
+    case "rotating":
+    case "approved": // CLIs from before the rotating state
       return { label: "Rotating", tone: "good" };
     case "denied":
       return { label: "Denied", tone: "quiet" };

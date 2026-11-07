@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { approvals, decide, requestRotation, transition, type Answer, type ApprovalRequest } from "./core/approvals.ts";
+import { applyEvent, approvals, decide, requestRotation, transition, type Answer, type ApprovalRequest } from "./core/approvals.ts";
 import { native, promptText } from "./core/doorman.ts";
 import { state, type Resource } from "./core/state.ts";
 import * as rotateCommand from "./commands/rotate.ts";
@@ -26,9 +26,13 @@ describe("approval state machine", () => {
   test("only allowed moves", () => {
     const req: ApprovalRequest = { id: "apr_1", resource: "cache", reason: "exposed", status: "pending", createdAt: "", expiresAt: "" };
     const approved = transition(req, "approve", { by: "touchid" });
-    expect(approved).toMatchObject({ status: "approved", decidedBy: "touchid" });
+    expect(approved).toMatchObject({ status: "rotating", decidedBy: "touchid" });
     expect(transition(approved, "rotated").status).toBe("rotated");
-    expect(transition(transition(approved, "fail"), "approve").status).toBe("approved"); // failed is retryable
+    const failed = transition(approved, "fail");
+    expect(transition(failed, "approve").status).toBe("rotating"); // failed is retryable
+    expect(transition(failed, "deny").status).toBe("denied"); // ...or can be closed
+    expect(transition(failed, "expire").status).toBe("expired");
+    expect(() => transition(approved, "approve")).toThrow("rotating");
     expect(transition(req, "deny").status).toBe("denied");
     expect(() => transition(req, "rotated")).toThrow("pending");
     expect(() => transition(transition(req, "deny"), "approve")).toThrow("denied");
@@ -50,7 +54,8 @@ describe("approval state machine", () => {
     const req = await pending();
     const later = new Date(Date.parse(req.expiresAt) + 1);
     expect((await approvals.load(root, later))[0]!.status).toBe("expired");
-    await expect(decide(root, (await approvals.load(root, later))[0]!, answer({ decision: "approve", by: "touchid" }), rotate)).rejects.toThrow("expired");
+    await writeFile(path.join(root, ".sikrets/approvals.json"), JSON.stringify([{ ...req, expiresAt: new Date(Date.now() - 1).toISOString() }]));
+    await expect(decide(root, req, answer({ decision: "approve", by: "touchid" }), rotate)).rejects.toThrow("expired");
     expect(rotated).toEqual([]);
   });
 
@@ -77,6 +82,75 @@ describe("approval state machine", () => {
     const failed = await approvals.find(root, req.id);
     expect(failed.status).toBe("failed");
     expect((await decide(root, failed, answer({ decision: "approve", by: "touchid" }), rotate)).status).toBe("rotated");
+  });
+});
+
+describe("decisions apply to the request as stored, not a stale copy", () => {
+  // Stands in for a Touch ID prompt that is open while something else changes the request.
+  const meanwhile = (fn: () => Promise<unknown>, a: Answer) => async () => {
+    await fn();
+    return a;
+  };
+
+  test("a deny that lands while the prompt is open wins; nothing rotates", async () => {
+    const req = await pending();
+    const ask = meanwhile(() => applyEvent(root, req.id, "deny", { by: "cli" }), { decision: "approve", by: "touchid" });
+    await expect(decide(root, req, ask, rotate)).rejects.toThrow("denied");
+    expect((await approvals.find(root, req.id)).status).toBe("denied");
+    expect(rotated).toEqual([]);
+  });
+
+  test("two approvals of the same request rotate once", async () => {
+    const req = await pending();
+    const second = () => decide(root, req, answer({ decision: "approve", by: "dialog" }), rotate);
+    await expect(decide(root, req, meanwhile(second, { decision: "approve", by: "touchid" }), rotate)).rejects.toThrow("rotated");
+    expect((await approvals.find(root, req.id)).status).toBe("rotated");
+    expect(rotated).toEqual(["cache"]);
+  });
+
+  test("a request that expires while the prompt is open can't be approved", async () => {
+    const req = await pending();
+    await writeFile(path.join(root, ".sikrets/approvals.json"), JSON.stringify([{ ...req, expiresAt: new Date(Date.now() + 50).toISOString() }]));
+    const ask = meanwhile(() => Bun.sleep(80), { decision: "approve", by: "touchid" });
+    await expect(decide(root, req, ask, rotate)).rejects.toThrow("expired");
+    expect(rotated).toEqual([]);
+  });
+
+  test("concurrent writers don't lose each other's requests", async () => {
+    await Promise.all(["a", "b", "c", "d", "e", "f"].map((r) => requestRotation(root, r, "exposed")));
+    expect((await approvals.load(root)).map((r) => r.resource).sort()).toEqual(["a", "b", "c", "d", "e", "f"]);
+  });
+
+  test("a rotation whose process died is recorded as failed, and can then be denied", async () => {
+    const req = await pending();
+    const dead = 2 ** 22 + 12345; // above any real pid
+    const crashed = { ...req, status: "rotating", decidedAt: new Date().toISOString(), rotation: { pid: dead, startedAt: new Date().toISOString() } };
+    await writeFile(path.join(root, ".sikrets/approvals.json"), JSON.stringify([crashed]));
+    const now = await approvals.find(root, req.id);
+    expect(now).toMatchObject({ status: "failed", error: expect.stringContaining("interrupted") });
+    expect((await applyEvent(root, req.id, "deny", { by: "cli" })).status).toBe("denied");
+  });
+
+  test("files from before the rotating state still load", async () => {
+    const req = await pending();
+    await writeFile(path.join(root, ".sikrets/approvals.json"), JSON.stringify([{ ...req, status: "approved" }]));
+    expect((await approvals.find(root, req.id)).status).toBe("failed"); // no running process: interrupted
+  });
+
+  test("a failed request blocks a second one for the same resource and gets a fresh window", async () => {
+    const req = await pending();
+    await Bun.sleep(5);
+    await applyEvent(root, req.id, "approve", { by: "touchid" });
+    const failed = await applyEvent(root, req.id, "fail");
+    expect(Date.parse(failed.expiresAt)).toBeGreaterThan(Date.parse(req.expiresAt));
+    expect(await requestRotation(root, "cache", "expired")).toMatchObject({ created: false, request: { id: req.id } });
+  });
+
+  test("a stale lock left by a dead process is broken", async () => {
+    await writeFile(path.join(root, ".sikrets/approvals.json.lock"), String(2 ** 22 + 1)).catch(async () => {
+      await Bun.write(path.join(root, ".sikrets/approvals.json.lock"), String(2 ** 22 + 1));
+    });
+    expect((await requestRotation(root, "cache", "exposed")).created).toBe(true);
   });
 });
 

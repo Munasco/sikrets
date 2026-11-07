@@ -1,5 +1,5 @@
 import { record } from "../core/activity.ts";
-import { approvals, decide, isOpen, isReason, reasonText, requestRotation, transition, type ApprovalRequest, type Reason } from "../core/approvals.ts";
+import { applyEvent, approvals, decide, isOpen, isReason, reasonText, requestRotation, type ApprovalRequest, type Reason } from "../core/approvals.ts";
 import { native } from "../core/doorman.ts";
 import { loadLink } from "../core/pairing.ts";
 import { poll, push } from "../core/phone.ts";
@@ -44,7 +44,7 @@ async function list(root: string, opts: Record<string, unknown>) {
   if (opts.json) return console.log(JSON.stringify(shown.map((r) => ({ ...r, message: reasonText(r.reason) }))));
   if (!shown.length) return console.log(opts.all ? "No approval requests yet." : "Nothing waiting for approval.");
   for (const r of shown) {
-    const when = r.status === "pending" ? `expires ${until(r.expiresAt)}` : (r.decidedAt ?? r.createdAt).replace("T", " ").slice(0, 16);
+    const when = isOpen(r) ? `expires ${until(r.expiresAt)}` : (r.decidedAt ?? r.createdAt).replace("T", " ").slice(0, 16);
     console.log(`${r.id}  ${r.resource.padEnd(16)} ${r.status.padEnd(8)} ${reasonText(r.reason)}  (${when})`);
   }
 }
@@ -71,7 +71,7 @@ async function approve(root: string, req: ApprovalRequest, opts: Record<string, 
 
 async function deny(root: string, req: ApprovalRequest, opts: Record<string, unknown>, say: (m: string) => void) {
   // Saying no needs no proof of presence: it can only ever leave a key as it is.
-  const out = await approvals.update(root, transition(req, "deny", { by: "cli" }));
+  const out = await applyEvent(root, req.id, "deny", { by: "cli" });
   await record(root, { kind: "approval", detail: `${out.id} ${out.resource} denied via cli` });
   if (opts.json) console.log(JSON.stringify(out));
   else say(`Denied ${out.id}. ${out.resource} was not rotated.`);
