@@ -1,0 +1,5052 @@
+[
+ {
+  "id": "1password-local",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://support.1password.com/",
+  "note": "per-tenant: self-hosted Connect server",
+  "status": {}
+ },
+ {
+  "id": "acelle-mail",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://api.acellemail.com/",
+  "note": "per-tenant: self-hosted instance",
+  "status": {}
+ },
+ {
+  "id": "activecampaign",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://developers.activecampaign.com/reference/authentication",
+  "note": "per-tenant: {account}.api-us1.com",
+  "status": {}
+ },
+ {
+  "id": "acymailing",
+  "hosts": [],
+  "confidence": "low",
+  "source": "https://docs.acymailing.com/rest-api/overview/authentication",
+  "basic": "key:",
+  "note": "per-tenant: self-hosted site",
+  "status": {}
+ },
+ {
+  "id": "adobe",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "",
+  "basic": "account:key",
+  "note": "per-tenant: self-hosted/cloud AEM instance",
+  "status": {}
+ },
+ {
+  "id": "adyen",
+  "hosts": [
+   "checkout-test.adyen.com",
+   "pal-test.adyen.com",
+   "management-test.adyen.com",
+   "balanceplatform-api-test.adyen.com"
+  ],
+  "confidence": "medium",
+  "source": "https://www.adyen.help/hc/en-us/community/topics",
+  "note": "test hosts only; live is per-tenant: {prefix}-checkout-live.adyenpayments.com",
+  "status": {
+   "checkout-test.adyen.com": 401,
+   "pal-test.adyen.com": 200,
+   "management-test.adyen.com": 401,
+   "balanceplatform-api-test.adyen.com": 200
+  }
+ },
+ {
+  "id": "agentset",
+  "hosts": [
+   "api.agentset.ai"
+  ],
+  "confidence": "high",
+  "source": "https://docs.agentset.ai/api-reference/introduction",
+  "status": {
+   "api.agentset.ai": 404
+  }
+ },
+ {
+  "id": "agile-crm",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://github.com/agilecrm/rest-api",
+  "basic": "email:key",
+  "note": "per-tenant: {domain}.agilecrm.com",
+  "status": {}
+ },
+ {
+  "id": "agiled",
+  "hosts": [],
+  "confidence": "low",
+  "source": "https://docs.agiled.app/docs/developers/authentication",
+  "note": "docs use $AGILED_API_BASE_URL; see /docs/developers/base-urls",
+  "status": {}
+ },
+ {
+  "id": "aiception",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "basic": "key:",
+  "status": {}
+ },
+ {
+  "id": "aidbase",
+  "hosts": [
+   "api.aidbase.ai"
+  ],
+  "confidence": "high",
+  "source": "https://docs.aidbase.ai/apis/get-started/",
+  "status": {
+   "api.aidbase.ai": 404
+  }
+ },
+ {
+  "id": "airbyte-local",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "",
+  "note": "per-tenant: self-hosted Airbyte",
+  "status": {}
+ },
+ {
+  "id": "airfocus",
+  "hosts": [
+   "app.airfocus.com"
+  ],
+  "confidence": "high",
+  "source": "https://developer.airfocus.com/authentication.html",
+  "status": {
+   "app.airfocus.com": 200
+  }
+ },
+ {
+  "id": "airtop",
+  "hosts": [
+   "api.airtop.ai"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.airtop.ai",
+  "status": {
+   "api.airtop.ai": 404
+  }
+ },
+ {
+  "id": "aitable",
+  "hosts": [
+   "aitable.ai"
+  ],
+  "confidence": "medium",
+  "source": "https://developers.aitable.ai/api/quick-start",
+  "status": {
+   "aitable.ai": 200
+  }
+ },
+ {
+  "id": "aiven",
+  "hosts": [
+   "api.aiven.io"
+  ],
+  "confidence": "medium",
+  "source": "https://api.aiven.io/doc/",
+  "status": {
+   "api.aiven.io": 301
+  }
+ },
+ {
+  "id": "alegra",
+  "hosts": [
+   "api.alegra.com"
+  ],
+  "confidence": "medium",
+  "source": "https://developer.alegra.com/docs",
+  "basic": "email:key",
+  "status": {
+   "api.alegra.com": 302
+  }
+ },
+ {
+  "id": "amara",
+  "hosts": [
+   "amara.org"
+  ],
+  "confidence": "high",
+  "source": "https://apidocs.amara.org/",
+  "status": {
+   "amara.org": 200
+  }
+ },
+ {
+  "id": "amazonaws",
+  "hosts": [
+   "mgh.us-west-2.amazonaws.com"
+  ],
+  "confidence": "medium",
+  "source": "https://github.com/mermade/aws2openapi",
+  "note": "signing: AWS SigV4; home-region endpoint",
+  "status": {
+   "mgh.us-west-2.amazonaws.com": 404
+  }
+ },
+ {
+  "id": "amplitude",
+  "hosts": [
+   "amplitude.com",
+   "api2.amplitude.com",
+   "analytics.eu.amplitude.com",
+   "api.eu.amplitude.com"
+  ],
+  "confidence": "medium",
+  "source": "https://amplitude.com/docs/apis/developer",
+  "status": {
+   "amplitude.com": 200,
+   "api2.amplitude.com": 400,
+   "analytics.eu.amplitude.com": 302,
+   "api.eu.amplitude.com": 400
+  }
+ },
+ {
+  "id": "anchor-browser",
+  "hosts": [
+   "api.anchorbrowser.io"
+  ],
+  "confidence": "high",
+  "source": "https://docs.anchorbrowser.io/quickstart/agent-access",
+  "status": {
+   "api.anchorbrowser.io": 404
+  }
+ },
+ {
+  "id": "apache",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://airflow.apache.org",
+  "basic": "key:",
+  "note": "per-tenant: self-hosted Airflow",
+  "status": {}
+ },
+ {
+  "id": "api2pdf",
+  "hosts": [
+   "v2.api2pdf.com"
+  ],
+  "confidence": "medium",
+  "source": "",
+  "status": {
+   "v2.api2pdf.com": 302
+  }
+ },
+ {
+  "id": "apify",
+  "hosts": [
+   "api.apify.com"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.apify.com/platform/integrations/api",
+  "status": {
+   "api.apify.com": 404
+  }
+ },
+ {
+  "id": "apigee",
+  "hosts": [
+   "api.marketcheck.com"
+  ],
+  "confidence": "low",
+  "source": "https://registry.terraform.io/providers/scastria/apigee/latest/docs",
+  "basic": "key:",
+  "status": {
+   "api.marketcheck.com": 404
+  }
+ },
+ {
+  "id": "apisetu-gov",
+  "hosts": [
+   "apisetu.gov.in"
+  ],
+  "confidence": "low",
+  "source": "",
+  "status": {
+   "apisetu.gov.in": 200
+  }
+ },
+ {
+  "id": "apispot",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "status": {}
+ },
+ {
+  "id": "apiverve",
+  "hosts": [
+   "api.apiverve.com"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.apiverve.com",
+  "status": {
+   "api.apiverve.com": 200
+  }
+ },
+ {
+  "id": "apollo",
+  "hosts": [
+   "api.apollo.io"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.apollo.io/docs/test-api-key",
+  "status": {
+   "api.apollo.io": 301
+  }
+ },
+ {
+  "id": "appsflyer",
+  "hosts": [
+   "hq1.appsflyer.com"
+  ],
+  "confidence": "medium",
+  "source": "https://dev.appsflyer.com/hc/docs/api-auth",
+  "status": {
+   "hq1.appsflyer.com": 202
+  }
+ },
+ {
+  "id": "arlo",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://developer.arlo.co/doc/api/2012-02-01/auth/",
+  "basic": "account:key",
+  "note": "per-tenant: {platform}.arlo.co",
+  "status": {}
+ },
+ {
+  "id": "ashby",
+  "hosts": [
+   "api.ashbyhq.com"
+  ],
+  "confidence": "high",
+  "source": "https://developers.ashbyhq.com/docs/authentication",
+  "basic": "key:",
+  "status": {
+   "api.ashbyhq.com": 401
+  }
+ },
+ {
+  "id": "astra",
+  "hosts": [
+   "api.astra.datastax.com"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.datastax.com/en/astra-db-classic/api-reference/devops-tokens.html",
+  "status": {
+   "api.astra.datastax.com": 403
+  }
+ },
+ {
+  "id": "atlassian",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "",
+  "basic": "email:key",
+  "note": "per-tenant: {site}.atlassian.net",
+  "status": {}
+ },
+ {
+  "id": "auth0",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://auth0.com/docs/api/management/v2/clients/post-clients",
+  "note": "per-tenant: {tenant}.auth0.com",
+  "status": {}
+ },
+ {
+  "id": "aviationdata-systems",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "basic": "account:key",
+  "status": {}
+ },
+ {
+  "id": "axiom",
+  "hosts": [
+   "api.axiom.co"
+  ],
+  "confidence": "medium",
+  "source": "https://axiom.co/docs/restapi/endpoints/createToken",
+  "status": {
+   "api.axiom.co": 404
+  }
+ },
+ {
+  "id": "azure-openai",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://learn.microsoft.com/en-us/azure/ai-services/openai/reference",
+  "note": "per-tenant: {resource}.openai.azure.com",
+  "status": {}
+ },
+ {
+  "id": "backblaze",
+  "hosts": [
+   "api.backblazeb2.com"
+  ],
+  "confidence": "medium",
+  "source": "https://www.backblaze.com/apidocs/b2-create-key",
+  "basic": "account:key",
+  "note": "later calls go to dynamic api###.backblazeb2.com hosts returned by authorize",
+  "status": {
+   "api.backblazeb2.com": 301
+  }
+ },
+ {
+  "id": "bamboohr",
+  "hosts": [
+   "api.bamboohr.com"
+  ],
+  "confidence": "medium",
+  "source": "https://documentation.bamboohr.com/docs/getting-started",
+  "basic": "key:",
+  "status": {
+   "api.bamboohr.com": 302
+  }
+ },
+ {
+  "id": "bannerbear",
+  "hosts": [
+   "api.bannerbear.com",
+   "sync.api.bannerbear.com"
+  ],
+  "confidence": "medium",
+  "source": "https://developers.bannerbear.com/",
+  "status": {
+   "api.bannerbear.com": 200,
+   "sync.api.bannerbear.com": 200
+  }
+ },
+ {
+  "id": "baselinker",
+  "hosts": [
+   "api.baselinker.com"
+  ],
+  "confidence": "medium",
+  "source": "https://api.baselinker.com/",
+  "status": {
+   "api.baselinker.com": 200
+  }
+ },
+ {
+  "id": "baserow",
+  "hosts": [
+   "api.baserow.io"
+  ],
+  "confidence": "medium",
+  "source": "https://baserow.io/user-docs/personal-api-tokens",
+  "note": "cloud only; self-hosted is per-tenant",
+  "status": {
+   "api.baserow.io": 404
+  }
+ },
+ {
+  "id": "baseten",
+  "hosts": [
+   "api.baseten.co"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.baseten.co/reference/management-api/api-keys/creates-an-api-key",
+  "status": {
+   "api.baseten.co": 202
+  }
+ },
+ {
+  "id": "beanstalk",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://api.beanstalkapp.com/",
+  "basic": "account:key",
+  "note": "per-tenant: {account}.beanstalkapp.com",
+  "status": {}
+ },
+ {
+  "id": "beehiiv",
+  "hosts": [
+   "api.beehiiv.com"
+  ],
+  "confidence": "medium",
+  "source": "https://developers.beehiiv.com/welcome/create-an-api-key",
+  "status": {
+   "api.beehiiv.com": 404
+  }
+ },
+ {
+  "id": "belco",
+  "hosts": [
+   "api.belco.io"
+  ],
+  "confidence": "high",
+  "source": "https://developers.belco.io/reference/authentication",
+  "status": {
+   "api.belco.io": 200
+  }
+ },
+ {
+  "id": "betterstack",
+  "hosts": [
+   "uptime.betterstack.com",
+   "telemetry.betterstack.com"
+  ],
+  "confidence": "medium",
+  "source": "https://betterstack.com/docs/logs/api/getting-started/",
+  "status": {
+   "uptime.betterstack.com": 301,
+   "telemetry.betterstack.com": 301
+  }
+ },
+ {
+  "id": "bingx",
+  "hosts": [
+   "open-api.bingx.com"
+  ],
+  "confidence": "medium",
+  "source": "https://bingx-api.github.io/docs/",
+  "note": "signing: HMAC-SHA256",
+  "status": {
+   "open-api.bingx.com": 200
+  }
+ },
+ {
+  "id": "bitdefender-gravityzone",
+  "hosts": [
+   "cloudgz.gravityzone.bitdefender.com"
+  ],
+  "confidence": "medium",
+  "source": "https://www.bitdefender.com/business/support/en/77211-1658556-service-api-keys.html",
+  "basic": "key:",
+  "status": {
+   "cloudgz.gravityzone.bitdefender.com": 200
+  }
+ },
+ {
+  "id": "bitget",
+  "hosts": [
+   "api.bitget.com"
+  ],
+  "confidence": "medium",
+  "source": "https://www.bitget.com/docs/uta/rest-api",
+  "note": "signing: HMAC-SHA256 with secret and passphrase",
+  "status": {
+   "api.bitget.com": 404
+  }
+ },
+ {
+  "id": "bluesnap",
+  "hosts": [
+   "ws.bluesnap.com",
+   "sandbox.bluesnap.com"
+  ],
+  "confidence": "medium",
+  "source": "https://developers.bluesnap.com/docs/authentication",
+  "basic": "account:key",
+  "status": {
+   "ws.bluesnap.com": 301,
+   "sandbox.bluesnap.com": 301
+  }
+ },
+ {
+  "id": "booking-experts",
+  "hosts": [
+   "api.bookingexperts.com"
+  ],
+  "confidence": "low",
+  "source": "https://developers.bookingexperts.com/reference",
+  "status": {
+   "api.bookingexperts.com": 301
+  }
+ },
+ {
+  "id": "botify",
+  "hosts": [
+   "api.botify.com"
+  ],
+  "confidence": "medium",
+  "source": "",
+  "status": {
+   "api.botify.com": 404
+  }
+ },
+ {
+  "id": "brainbase-labs",
+  "hosts": [],
+  "confidence": "low",
+  "source": "https://docs.usebrainbase.com/api-reference/introduction",
+  "status": {}
+ },
+ {
+  "id": "breathe",
+  "hosts": [
+   "api.breathehr.com"
+  ],
+  "confidence": "medium",
+  "source": "https://developer.breathehr.com/documentation/authenticating",
+  "status": {
+   "api.breathehr.com": 302
+  }
+ },
+ {
+  "id": "brex",
+  "hosts": [
+   "api.kompany.com"
+  ],
+  "confidence": "medium",
+  "source": "https://kycapi.kompany.com/",
+  "status": {
+   "api.kompany.com": 401
+  }
+ },
+ {
+  "id": "britbox-co",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "status": {}
+ },
+ {
+  "id": "bulksms",
+  "hosts": [
+   "api.bulksms.com"
+  ],
+  "confidence": "medium",
+  "source": "",
+  "basic": "account:key",
+  "status": {
+   "api.bulksms.com": 401
+  }
+ },
+ {
+  "id": "byautomata",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "status": {}
+ },
+ {
+  "id": "c19qrserver-local",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "note": "per-tenant: self-hosted",
+  "status": {}
+ },
+ {
+  "id": "cal",
+  "hosts": [
+   "api.cal.com"
+  ],
+  "confidence": "medium",
+  "source": "https://cal.com/docs/api-reference/v2/v1-v2-differences",
+  "status": {
+   "api.cal.com": 200
+  }
+ },
+ {
+  "id": "callfire",
+  "hosts": [
+   "api.callfire.com"
+  ],
+  "confidence": "medium",
+  "source": "https://developers.callfire.com",
+  "basic": "account:key",
+  "status": {
+   "api.callfire.com": 404
+  }
+ },
+ {
+  "id": "calorieninjas",
+  "hosts": [
+   "api.calorieninjas.com"
+  ],
+  "confidence": "medium",
+  "source": "",
+  "status": {
+   "api.calorieninjas.com": 403
+  }
+ },
+ {
+  "id": "carbondoomsday",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "basic": "key:",
+  "status": {}
+ },
+ {
+  "id": "cats",
+  "hosts": [
+   "api.catsone.com"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.catsone.com/api/v3/",
+  "status": {
+   "api.catsone.com": 200
+  }
+ },
+ {
+  "id": "cdcgov-local",
+  "hosts": [],
+  "confidence": "low",
+  "source": "https://reportstream.cdc.gov",
+  "status": {}
+ },
+ {
+  "id": "cerebras",
+  "hosts": [
+   "api.cerebras.ai"
+  ],
+  "confidence": "medium",
+  "source": "https://inference-docs.cerebras.ai/console/api-keys",
+  "status": {
+   "api.cerebras.ai": 404
+  }
+ },
+ {
+  "id": "change-local",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "basic": "key:",
+  "status": {}
+ },
+ {
+  "id": "chargebee",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://apidocs.chargebee.com/docs/api/auth",
+  "basic": "key:",
+  "note": "per-tenant: {site}.chargebee.com",
+  "status": {}
+ },
+ {
+  "id": "chargify",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://developers.maxio.com/http/getting-started/about-the-api/request-and-response-data",
+  "basic": "key:",
+  "note": "per-tenant: {subdomain}.chargify.com",
+  "status": {}
+ },
+ {
+  "id": "chartmogul",
+  "hosts": [
+   "api.chartmogul.com"
+  ],
+  "confidence": "medium",
+  "source": "https://dev.chartmogul.com/docs/authentication",
+  "basic": "key:",
+  "status": {
+   "api.chartmogul.com": 404
+  }
+ },
+ {
+  "id": "chatbotkit",
+  "hosts": [
+   "api.chatbotkit.com"
+  ],
+  "confidence": "medium",
+  "source": "https://chatbotkit.com/manuals/authentication",
+  "status": {
+   "api.chatbotkit.com": 404
+  }
+ },
+ {
+  "id": "checkly",
+  "hosts": [
+   "api.checklyhq.com"
+  ],
+  "confidence": "medium",
+  "source": "https://checklyhq.com/docs/api/",
+  "status": {
+   "api.checklyhq.com": 200
+  }
+ },
+ {
+  "id": "checkvist",
+  "hosts": [
+   "checkvist.com"
+  ],
+  "confidence": "medium",
+  "source": "https://checkvist.com/auth/api",
+  "basic": "email:key",
+  "status": {
+   "checkvist.com": 200
+  }
+ },
+ {
+  "id": "citycontext",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "status": {}
+ },
+ {
+  "id": "clerk",
+  "hosts": [
+   "api.clerk.com"
+  ],
+  "confidence": "medium",
+  "source": "https://clerk.com/docs/reference/api/overview",
+  "status": {
+   "api.clerk.com": 404
+  }
+ },
+ {
+  "id": "clevertap",
+  "hosts": [
+   "us1.api.clevertap.com",
+   "eu1.api.clevertap.com",
+   "in1.api.clevertap.com",
+   "sg1.api.clevertap.com",
+   "aps3.api.clevertap.com",
+   "mec1.api.clevertap.com"
+  ],
+  "confidence": "medium",
+  "source": "https://developer.clevertap.com/docs/authentication",
+  "note": "regional; account uses one",
+  "status": {
+   "us1.api.clevertap.com": 200,
+   "eu1.api.clevertap.com": 200,
+   "in1.api.clevertap.com": 200,
+   "sg1.api.clevertap.com": 200,
+   "aps3.api.clevertap.com": 200,
+   "mec1.api.clevertap.com": 200
+  }
+ },
+ {
+  "id": "clickfunnels",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://developers.myclickfunnels.com/docs/authentication",
+  "note": "per-tenant: {subdomain}.myclickfunnels.com",
+  "status": {}
+ },
+ {
+  "id": "clickhouse",
+  "hosts": [
+   "api.clickhouse.cloud"
+  ],
+  "confidence": "medium",
+  "source": "https://clickhouse.com/docs/products/cloud/api-reference/api-keys/create-key",
+  "basic": "account:key",
+  "status": {
+   "api.clickhouse.cloud": 301
+  }
+ },
+ {
+  "id": "clickmeter",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "status": {}
+ },
+ {
+  "id": "clicksend",
+  "hosts": [
+   "rest.clicksend.com"
+  ],
+  "confidence": "medium",
+  "source": "",
+  "basic": "account:key",
+  "status": {
+   "rest.clicksend.com": 302
+  }
+ },
+ {
+  "id": "clientary",
+  "hosts": [],
+  "confidence": "low",
+  "source": "https://www.clientary.com/api",
+  "basic": "key:",
+  "note": "per-tenant: {subdomain}.clientary.com",
+  "status": {}
+ },
+ {
+  "id": "close",
+  "hosts": [
+   "api.close.com"
+  ],
+  "confidence": "medium",
+  "source": "https://developer.close.com/topics/authentication/",
+  "basic": "key:",
+  "status": {
+   "api.close.com": 200
+  }
+ },
+ {
+  "id": "cloudamqp",
+  "hosts": [
+   "customer.cloudamqp.com"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.cloudamqp.com",
+  "basic": ":key",
+  "status": {
+   "customer.cloudamqp.com": 302
+  }
+ },
+ {
+  "id": "cloudflare",
+  "hosts": [
+   "api.cloudflare.com"
+  ],
+  "confidence": "medium",
+  "source": "https://developers.cloudflare.com/api/resources/accounts/subresources/tokens/methods/create",
+  "status": {
+   "api.cloudflare.com": 301
+  }
+ },
+ {
+  "id": "cloudinary",
+  "hosts": [
+   "api.cloudinary.com",
+   "api-eu.cloudinary.com",
+   "api-ap.cloudinary.com"
+  ],
+  "confidence": "medium",
+  "source": "https://cloudinary.com/documentation/provisioning_api",
+  "basic": "account:key",
+  "status": {
+   "api.cloudinary.com": 403,
+   "api-eu.cloudinary.com": 403,
+   "api-ap.cloudinary.com": 403
+  }
+ },
+ {
+  "id": "cloudmersive",
+  "hosts": [
+   "api.cloudmersive.com"
+  ],
+  "confidence": "medium",
+  "source": "",
+  "status": {
+   "api.cloudmersive.com": 200
+  }
+ },
+ {
+  "id": "cockroachdb",
+  "hosts": [
+   "cockroachlabs.cloud"
+  ],
+  "confidence": "medium",
+  "source": "https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api",
+  "status": {
+   "cockroachlabs.cloud": 200
+  }
+ },
+ {
+  "id": "coda",
+  "hosts": [
+   "coda.io"
+  ],
+  "confidence": "medium",
+  "source": "https://coda.io/developers/apis/v1",
+  "status": {
+   "coda.io": 200
+  }
+ },
+ {
+  "id": "codat",
+  "hosts": [
+   "api.codat.io"
+  ],
+  "confidence": "medium",
+  "source": "",
+  "status": {
+   "api.codat.io": 404
+  }
+ },
+ {
+  "id": "code-scan",
+  "hosts": [
+   "app.codescan.io"
+  ],
+  "confidence": "low",
+  "source": "",
+  "basic": "key:",
+  "status": {
+   "app.codescan.io": 302
+  }
+ },
+ {
+  "id": "codesearch-debian",
+  "hosts": [
+   "codesearch.debian.net"
+  ],
+  "confidence": "medium",
+  "source": "",
+  "status": {
+   "codesearch.debian.net": 200
+  }
+ },
+ {
+  "id": "cohere",
+  "hosts": [
+   "api.cohere.com"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.cohere.com/docs/rate-limits",
+  "status": {
+   "api.cohere.com": 404
+  }
+ },
+ {
+  "id": "coingecko",
+  "hosts": [
+   "api.coingecko.com",
+   "pro-api.coingecko.com"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.coingecko.com/reference/authentication",
+  "status": {
+   "api.coingecko.com": 404,
+   "pro-api.coingecko.com": 404
+  }
+ },
+ {
+  "id": "companyhub",
+  "hosts": [
+   "api.companyhub.com"
+  ],
+  "confidence": "low",
+  "source": "https://companyhub.com/docs/api-documentation",
+  "status": {
+   "api.companyhub.com": 302
+  }
+ },
+ {
+  "id": "configcat",
+  "hosts": [
+   "api.configcat.com"
+  ],
+  "confidence": "high",
+  "source": "https://configcat.com/docs/api/reference/configcat-public-management-api/",
+  "basic": "account:key",
+  "note": "basic auth username/password credentials",
+  "status": {
+   "api.configcat.com": 302
+  }
+ },
+ {
+  "id": "confluent",
+  "hosts": [
+   "api.confluent.cloud"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.confluent.io/cloud/current/api.html",
+  "basic": "account:key",
+  "status": {
+   "api.confluent.cloud": 301
+  }
+ },
+ {
+  "id": "conjur-local",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "",
+  "note": "per-tenant: self-hosted",
+  "status": {}
+ },
+ {
+  "id": "connecteam",
+  "hosts": [
+   "api.connecteam.com"
+  ],
+  "confidence": "high",
+  "source": "https://developer.connecteam.com/docs/authentication",
+  "status": {
+   "api.connecteam.com": 200
+  }
+ },
+ {
+  "id": "contactout",
+  "hosts": [
+   "api.contactout.com"
+  ],
+  "confidence": "medium",
+  "source": "https://api.contactout.com/",
+  "status": {
+   "api.contactout.com": 200
+  }
+ },
+ {
+  "id": "contentful",
+  "hosts": [
+   "api.contentful.com",
+   "upload.contentful.com",
+   "api.eu.contentful.com",
+   "upload.eu.contentful.com"
+  ],
+  "confidence": "medium",
+  "source": "https://www.contentful.com/developers/docs/references/content-management-api/access-tokens/",
+  "status": {
+   "api.contentful.com": 200,
+   "upload.contentful.com": 200,
+   "api.eu.contentful.com": 200,
+   "upload.eu.contentful.com": 200
+  }
+ },
+ {
+  "id": "contract-p",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "status": {}
+ },
+ {
+  "id": "convex",
+  "hosts": [
+   "api.convex.dev"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.convex.dev/platform-apis",
+  "status": {
+   "api.convex.dev": 308
+  }
+ },
+ {
+  "id": "core-ac",
+  "hosts": [
+   "api.core.ac.uk"
+  ],
+  "confidence": "medium",
+  "source": "",
+  "status": {
+   "api.core.ac.uk": 200
+  }
+ },
+ {
+  "id": "cowin-gov",
+  "hosts": [
+   "cdn-api.co-vin.in"
+  ],
+  "confidence": "low",
+  "source": "https://www.cowin.gov.in",
+  "status": {
+   "cdn-api.co-vin.in": 403
+  }
+ },
+ {
+  "id": "crossbrowsertesting",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "",
+  "basic": "email:key",
+  "status": {}
+ },
+ {
+  "id": "customgpt",
+  "hosts": [
+   "app.customgpt.ai"
+  ],
+  "confidence": "high",
+  "source": "https://docs.customgpt.ai/reference/api-keys-and-authentication",
+  "status": {
+   "app.customgpt.ai": 302
+  }
+ },
+ {
+  "id": "d7networks",
+  "hosts": [
+   "rest-api.d7networks.com",
+   "api.d7networks.com"
+  ],
+  "confidence": "low",
+  "source": "https://d7networks.com/docs/",
+  "basic": "account:key",
+  "note": "current docs use bearer token at api.d7networks.com; legacy basic on rest-api",
+  "status": {
+   "rest-api.d7networks.com": 404,
+   "api.d7networks.com": 404
+  }
+ },
+ {
+  "id": "dappier",
+  "hosts": [
+   "api.dappier.com"
+  ],
+  "confidence": "high",
+  "source": "https://docs.dappier.com/",
+  "status": {
+   "api.dappier.com": 200
+  }
+ },
+ {
+  "id": "data",
+  "hosts": [
+   "api.regulations.gov"
+  ],
+  "confidence": "medium",
+  "source": "",
+  "status": {
+   "api.regulations.gov": 302
+  }
+ },
+ {
+  "id": "dataforb2b",
+  "hosts": [
+   "api.dataforb2b.ai"
+  ],
+  "confidence": "high",
+  "source": "https://docs.dataforb2b.ai",
+  "status": {
+   "api.dataforb2b.ai": 200
+  }
+ },
+ {
+  "id": "dataforseo",
+  "hosts": [
+   "api.dataforseo.com"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.dataforseo.com/v3/auth/",
+  "basic": "account:key",
+  "status": {
+   "api.dataforseo.com": 401
+  }
+ },
+ {
+  "id": "datocms",
+  "hosts": [
+   "site-api.datocms.com"
+  ],
+  "confidence": "medium",
+  "source": "https://www.datocms.com/docs/content-management-api/resources/access-token/create",
+  "status": {
+   "site-api.datocms.com": 404
+  }
+ },
+ {
+  "id": "daytona",
+  "hosts": [
+   "app.daytona.io"
+  ],
+  "confidence": "medium",
+  "source": "https://www.daytona.io/docs/en/api-keys",
+  "status": {
+   "app.daytona.io": 200
+  }
+ },
+ {
+  "id": "dealmachine",
+  "hosts": [
+   "api.v2.dealmachine.com"
+  ],
+  "confidence": "high",
+  "source": "https://api.docs.dealmachine.com/authentication",
+  "status": {
+   "api.v2.dealmachine.com": 404
+  }
+ },
+ {
+  "id": "dear-systems",
+  "hosts": [
+   "inventory.dearsystems.com"
+  ],
+  "confidence": "medium",
+  "source": "https://help.core.cin7.com/hc/en-us/articles/9982480315407-Connecting-to-the-Cin7-Core-API",
+  "status": {
+   "inventory.dearsystems.com": 302
+  }
+ },
+ {
+  "id": "deepinfra",
+  "hosts": [
+   "api.deepinfra.com"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.deepinfra.com/account/authentication",
+  "status": {
+   "api.deepinfra.com": 200
+  }
+ },
+ {
+  "id": "descope",
+  "hosts": [
+   "api.descope.com"
+  ],
+  "confidence": "high",
+  "source": "https://docs.descope.com/api/management/access-keys",
+  "status": {
+   "api.descope.com": 404
+  }
+ },
+ {
+  "id": "digitalnz",
+  "hosts": [
+   "api.digitalnz.org"
+  ],
+  "confidence": "medium",
+  "source": "",
+  "status": {
+   "api.digitalnz.org": 302
+  }
+ },
+ {
+  "id": "discord-bot",
+  "hosts": [
+   "discord.com"
+  ],
+  "confidence": "high",
+  "source": "https://docs.discord.com/developers/reference",
+  "status": {
+   "discord.com": 200
+  }
+ },
+ {
+  "id": "discourse",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://meta.discourse.org/t/create-and-configure-an-api-key/230124",
+  "note": "per-tenant: {site}.discourse.group or self-hosted domain",
+  "status": {}
+ },
+ {
+  "id": "dixa",
+  "hosts": [
+   "dev.dixa.io"
+  ],
+  "confidence": "high",
+  "source": "https://docs.dixa.io/openapi/dixa-api/beta/",
+  "status": {
+   "dev.dixa.io": 403
+  }
+ },
+ {
+  "id": "document360",
+  "hosts": [
+   "apihub.document360.io",
+   "apihub.us.document360.io",
+   "apihub.ca.document360.io"
+  ],
+  "confidence": "high",
+  "source": "https://apidocs.document360.com",
+  "note": "regional",
+  "status": {
+   "apihub.document360.io": 301,
+   "apihub.us.document360.io": 301,
+   "apihub.ca.document360.io": 301
+  }
+ },
+ {
+  "id": "docuwriter",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://docs.docuwriter.ai",
+  "status": {}
+ },
+ {
+  "id": "dolibarr",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://wiki.dolibarr.org/index.php/Module_Web_Services_API_REST_(developer)",
+  "note": "per-tenant: self-hosted instance",
+  "status": {}
+ },
+ {
+  "id": "donately",
+  "hosts": [
+   "api.donately.com"
+  ],
+  "confidence": "medium",
+  "source": "https://docs-api-v20190315.donately.com",
+  "basic": "key:",
+  "status": {
+   "api.donately.com": 301
+  }
+ },
+ {
+  "id": "drata",
+  "hosts": [
+   "public-api.drata.com",
+   "api.eu.drata.com",
+   "api.apac.drata.com"
+  ],
+  "confidence": "medium",
+  "source": "https://help.drata.com/en/articles/6695964-drata-public-api",
+  "note": "regional",
+  "status": {
+   "public-api.drata.com": 200,
+   "api.eu.drata.com": 200,
+   "api.apac.drata.com": 200
+  }
+ },
+ {
+  "id": "dropx",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "status": {}
+ },
+ {
+  "id": "dub",
+  "hosts": [
+   "api.dub.co"
+  ],
+  "confidence": "high",
+  "source": "https://dub.co/docs/api-reference/introduction",
+  "status": {
+   "api.dub.co": 200
+  }
+ },
+ {
+  "id": "easyship",
+  "hosts": [
+   "public-api.easyship.com"
+  ],
+  "confidence": "medium",
+  "source": "https://developers.easyship.com/reference/authentication",
+  "status": {
+   "public-api.easyship.com": 301
+  }
+ },
+ {
+  "id": "edusign",
+  "hosts": [
+   "ext.edusign.fr"
+  ],
+  "confidence": "high",
+  "source": "https://developers.edusign.com/reference/deleteabsencereasons",
+  "status": {
+   "ext.edusign.fr": 200
+  }
+ },
+ {
+  "id": "elastic-email",
+  "hosts": [
+   "api.elasticemail.com"
+  ],
+  "confidence": "high",
+  "source": "https://elasticemail.com/developers/api-documentation/rest-api",
+  "status": {
+   "api.elasticemail.com": 200
+  }
+ },
+ {
+  "id": "elastic-security",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://www.elastic.co/docs/api/doc/elasticsearch/authentication",
+  "note": "per-tenant: {deployment}.kb/es.{region}.elastic-cloud.com or self-hosted",
+  "status": {}
+ },
+ {
+  "id": "elmah",
+  "hosts": [
+   "api.elmah.io"
+  ],
+  "confidence": "high",
+  "source": "https://docs.elmah.io/using-the-rest-api/",
+  "status": {
+   "api.elmah.io": 302
+  }
+ },
+ {
+  "id": "enrich-layer",
+  "hosts": [
+   "enrichlayer.com"
+  ],
+  "confidence": "high",
+  "source": "https://enrichlayer.com/docs",
+  "status": {
+   "enrichlayer.com": 200
+  }
+ },
+ {
+  "id": "eodhd-apis",
+  "hosts": [
+   "eodhd.com"
+  ],
+  "confidence": "high",
+  "source": "https://eodhd.com/financial-apis/api-for-historical-data-and-volumes",
+  "status": {
+   "eodhd.com": 200
+  }
+ },
+ {
+  "id": "eppo",
+  "hosts": [
+   "eppo.cloud"
+  ],
+  "confidence": "high",
+  "source": "https://docs.geteppo.com/reference/api",
+  "status": {
+   "eppo.cloud": 200
+  }
+ },
+ {
+  "id": "esgenterprise",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "status": {}
+ },
+ {
+  "id": "etherpad-local",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://etherpad.org/",
+  "note": "per-tenant: self-hosted instance",
+  "status": {}
+ },
+ {
+  "id": "explorium",
+  "hosts": [
+   "api.explorium.ai"
+  ],
+  "confidence": "high",
+  "source": "https://developers.explorium.ai/",
+  "status": {
+   "api.explorium.ai": 401
+  }
+ },
+ {
+  "id": "facecheck",
+  "hosts": [
+   "facecheck.id"
+  ],
+  "confidence": "medium",
+  "source": "https://FaceCheck.ID",
+  "status": {
+   "facecheck.id": 200
+  }
+ },
+ {
+  "id": "faretrotter",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "status": {}
+ },
+ {
+  "id": "fec",
+  "hosts": [
+   "api.open.fec.gov"
+  ],
+  "confidence": "high",
+  "source": "https://api.open.fec.gov/developers/",
+  "status": {
+   "api.open.fec.gov": 301
+  }
+ },
+ {
+  "id": "fibery",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://developers.fibery.com/guides/getting-started/authentication",
+  "note": "per-tenant: {workspace}.fibery.io",
+  "status": {}
+ },
+ {
+  "id": "files",
+  "hosts": [
+   "app.files.com"
+  ],
+  "confidence": "medium",
+  "source": "https://registry.terraform.io/providers/Files-com/files/latest/docs",
+  "note": "api seen only as app.files.com; per-site {subdomain}.files.com also exists",
+  "status": {
+   "app.files.com": 200
+  }
+ },
+ {
+  "id": "firebase-admin",
+  "hosts": [
+   "firebase.googleapis.com",
+   "identitytoolkit.googleapis.com",
+   "fcm.googleapis.com"
+  ],
+  "confidence": "medium",
+  "source": "https://firebase.google.com/docs/admin/setup",
+  "note": "OAuth service-account token",
+  "status": {
+   "firebase.googleapis.com": 404,
+   "identitytoolkit.googleapis.com": 404,
+   "fcm.googleapis.com": 404
+  }
+ },
+ {
+  "id": "firecrawl",
+  "hosts": [
+   "api.firecrawl.dev"
+  ],
+  "confidence": "high",
+  "source": "https://www.firecrawl.dev/auth.md",
+  "status": {
+   "api.firecrawl.dev": 200
+  }
+ },
+ {
+  "id": "fireflies",
+  "hosts": [
+   "api.fireflies.ai"
+  ],
+  "confidence": "high",
+  "source": "https://docs.fireflies.ai/getting-started/quickstart",
+  "status": {
+   "api.fireflies.ai": 404
+  }
+ },
+ {
+  "id": "fireworks",
+  "hosts": [
+   "api.fireworks.ai"
+  ],
+  "confidence": "high",
+  "source": "https://docs.fireworks.ai/api-reference/introduction",
+  "status": {
+   "api.fireworks.ai": 404
+  }
+ },
+ {
+  "id": "firmalyzer",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "status": {}
+ },
+ {
+  "id": "float",
+  "hosts": [
+   "api.float.com"
+  ],
+  "confidence": "high",
+  "source": "https://developer.float.com/",
+  "status": {
+   "api.float.com": 404
+  }
+ },
+ {
+  "id": "flutterwave",
+  "hosts": [
+   "api.flutterwave.com"
+  ],
+  "confidence": "high",
+  "source": "https://developer.flutterwave.com/docs/authentication",
+  "note": "v3 host; v4 uses a different host, not confirmed",
+  "status": {
+   "api.flutterwave.com": 200
+  }
+ },
+ {
+  "id": "fly",
+  "hosts": [
+   "api.machines.dev"
+  ],
+  "confidence": "high",
+  "source": "https://fly.io/docs/machines/api/working-with-machines-api/",
+  "status": {
+   "api.machines.dev": 301
+  }
+ },
+ {
+  "id": "fogbugz",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://fogbugz.kayako.com/article/52425-create-api-token-using-the-fogbugz-ui",
+  "note": "per-tenant: {account}.fogbugz.com",
+  "status": {}
+ },
+ {
+  "id": "formapi",
+  "hosts": [
+   "api.formapi.io"
+  ],
+  "confidence": "medium",
+  "source": "",
+  "basic": "account:key",
+  "status": {
+   "api.formapi.io": 404
+  }
+ },
+ {
+  "id": "freedcamp",
+  "hosts": [
+   "freedcamp.com"
+  ],
+  "confidence": "high",
+  "source": "https://freedcamp.com/help_/tutorials/wiki/wiki_public/view/DFaab",
+  "status": {
+   "freedcamp.com": 200
+  }
+ },
+ {
+  "id": "freshchat",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://developers.freshchat.com/api/",
+  "note": "per-tenant: {domain}.freshchat.com",
+  "status": {}
+ },
+ {
+  "id": "freshdesk",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://developer.freshdesk.com/api/",
+  "basic": "key:",
+  "note": "per-tenant: {domain}.freshdesk.com",
+  "status": {}
+ },
+ {
+  "id": "freshmarketer",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://developers.freshworks.com/crm/api/",
+  "note": "per-tenant: {domain}.myfreshworks.com",
+  "status": {}
+ },
+ {
+  "id": "frontegg",
+  "hosts": [
+   "api.frontegg.com",
+   "api.us.frontegg.com",
+   "api.ca.frontegg.com",
+   "api.au.frontegg.com"
+  ],
+  "confidence": "high",
+  "source": "https://developers.frontegg.com/ciam/api/vendor-service",
+  "note": "regional",
+  "status": {
+   "api.frontegg.com": 403,
+   "api.us.frontegg.com": 403,
+   "api.ca.frontegg.com": 403,
+   "api.au.frontegg.com": 403
+  }
+ },
+ {
+  "id": "fullstory",
+  "hosts": [
+   "api.fullstory.com",
+   "api.eu1.fullstory.com"
+  ],
+  "confidence": "medium",
+  "source": "https://developer.fullstory.com/server/authentication/",
+  "note": "api.eu1 host unconfirmed",
+  "status": {
+   "api.fullstory.com": 404,
+   "api.eu1.fullstory.com": 404
+  }
+ },
+ {
+  "id": "fungenerators",
+  "hosts": [
+   "api.fungenerators.com"
+  ],
+  "confidence": "high",
+  "source": "https://fungenerators.com/api/barcode",
+  "status": {
+   "api.fungenerators.com": 403
+  }
+ },
+ {
+  "id": "gambitcomm-local",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "",
+  "basic": "key:",
+  "note": "per-tenant: self-hosted MIMIC",
+  "status": {}
+ },
+ {
+  "id": "gamesparks",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "status": {}
+ },
+ {
+  "id": "geodesystems",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "basic": "key:",
+  "note": "per-tenant: self-hosted",
+  "status": {}
+ },
+ {
+  "id": "getresponse",
+  "hosts": [
+   "api.getresponse.com",
+   "api3.getresponse360.com",
+   "api3.getresponse360.pl"
+  ],
+  "confidence": "high",
+  "source": "https://apidocs.getresponse.com/v3",
+  "status": {
+   "api.getresponse.com": 404,
+   "api3.getresponse360.com": 404,
+   "api3.getresponse360.pl": 404
+  }
+ },
+ {
+  "id": "gettyimages",
+  "hosts": [
+   "api.gettyimages.com"
+  ],
+  "confidence": "medium",
+  "source": "",
+  "status": {
+   "api.gettyimages.com": 302
+  }
+ },
+ {
+  "id": "ghost",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://docs.ghost.org/content-api",
+  "note": "per-tenant: {site}.ghost.io or custom domain",
+  "status": {}
+ },
+ {
+  "id": "gisgraphy",
+  "hosts": [
+   "services.gisgraphy.com"
+  ],
+  "confidence": "high",
+  "source": "https://www.gisgraphy.com/documentation/user-guide.php",
+  "status": {
+   "services.gisgraphy.com": 200
+  }
+ },
+ {
+  "id": "gitea",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://registry.terraform.io/providers/go-gitea/gitea/latest/docs",
+  "note": "per-tenant: self-hosted instance",
+  "status": {}
+ },
+ {
+  "id": "go-upc",
+  "hosts": [
+   "go-upc.com"
+  ],
+  "confidence": "high",
+  "source": "https://go-upc.com/api",
+  "status": {
+   "go-upc.com": 200
+  }
+ },
+ {
+  "id": "goody",
+  "hosts": [
+   "api.ongoody.com"
+  ],
+  "confidence": "high",
+  "source": "https://developer.ongoody.com/",
+  "status": {
+   "api.ongoody.com": 200
+  }
+ },
+ {
+  "id": "google-dialogflow",
+  "hosts": [
+   "dialogflow.googleapis.com"
+  ],
+  "confidence": "high",
+  "source": "https://cloud.google.com/dialogflow/cx/docs/quick/setup",
+  "note": "regional {region}-dialogflow.googleapis.com also exist",
+  "status": {
+   "dialogflow.googleapis.com": 404
+  }
+ },
+ {
+  "id": "google-home",
+  "hosts": [
+   "homegraph.googleapis.com"
+  ],
+  "confidence": "high",
+  "source": "https://developers.google.com/assistant/smarthome/develop/report-state",
+  "status": {
+   "homegraph.googleapis.com": 404
+  }
+ },
+ {
+  "id": "grafana-cloud",
+  "hosts": [
+   "grafana.com"
+  ],
+  "confidence": "medium",
+  "source": "https://grafana.com/docs/grafana-cloud/developer-resources/api-reference/cloud-api/",
+  "note": "stack APIs are per-tenant {stack}.grafana.net",
+  "status": {
+   "grafana.com": 200
+  }
+ },
+ {
+  "id": "greenhouse",
+  "hosts": [
+   "harvest.greenhouse.io"
+  ],
+  "confidence": "high",
+  "source": "https://developers.greenhouse.io/harvest.html",
+  "basic": "key:",
+  "status": {
+   "harvest.greenhouse.io": 401
+  }
+ },
+ {
+  "id": "griptape",
+  "hosts": [
+   "cloud.griptape.ai"
+  ],
+  "confidence": "high",
+  "source": "https://docs.griptape.ai/stable/griptape-cloud/api/api-reference/",
+  "status": {
+   "cloud.griptape.ai": 200
+  }
+ },
+ {
+  "id": "groq",
+  "hosts": [
+   "api.groq.com"
+  ],
+  "confidence": "high",
+  "source": "https://console.groq.com/docs/quickstart",
+  "status": {
+   "api.groq.com": 200
+  }
+ },
+ {
+  "id": "growthbook",
+  "hosts": [
+   "api.growthbook.io"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.growthbook.io/app/api",
+  "note": "self-hosted is per-tenant",
+  "status": {
+   "api.growthbook.io": 200
+  }
+ },
+ {
+  "id": "gsmtasks",
+  "hosts": [
+   "gsmtasks.com"
+  ],
+  "confidence": "medium",
+  "source": "",
+  "status": {
+   "gsmtasks.com": 200
+  }
+ },
+ {
+  "id": "gtmetrix",
+  "hosts": [
+   "gtmetrix.com"
+  ],
+  "confidence": "high",
+  "source": "https://gtmetrix.com/api/docs/2.0/",
+  "basic": "key:",
+  "status": {
+   "gtmetrix.com": 403
+  }
+ },
+ {
+  "id": "guru",
+  "hosts": [
+   "api.getguru.com"
+  ],
+  "confidence": "high",
+  "source": "https://developer.getguru.com/docs/getting-started",
+  "basic": "email:key",
+  "status": {
+   "api.getguru.com": 200
+  }
+ },
+ {
+  "id": "hedy",
+  "hosts": [
+   "api.hedy.bot"
+  ],
+  "confidence": "high",
+  "source": "https://www.hedy.ai/help/hedy-api/",
+  "status": {
+   "api.hedy.bot": 404
+  }
+ },
+ {
+  "id": "helicone",
+  "hosts": [
+   "api.helicone.ai",
+   "gateway.helicone.ai"
+  ],
+  "confidence": "high",
+  "source": "https://docs.helicone.ai/getting-started/integration-method/gateway",
+  "status": {
+   "api.helicone.ai": 401,
+   "gateway.helicone.ai": 400
+  }
+ },
+ {
+  "id": "helpdocs",
+  "hosts": [
+   "api.helpdocs.io"
+  ],
+  "confidence": "high",
+  "source": "https://apidocs.helpdocs.io/article/caacxCUso6-authenticating-api-requests",
+  "status": {
+   "api.helpdocs.io": 404
+  }
+ },
+ {
+  "id": "helpspot",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://support.helpspot.com/index.php?pg=kb.page&id=162",
+  "note": "per-tenant: self-hosted/{domain}",
+  "status": {}
+ },
+ {
+  "id": "here",
+  "hosts": [
+   "positioning.hereapi.com"
+  ],
+  "confidence": "medium",
+  "source": "",
+  "status": {
+   "positioning.hereapi.com": 404
+  }
+ },
+ {
+  "id": "heroku",
+  "hosts": [
+   "api.heroku.com"
+  ],
+  "confidence": "high",
+  "source": "https://devcenter.heroku.com/articles/platform-api-quickstart",
+  "status": {
+   "api.heroku.com": 400
+  }
+ },
+ {
+  "id": "honeycomb",
+  "hosts": [
+   "api.honeycomb.io",
+   "api.eu1.honeycomb.io"
+  ],
+  "confidence": "high",
+  "source": "https://docs.honeycomb.io/api/",
+  "status": {
+   "api.honeycomb.io": 200,
+   "api.eu1.honeycomb.io": 200
+  }
+ },
+ {
+  "id": "hookdeck",
+  "hosts": [
+   "api.hookdeck.com"
+  ],
+  "confidence": "high",
+  "source": "https://hookdeck.com/docs/api",
+  "status": {
+   "api.hookdeck.com": 404
+  }
+ },
+ {
+  "id": "hubapi",
+  "hosts": [
+   "api.hubapi.com"
+  ],
+  "confidence": "high",
+  "source": "https://developers.hubspot.com/docs/api/overview",
+  "status": {
+   "api.hubapi.com": 302
+  }
+ },
+ {
+  "id": "huggingface",
+  "hosts": [
+   "huggingface.co"
+  ],
+  "confidence": "high",
+  "source": "https://huggingface.co/docs/hub/api",
+  "status": {
+   "huggingface.co": 200
+  }
+ },
+ {
+  "id": "humanitix",
+  "hosts": [
+   "api.humanitix.com"
+  ],
+  "confidence": "medium",
+  "source": "https://help.humanitix.com/en/articles/8888275-public-api-documentation",
+  "status": {
+   "api.humanitix.com": 404
+  }
+ },
+ {
+  "id": "hunter",
+  "hosts": [
+   "api.hunter.io"
+  ],
+  "confidence": "high",
+  "source": "https://hunter.io/api-documentation",
+  "status": {
+   "api.hunter.io": 301
+  }
+ },
+ {
+  "id": "hygraph",
+  "hosts": [
+   "management.hygraph.com",
+   "management-next.graphcms.com"
+  ],
+  "confidence": "medium",
+  "source": "https://hygraph.com/docs/getting-started/access-and-permissions/management-api-permissions",
+  "note": "management.hygraph.com seen; old host unconfirmed",
+  "status": {
+   "management.hygraph.com": 401,
+   "management-next.graphcms.com": 401
+  }
+ },
+ {
+  "id": "id4i",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "",
+  "status": {}
+ },
+ {
+  "id": "import",
+  "hosts": [
+   "api.import.io"
+  ],
+  "confidence": "medium",
+  "source": "",
+  "status": {
+   "api.import.io": 302
+  }
+ },
+ {
+  "id": "influxdata",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "",
+  "basic": "key:",
+  "note": "per-tenant: self-hosted/cloud region URL",
+  "status": {}
+ },
+ {
+  "id": "infobip",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://www.infobip.com/docs/essentials/api-essentials/api-authentication",
+  "note": "per-tenant: {id}.api.infobip.com",
+  "status": {}
+ },
+ {
+  "id": "inngest",
+  "hosts": [
+   "api.inngest.com"
+  ],
+  "confidence": "high",
+  "source": "https://api-docs.inngest.com/authentication",
+  "status": {
+   "api.inngest.com": 200
+  }
+ },
+ {
+  "id": "insightly",
+  "hosts": [
+   "api.insightly.com",
+   "api.na1.insightly.com"
+  ],
+  "confidence": "high",
+  "source": "https://api.insightly.com/v3.1/Help",
+  "basic": "key:",
+  "note": "pod-specific host",
+  "status": {
+   "api.insightly.com": 302,
+   "api.na1.insightly.com": 403
+  }
+ },
+ {
+  "id": "instantdb",
+  "hosts": [
+   "api.instantdb.com"
+  ],
+  "confidence": "medium",
+  "source": "https://www.instantdb.com/docs/platform-api",
+  "status": {
+   "api.instantdb.com": 200
+  }
+ },
+ {
+  "id": "intel",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "status": {}
+ },
+ {
+  "id": "intellifi",
+  "hosts": [],
+  "confidence": "low",
+  "source": "https://intellifi.zendesk.com",
+  "status": {}
+ },
+ {
+  "id": "invision-community",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://invisioncommunity.com/developers/rest-api",
+  "basic": "key:",
+  "note": "per-tenant: community domain",
+  "status": {}
+ },
+ {
+  "id": "invoiced",
+  "hosts": [
+   "api.invoiced.com"
+  ],
+  "confidence": "high",
+  "source": "https://developer.invoiced.com/api",
+  "basic": "key:",
+  "status": {
+   "api.invoiced.com": 401
+  }
+ },
+ {
+  "id": "ipgeolocation",
+  "hosts": [
+   "api.ipgeolocation.io"
+  ],
+  "confidence": "high",
+  "source": "https://ipgeolocation.io/documentation/ip-location-api.html",
+  "status": {
+   "api.ipgeolocation.io": 200
+  }
+ },
+ {
+  "id": "iptwist",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "status": {}
+ },
+ {
+  "id": "iva-api",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "status": {}
+ },
+ {
+  "id": "ix-api",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://ix-api.net",
+  "note": "per-tenant: IX operator URL",
+  "status": {}
+ },
+ {
+  "id": "jellyfin-local",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "",
+  "note": "per-tenant: self-hosted",
+  "status": {}
+ },
+ {
+  "id": "jobnimbus",
+  "hosts": [
+   "api.jobnimbus.com"
+  ],
+  "confidence": "high",
+  "source": "https://developer.jobnimbus.com/",
+  "status": {
+   "api.jobnimbus.com": 404
+  }
+ },
+ {
+  "id": "just-eat-co",
+  "hosts": [
+   "uk.api.just-eat.io"
+  ],
+  "confidence": "medium",
+  "source": "",
+  "status": {
+   "uk.api.just-eat.io": 302
+  }
+ },
+ {
+  "id": "kanban-tool",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://kanbantool.com/developer/api-v3",
+  "note": "per-tenant: {subdomain}.kanbantool.com",
+  "status": {}
+ },
+ {
+  "id": "keycloak-local",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "",
+  "note": "per-tenant: self-hosted",
+  "status": {}
+ },
+ {
+  "id": "kinde",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://docs.kinde.com/developer-tools/kinde-api/connect-to-kinde-api/",
+  "note": "per-tenant: {business}.kinde.com",
+  "status": {}
+ },
+ {
+  "id": "kizeo-forms",
+  "hosts": [
+   "forms.kizeo.com"
+  ],
+  "confidence": "medium",
+  "source": "https://forms.kizeo.com/rest/v3/doc",
+  "status": {
+   "forms.kizeo.com": 302
+  }
+ },
+ {
+  "id": "knock",
+  "hosts": [
+   "api.knock.app",
+   "control.knock.app"
+  ],
+  "confidence": "high",
+  "source": "https://docs.knock.app/api-reference/overview",
+  "status": {
+   "api.knock.app": 404,
+   "control.knock.app": 404
+  }
+ },
+ {
+  "id": "kontent",
+  "hosts": [
+   "manage.kontent.ai"
+  ],
+  "confidence": "medium",
+  "source": "https://kontent.ai/learn/docs/apis/management-api-v2/authentication",
+  "status": {
+   "manage.kontent.ai": 404
+  }
+ },
+ {
+  "id": "koomalooma",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "status": {}
+ },
+ {
+  "id": "koyeb",
+  "hosts": [
+   "app.koyeb.com"
+  ],
+  "confidence": "high",
+  "source": "https://www.koyeb.com/docs/reference/api",
+  "status": {
+   "app.koyeb.com": 200
+  }
+ },
+ {
+  "id": "kubernetes",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "",
+  "note": "per-tenant: cluster API server",
+  "status": {}
+ },
+ {
+  "id": "kumpeapps",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "status": {}
+ },
+ {
+  "id": "kustomer",
+  "hosts": [
+   "api.kustomerapp.com",
+   "api.prod2.kustomerapp.com"
+  ],
+  "confidence": "medium",
+  "source": "https://developer.kustomer.com/kustomer-api-docs/reference/authentication",
+  "note": "org pod specific",
+  "status": {
+   "api.kustomerapp.com": 200,
+   "api.prod2.kustomerapp.com": 200
+  }
+ },
+ {
+  "id": "lago",
+  "hosts": [
+   "api.getlago.com"
+  ],
+  "confidence": "high",
+  "source": "https://doc.getlago.com/api-reference/intro",
+  "status": {
+   "api.getlago.com": 404
+  }
+ },
+ {
+  "id": "lambdatest",
+  "hosts": [
+   "api.lambdatest.com"
+  ],
+  "confidence": "high",
+  "source": "https://www.lambdatest.com/support/api-doc/",
+  "basic": "account:key",
+  "status": {
+   "api.lambdatest.com": 403
+  }
+ },
+ {
+  "id": "langfuse",
+  "hosts": [
+   "cloud.langfuse.com",
+   "us.cloud.langfuse.com"
+  ],
+  "confidence": "medium",
+  "source": "https://langfuse.com/docs/administration/scim-and-org-api",
+  "basic": "key:",
+  "note": "self-hosted is per-tenant",
+  "status": {
+   "cloud.langfuse.com": 200,
+   "us.cloud.langfuse.com": 200
+  }
+ },
+ {
+  "id": "laposta",
+  "hosts": [
+   "api.laposta.nl"
+  ],
+  "confidence": "high",
+  "source": "https://api.laposta.nl/doc/",
+  "basic": "key:",
+  "status": {
+   "api.laposta.nl": 302
+  }
+ },
+ {
+  "id": "leaddyno",
+  "hosts": [
+   "api.leaddyno.com"
+  ],
+  "confidence": "medium",
+  "source": "https://help.leaddyno.com/article/3664-rest-api-introduction",
+  "status": {
+   "api.leaddyno.com": 302
+  }
+ },
+ {
+  "id": "leap",
+  "hosts": [
+   "api.tryleap.ai"
+  ],
+  "confidence": "high",
+  "source": "https://docs.tryleap.ai/",
+  "status": {
+   "api.tryleap.ai": 302
+  }
+ },
+ {
+  "id": "lemlist",
+  "hosts": [
+   "api.lemlist.com"
+  ],
+  "confidence": "high",
+  "source": "https://developer.lemlist.com/api-reference/getting-started/authentication",
+  "basic": ":key",
+  "status": {
+   "api.lemlist.com": 302
+  }
+ },
+ {
+  "id": "lemon-squeezy",
+  "hosts": [
+   "api.lemonsqueezy.com"
+  ],
+  "confidence": "high",
+  "source": "https://docs.lemonsqueezy.com/api/getting-started/requests",
+  "status": {
+   "api.lemonsqueezy.com": 403
+  }
+ },
+ {
+  "id": "letmc",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "status": {}
+ },
+ {
+  "id": "lightspeed-ecom",
+  "hosts": [
+   "api.webshopapp.com",
+   "api.shoplightspeed.com"
+  ],
+  "confidence": "high",
+  "source": "https://developers.lightspeedhq.com/ecom/introduction/introduction/",
+  "basic": "account:key",
+  "note": "key:secret pair; regional cluster hosts",
+  "status": {
+   "api.webshopapp.com": 404,
+   "api.shoplightspeed.com": 404
+  }
+ },
+ {
+  "id": "line-messaging",
+  "hosts": [
+   "api.line.me",
+   "api-data.line.me"
+  ],
+  "confidence": "medium",
+  "source": "https://developers.line.biz/en/docs/messaging-api/channel-access-tokens",
+  "note": "api-data for content upload/download",
+  "status": {
+   "api.line.me": 301,
+   "api-data.line.me": 302
+  }
+ },
+ {
+  "id": "link-fish",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "basic": "key:",
+  "status": {}
+ },
+ {
+  "id": "linqr",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "status": {}
+ },
+ {
+  "id": "linuxfoundation",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "status": {}
+ },
+ {
+  "id": "listmonk",
+  "hosts": [],
+  "confidence": "high",
+  "source": "https://listmonk.app/docs/apis/apis/",
+  "note": "per-tenant: self-hosted instance",
+  "status": {}
+ },
+ {
+  "id": "little-green-light",
+  "hosts": [
+   "api.littlegreenlight.com"
+  ],
+  "confidence": "high",
+  "source": "https://api.littlegreenlight.com/api-docs/static.html",
+  "status": {
+   "api.littlegreenlight.com": 302
+  }
+ },
+ {
+  "id": "liveagent",
+  "hosts": [],
+  "confidence": "high",
+  "source": "https://support.liveagent.com/061754-How-to-make-requests-to-API",
+  "note": "per-tenant: {account}.ladesk.com",
+  "status": {}
+ },
+ {
+  "id": "logto",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://docs.logto.io/logto-cloud/automate-tenant-creation",
+  "note": "per-tenant: {tenant}.logto.app (management API); token endpoint cloud tenant",
+  "status": {}
+ },
+ {
+  "id": "loop-returns",
+  "hosts": [
+   "api.loopreturns.com"
+  ],
+  "confidence": "high",
+  "source": "https://docs.loopreturns.com/api-reference/authentication",
+  "status": {
+   "api.loopreturns.com": 404
+  }
+ },
+ {
+  "id": "lotadata",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "status": {}
+ },
+ {
+  "id": "lucca",
+  "hosts": [],
+  "confidence": "high",
+  "source": "https://developers.lucca.fr/api-reference/legacy/authentication",
+  "note": "per-tenant: {account}.ilucca.net",
+  "status": {}
+ },
+ {
+  "id": "lusha",
+  "hosts": [
+   "api.lusha.com"
+  ],
+  "confidence": "high",
+  "source": "https://docs.lusha.com/api-reference/overview",
+  "status": {
+   "api.lusha.com": 404
+  }
+ },
+ {
+  "id": "maif-local",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "basic": "",
+  "note": "per-tenant: self-hosted Otoroshi",
+  "status": {}
+ },
+ {
+  "id": "mailersend",
+  "hosts": [
+   "api.mailersend.com"
+  ],
+  "confidence": "high",
+  "source": "https://developers.mailersend.com/",
+  "status": {
+   "api.mailersend.com": 302
+  }
+ },
+ {
+  "id": "mailgun",
+  "hosts": [
+   "api.mailgun.net",
+   "api.eu.mailgun.net"
+  ],
+  "confidence": "high",
+  "source": "https://documentation.mailgun.com/docs/mailgun/api-reference/api-overview",
+  "basic": "api:key",
+  "note": "US and EU regions",
+  "status": {
+   "api.mailgun.net": 200,
+   "api.eu.mailgun.net": 200
+  }
+ },
+ {
+  "id": "mailjet",
+  "hosts": [
+   "api.mailjet.com"
+  ],
+  "confidence": "medium",
+  "source": "https://dev.mailjet.com/email/guides/",
+  "basic": "account:key",
+  "note": "api key as username, secret as password; sms uses api.mailjet.com too",
+  "status": {
+   "api.mailjet.com": 301
+  }
+ },
+ {
+  "id": "mailwizz",
+  "hosts": [],
+  "confidence": "high",
+  "source": "https://api-docs.mailwizz.com/",
+  "note": "per-tenant: self-hosted {your-domain}/api",
+  "status": {}
+ },
+ {
+  "id": "mashape",
+  "hosts": [
+   "wft-geo-db.p.rapidapi.com"
+  ],
+  "confidence": "high",
+  "source": "https://rapidapi.com/wirefreethought/api/geodb-cities",
+  "note": "RapidAPI host",
+  "status": {
+   "wft-geo-db.p.rapidapi.com": 401
+  }
+ },
+ {
+  "id": "mastodon-local",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "",
+  "note": "per-tenant: self-hosted instance",
+  "status": {}
+ },
+ {
+  "id": "medium",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "note": "RapidAPI-hosted; host unverified",
+  "status": {}
+ },
+ {
+  "id": "megaventory",
+  "hosts": [
+   "api.megaventory.com"
+  ],
+  "confidence": "high",
+  "source": "https://help.megaventory.com/en/articles/74873-how-do-i-get-started-with-the-api",
+  "status": {
+   "api.megaventory.com": 200
+  }
+ },
+ {
+  "id": "meilisearch",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://www.meilisearch.com/docs/capabilities/security/how_to/manage_api_keys",
+  "note": "per-tenant: ms-xxxx.<region>.meilisearch.io or self-hosted",
+  "status": {}
+ },
+ {
+  "id": "memberstack",
+  "hosts": [
+   "admin.memberstack.com"
+  ],
+  "confidence": "high",
+  "source": "https://developers.memberstack.com/admin-rest-api",
+  "status": {
+   "admin.memberstack.com": 400
+  }
+ },
+ {
+  "id": "mercure-local",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "",
+  "note": "per-tenant: self-hosted hub",
+  "status": {}
+ },
+ {
+  "id": "merge",
+  "hosts": [
+   "api.merge.dev",
+   "api-eu.merge.dev",
+   "api-ap.merge.dev"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.merge.dev/basics/authentication/",
+  "note": "US/EU/APAC regions; also needs X-Account-Token",
+  "status": {
+   "api.merge.dev": 404,
+   "api-eu.merge.dev": 404,
+   "api-ap.merge.dev": 404
+  }
+ },
+ {
+  "id": "meteosource",
+  "hosts": [
+   "www.meteosource.com"
+  ],
+  "confidence": "high",
+  "source": "https://www.meteosource.com/documentation",
+  "status": {
+   "www.meteosource.com": 200
+  }
+ },
+ {
+  "id": "microsoft",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "note": "Bing AutoSuggest retired; host unverified",
+  "status": {}
+ },
+ {
+  "id": "missive",
+  "hosts": [
+   "public.missiveapp.com"
+  ],
+  "confidence": "high",
+  "source": "https://missiveapp.com/docs/developers/rest-api",
+  "status": {
+   "public.missiveapp.com": 404
+  }
+ },
+ {
+  "id": "mistral",
+  "hosts": [
+   "api.mistral.ai"
+  ],
+  "confidence": "high",
+  "source": "https://docs.mistral.ai/api/",
+  "status": {
+   "api.mistral.ai": 404
+  }
+ },
+ {
+  "id": "mixmax",
+  "hosts": [
+   "api.mixmax.com"
+  ],
+  "confidence": "medium",
+  "source": "https://developer.mixmax.com/reference/getting-started-with-your-api",
+  "status": {
+   "api.mixmax.com": 302
+  }
+ },
+ {
+  "id": "mixpanel",
+  "hosts": [
+   "mixpanel.com",
+   "eu.mixpanel.com",
+   "in.mixpanel.com",
+   "data.mixpanel.com",
+   "data-eu.mixpanel.com",
+   "data-in.mixpanel.com"
+  ],
+  "confidence": "high",
+  "source": "https://developer.mixpanel.com/reference/overview",
+  "basic": "account:key",
+  "note": "service account username:secret; regional hosts",
+  "status": {
+   "mixpanel.com": 308,
+   "eu.mixpanel.com": 302,
+   "in.mixpanel.com": 302,
+   "data.mixpanel.com": 404,
+   "data-eu.mixpanel.com": 200,
+   "data-in.mixpanel.com": 403
+  }
+ },
+ {
+  "id": "mode",
+  "hosts": [
+   "app.mode.com"
+  ],
+  "confidence": "high",
+  "source": "https://mode.com/developer/api-reference/authentication/",
+  "basic": "account:key",
+  "note": "token:secret",
+  "status": {
+   "app.mode.com": 301
+  }
+ },
+ {
+  "id": "mojo-helpdesk",
+  "hosts": [],
+  "confidence": "high",
+  "source": "https://developer.mojohelpdesk.com",
+  "note": "per-tenant: {account}.mojohelpdesk.com",
+  "status": {}
+ },
+ {
+  "id": "monday",
+  "hosts": [
+   "api.monday.com"
+  ],
+  "confidence": "high",
+  "source": "https://developer.monday.com/api-reference/docs/basics",
+  "status": {
+   "api.monday.com": 302
+  }
+ },
+ {
+  "id": "mongodb-atlas",
+  "hosts": [
+   "cloud.mongodb.com"
+  ],
+  "confidence": "high",
+  "source": "https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/operation/operation-createorgserviceaccount",
+  "note": "Atlas Admin API uses service account OAuth bearer",
+  "status": {
+   "cloud.mongodb.com": 303
+  }
+ },
+ {
+  "id": "motaword",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "basic": "",
+  "status": {}
+ },
+ {
+  "id": "motherduck",
+  "hosts": [
+   "api.motherduck.com"
+  ],
+  "confidence": "high",
+  "source": "https://motherduck.com/docs/sql-reference/rest-api/motherduck-rest-api/",
+  "status": {
+   "api.motherduck.com": 401
+  }
+ },
+ {
+  "id": "mux",
+  "hosts": [
+   "api.mux.com"
+  ],
+  "confidence": "high",
+  "source": "https://docs.mux.com/api-reference",
+  "basic": "account:key",
+  "note": "token id:secret",
+  "status": {
+   "api.mux.com": 404
+  }
+ },
+ {
+  "id": "n-auth",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "status": {}
+ },
+ {
+  "id": "nebl",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "basic": "",
+  "status": {}
+ },
+ {
+  "id": "neon",
+  "hosts": [
+   "console.neon.tech"
+  ],
+  "confidence": "high",
+  "source": "https://neon.com/docs/reference/api-reference",
+  "status": {
+   "console.neon.tech": 302
+  }
+ },
+ {
+  "id": "neon-postgres",
+  "hosts": [
+   "console.neon.tech"
+  ],
+  "confidence": "high",
+  "source": "https://neon.com/docs/reference/api-reference",
+  "status": {
+   "console.neon.tech": 302
+  }
+ },
+ {
+  "id": "nethunt-crm",
+  "hosts": [
+   "nethunt.com"
+  ],
+  "confidence": "high",
+  "source": "https://nethunt.com/integration-api",
+  "basic": "email:key",
+  "note": "path /api/v1/zapier",
+  "status": {
+   "nethunt.com": 200
+  }
+ },
+ {
+  "id": "netlicensing",
+  "hosts": [
+   "go.netlicensing.io"
+  ],
+  "confidence": "high",
+  "source": "https://netlicensing.io/wiki/restful-api",
+  "basic": "api:key",
+  "note": "username 'apiKey'",
+  "status": {
+   "go.netlicensing.io": 200
+  }
+ },
+ {
+  "id": "nexmo",
+  "hosts": [
+   "api.nexmo.com"
+  ],
+  "confidence": "medium",
+  "source": "https://developer.nexmo.com",
+  "basic": "account:key",
+  "note": "api_key + api_secret",
+  "status": {
+   "api.nexmo.com": 404
+  }
+ },
+ {
+  "id": "nile",
+  "hosts": [
+   "global.thenile.dev"
+  ],
+  "confidence": "high",
+  "source": "https://www.thenile.dev/docs/api-reference/databases/create-a-database-credential.md",
+  "note": "regional hosts like us-west-2.api.thenile.dev may also apply",
+  "status": {
+   "global.thenile.dev": 404
+  }
+ },
+ {
+  "id": "nlpcloud",
+  "hosts": [
+   "api.nlpcloud.io"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.nlpcloud.com/",
+  "status": {
+   "api.nlpcloud.io": 404
+  }
+ },
+ {
+  "id": "nocodb",
+  "hosts": [
+   "app.nocodb.com"
+  ],
+  "confidence": "medium",
+  "source": "https://nocodb.com/docs/product/account-settings/api-tokens",
+  "note": "cloud; self-hosted instances are per-tenant",
+  "status": {
+   "app.nocodb.com": 200
+  }
+ },
+ {
+  "id": "nocrm",
+  "hosts": [],
+  "confidence": "high",
+  "source": "https://www.nocrm.io/api",
+  "note": "per-tenant: {account}.nocrm.io",
+  "status": {}
+ },
+ {
+  "id": "noosh",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "basic": "",
+  "status": {}
+ },
+ {
+  "id": "northflank",
+  "hosts": [
+   "api.northflank.com"
+  ],
+  "confidence": "high",
+  "source": "https://northflank.com/docs/v1/api/use-the-api",
+  "status": {
+   "api.northflank.com": 200
+  }
+ },
+ {
+  "id": "noticeable",
+  "hosts": [
+   "api.noticeable.io"
+  ],
+  "confidence": "high",
+  "source": "https://help.noticeable.io/en-us/article/how-to-use-the-noticeable-api-1bssj1n/",
+  "status": {
+   "api.noticeable.io": 401
+  }
+ },
+ {
+  "id": "nuclino",
+  "hosts": [
+   "api.nuclino.com"
+  ],
+  "confidence": "high",
+  "source": "https://help.nuclino.com/8090bb76-authentication",
+  "status": {
+   "api.nuclino.com": 401
+  }
+ },
+ {
+  "id": "nutshell",
+  "hosts": [
+   "app.nutshell.com",
+   "api.nutshell.com"
+  ],
+  "confidence": "medium",
+  "source": "https://developers.nutshell.com/docs/api-authentication",
+  "basic": "email:key",
+  "status": {
+   "app.nutshell.com": 302,
+   "api.nutshell.com": 404
+  }
+ },
+ {
+  "id": "nytimes",
+  "hosts": [
+   "api.nytimes.com"
+  ],
+  "confidence": "medium",
+  "source": "https://developer.nytimes.com/apis",
+  "status": {
+   "api.nytimes.com": 404
+  }
+ },
+ {
+  "id": "obono",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "status": {}
+ },
+ {
+  "id": "odoo",
+  "hosts": [],
+  "confidence": "high",
+  "source": "https://www.odoo.com/documentation/master/developer/reference/external_api.html",
+  "note": "per-tenant: {db}.odoo.com or self-hosted",
+  "status": {}
+ },
+ {
+  "id": "offorte",
+  "hosts": [
+   "connect.offorte.com"
+  ],
+  "confidence": "high",
+  "source": "https://www.offorte.com/api-docs",
+  "status": {
+   "connect.offorte.com": 404
+  }
+ },
+ {
+  "id": "omnisend",
+  "hosts": [
+   "api.omnisend.com"
+  ],
+  "confidence": "high",
+  "source": "https://api-docs.omnisend.com/reference/authentication",
+  "status": {
+   "api.omnisend.com": 404
+  }
+ },
+ {
+  "id": "oncehub",
+  "hosts": [
+   "api.oncehub.com"
+  ],
+  "confidence": "medium",
+  "source": "https://developers.oncehub.com/reference/authentication",
+  "status": {
+   "api.oncehub.com": 401
+  }
+ },
+ {
+  "id": "onepagecrm",
+  "hosts": [
+   "app.onepagecrm.com"
+  ],
+  "confidence": "high",
+  "source": "https://developer.onepagecrm.com/api/authentication/",
+  "basic": "account:key",
+  "note": "user id:api key; signing HMAC for write requests per docs",
+  "status": {
+   "app.onepagecrm.com": 302
+  }
+ },
+ {
+  "id": "onfleet",
+  "hosts": [
+   "onfleet.com"
+  ],
+  "confidence": "high",
+  "source": "https://docs.onfleet.com/reference/authentication",
+  "basic": "key:",
+  "note": "path /api/v2",
+  "status": {
+   "onfleet.com": 200
+  }
+ },
+ {
+  "id": "ontraport",
+  "hosts": [
+   "api.ontraport.com"
+  ],
+  "confidence": "high",
+  "source": "https://api.ontraport.com/doc/",
+  "status": {
+   "api.ontraport.com": 302
+  }
+ },
+ {
+  "id": "openai",
+  "hosts": [
+   "api.openai.com"
+  ],
+  "confidence": "medium",
+  "source": "https://platform.openai.com/docs/api-reference/introduction",
+  "status": {
+   "api.openai.com": 421
+  }
+ },
+ {
+  "id": "openchannel",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "basic": "",
+  "note": "per-tenant: {marketplace}.openchannel.io",
+  "status": {}
+ },
+ {
+  "id": "openfigi",
+  "hosts": [
+   "api.openfigi.com"
+  ],
+  "confidence": "high",
+  "source": "https://openfigi.com/api",
+  "status": {
+   "api.openfigi.com": 404
+  }
+ },
+ {
+  "id": "openindex",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "status": {}
+ },
+ {
+  "id": "openrouter",
+  "hosts": [
+   "openrouter.ai"
+  ],
+  "confidence": "high",
+  "source": "https://openrouter.ai/docs/guides/overview/auth/management-api-keys",
+  "status": {
+   "openrouter.ai": 200
+  }
+ },
+ {
+  "id": "opensrs",
+  "hosts": [
+   "rr-n1-tor.opensrs.net",
+   "horizon.opensrs.net"
+  ],
+  "confidence": "high",
+  "source": "https://domains.opensrs.guide/docs/quickstart",
+  "note": "signing: md5 of body+key in X-Signature (live and test hosts)",
+  "status": {
+   "rr-n1-tor.opensrs.net": 200,
+   "horizon.opensrs.net": 200
+  }
+ },
+ {
+  "id": "openstf",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "note": "per-tenant: self-hosted STF",
+  "status": {}
+ },
+ {
+  "id": "opensuse",
+  "hosts": [
+   "api.opensuse.org"
+  ],
+  "confidence": "medium",
+  "source": "https://api.opensuse.org/apidocs/index",
+  "basic": "account:key",
+  "note": "username:password",
+  "status": {
+   "api.opensuse.org": 401
+  }
+ },
+ {
+  "id": "opto22",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "",
+  "note": "per-tenant: device address",
+  "status": {}
+ },
+ {
+  "id": "order-desk",
+  "hosts": [
+   "app.orderdesk.me"
+  ],
+  "confidence": "high",
+  "source": "https://help.orderdesk.com/api-documentation/getting-started/introduction",
+  "status": {
+   "app.orderdesk.me": 302
+  }
+ },
+ {
+  "id": "orghunter",
+  "hosts": [
+   "data.orghunter.com"
+  ],
+  "confidence": "medium",
+  "source": "https://api.orghunter.com/",
+  "status": {
+   "data.orghunter.com": 200
+  }
+ },
+ {
+  "id": "ory",
+  "hosts": [
+   "api.console.ory.sh"
+  ],
+  "confidence": "medium",
+  "source": "https://www.ory.com/docs/guides/manage-project-via-api",
+  "note": "project APIs per-tenant: {slug}.projects.oryapis.com",
+  "status": {
+   "api.console.ory.sh": 401
+  }
+ },
+ {
+  "id": "overloop",
+  "hosts": [
+   "api.overloop.com"
+  ],
+  "confidence": "high",
+  "source": "https://apidoc.overloop.com",
+  "status": {
+   "api.overloop.com": 301
+  }
+ },
+ {
+  "id": "owler",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "status": {}
+ },
+ {
+  "id": "paddle",
+  "hosts": [
+   "api.paddle.com",
+   "sandbox-api.paddle.com"
+  ],
+  "confidence": "high",
+  "source": "https://developer.paddle.com/api-reference/overview",
+  "status": {
+   "api.paddle.com": 200,
+   "sandbox-api.paddle.com": 200
+  }
+ },
+ {
+  "id": "pandorabots",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://pandorabots.com/docs/api/",
+  "status": {}
+ },
+ {
+  "id": "parsehub",
+  "hosts": [
+   "www.parsehub.com"
+  ],
+  "confidence": "high",
+  "source": "https://www.parsehub.com/docs/ref/api/v2/",
+  "status": {
+   "www.parsehub.com": 200
+  }
+ },
+ {
+  "id": "paymo",
+  "hosts": [
+   "app.paymoapp.com"
+  ],
+  "confidence": "high",
+  "source": "https://github.com/paymoapp/api/blob/master/sections/authentication.md",
+  "basic": "key:",
+  "note": "api key as username",
+  "status": {
+   "app.paymoapp.com": 302
+  }
+ },
+ {
+  "id": "payrexx",
+  "hosts": [
+   "api.payrexx.com"
+  ],
+  "confidence": "high",
+  "source": "https://developers.payrexx.com",
+  "note": "older API uses HMAC ApiSignature (signing)",
+  "status": {
+   "api.payrexx.com": 403
+  }
+ },
+ {
+  "id": "paystack",
+  "hosts": [
+   "api.paystack.co"
+  ],
+  "confidence": "medium",
+  "source": "https://paystack.com/docs/api/",
+  "status": {
+   "api.paystack.co": 200
+  }
+ },
+ {
+  "id": "pdf",
+  "hosts": [
+   "api.pdf.co"
+  ],
+  "confidence": "high",
+  "source": "https://developer.pdf.co/api",
+  "status": {
+   "api.pdf.co": 404
+  }
+ },
+ {
+  "id": "perplexity",
+  "hosts": [
+   "api.perplexity.ai"
+  ],
+  "confidence": "high",
+  "source": "https://docs.perplexity.ai/api-reference/generate-auth-token-post",
+  "status": {
+   "api.perplexity.ai": 404
+  }
+ },
+ {
+  "id": "picqer",
+  "hosts": [],
+  "confidence": "high",
+  "source": "https://picqer.com/en/api",
+  "basic": "key:",
+  "note": "per-tenant: {company}.picqer.com",
+  "status": {}
+ },
+ {
+  "id": "pims",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "basic": "",
+  "status": {}
+ },
+ {
+  "id": "pinecone",
+  "hosts": [
+   "api.pinecone.io"
+  ],
+  "confidence": "high",
+  "source": "https://docs.pinecone.io/reference/api/2025-04/admin/create_api_key",
+  "note": "control plane; data plane hosts are per-index (*.svc.*.pinecone.io)",
+  "status": {
+   "api.pinecone.io": 401
+  }
+ },
+ {
+  "id": "pipefy",
+  "hosts": [
+   "api.pipefy.com"
+  ],
+  "confidence": "high",
+  "source": "https://developers.pipefy.com/reference/authentication",
+  "status": {
+   "api.pipefy.com": 301
+  }
+ },
+ {
+  "id": "plain",
+  "hosts": [
+   "core-api.uk.plain.com"
+  ],
+  "confidence": "high",
+  "source": "https://www.plain.com/docs/graphql/introduction",
+  "status": {
+   "core-api.uk.plain.com": 404
+  }
+ },
+ {
+  "id": "planview-leankit",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://success.planview.com/Planview_LeanKit/LeanKit_API/01_v2/token-auth/create",
+  "note": "per-tenant: {account}.leankit.com",
+  "status": {}
+ },
+ {
+  "id": "plivo",
+  "hosts": [
+   "api.plivo.com"
+  ],
+  "confidence": "high",
+  "source": "https://www.plivo.com/docs/account/api/subaccount",
+  "basic": "account:key",
+  "note": "auth id:auth token",
+  "status": {
+   "api.plivo.com": 200
+  }
+ },
+ {
+  "id": "polar",
+  "hosts": [
+   "api.polar.sh",
+   "sandbox-api.polar.sh"
+  ],
+  "confidence": "high",
+  "source": "https://polar.sh/docs/api-reference/introduction",
+  "status": {
+   "api.polar.sh": 404,
+   "sandbox-api.polar.sh": 404
+  }
+ },
+ {
+  "id": "posthog",
+  "hosts": [
+   "us.posthog.com",
+   "eu.posthog.com",
+   "app.posthog.com",
+   "us.i.posthog.com",
+   "eu.i.posthog.com"
+  ],
+  "confidence": "medium",
+  "source": "https://posthog.com/docs/api",
+  "note": "private API on us/eu; ingestion on *.i.posthog.com",
+  "status": {
+   "us.posthog.com": 302,
+   "eu.posthog.com": 302,
+   "app.posthog.com": 302,
+   "us.i.posthog.com": 404,
+   "eu.i.posthog.com": 404
+  }
+ },
+ {
+  "id": "powerdns-local",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "",
+  "note": "per-tenant: self-hosted",
+  "status": {}
+ },
+ {
+  "id": "predictleads",
+  "hosts": [
+   "predictleads.com"
+  ],
+  "confidence": "high",
+  "source": "https://docs.predictleads.com/api_endpoints/introduction/authentication/with_http_headers",
+  "status": {
+   "predictleads.com": 200
+  }
+ },
+ {
+  "id": "printful",
+  "hosts": [
+   "api.printful.com"
+  ],
+  "confidence": "high",
+  "source": "https://developers.printful.com/docs/",
+  "status": {
+   "api.printful.com": 200
+  }
+ },
+ {
+  "id": "prisma-postgres",
+  "hosts": [
+   "api.prisma.io"
+  ],
+  "confidence": "high",
+  "source": "https://www.prisma.io/docs/postgres/introduction/management-api",
+  "status": {
+   "api.prisma.io": 200
+  }
+ },
+ {
+  "id": "prismic",
+  "hosts": [
+   "customtypes.prismic.io"
+  ],
+  "confidence": "high",
+  "source": "https://prismic.io/docs/custom-types-api",
+  "note": "also repo-specific hosts for other APIs",
+  "status": {
+   "customtypes.prismic.io": 403
+  }
+ },
+ {
+  "id": "prodpad",
+  "hosts": [
+   "api.prodpad.com"
+  ],
+  "confidence": "high",
+  "source": "https://help.prodpad.com/hc/en-us/articles/204634298",
+  "status": {
+   "api.prodpad.com": 404
+  }
+ },
+ {
+  "id": "productboard",
+  "hosts": [
+   "api.productboard.com"
+  ],
+  "confidence": "high",
+  "source": "https://developer.productboard.com/docs/authentication",
+  "status": {
+   "api.productboard.com": 404
+  }
+ },
+ {
+  "id": "productive",
+  "hosts": [
+   "api.productive.io"
+  ],
+  "confidence": "high",
+  "source": "https://developer.productive.io",
+  "status": {
+   "api.productive.io": 404
+  }
+ },
+ {
+  "id": "propelauth",
+  "hosts": [],
+  "confidence": "high",
+  "source": "https://docs.propelauth.com/reference/api/getting-started",
+  "note": "per-tenant: {authUrl} e.g. auth.yourdomain.com",
+  "status": {}
+ },
+ {
+  "id": "proworkflow",
+  "hosts": [],
+  "confidence": "high",
+  "source": "https://api.proworkflow.com/api/v4/docs/",
+  "note": "per-tenant: {account}.proworkflow.net",
+  "status": {}
+ },
+ {
+  "id": "pubrio",
+  "hosts": [
+   "api.pubrio.com"
+  ],
+  "confidence": "high",
+  "source": "https://docs.pubrio.com/en/api-reference/introduction",
+  "status": {
+   "api.pubrio.com": 200
+  }
+ },
+ {
+  "id": "qstash",
+  "hosts": [
+   "qstash.upstash.io"
+  ],
+  "confidence": "high",
+  "source": "https://upstash.com/docs/qstash/overall/getstarted",
+  "note": "EU region eu-central-1.qstash.upstash.io may also apply",
+  "status": {
+   "qstash.upstash.io": 404
+  }
+ },
+ {
+  "id": "quaderno",
+  "hosts": [],
+  "confidence": "high",
+  "source": "https://developers.quaderno.io/api/",
+  "basic": "key:",
+  "note": "per-tenant: {account}.quadernoapp.com",
+  "status": {}
+ },
+ {
+  "id": "qualpay",
+  "hosts": [
+   "api.qualpay.com"
+  ],
+  "confidence": "medium",
+  "source": "",
+  "basic": "account:key",
+  "status": {
+   "api.qualpay.com": 302
+  }
+ },
+ {
+  "id": "qualtrics",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "",
+  "note": "per-tenant: {datacenter}.qualtrics.com",
+  "status": {}
+ },
+ {
+  "id": "quo",
+  "hosts": [
+   "api.openphone.com"
+  ],
+  "confidence": "medium",
+  "source": "https://www.quo.com/docs/mdx/api-reference/authentication",
+  "note": "Quo formerly OpenPhone; not seen in fetched page",
+  "status": {
+   "api.openphone.com": 404
+  }
+ },
+ {
+  "id": "railway",
+  "hosts": [
+   "backboard.railway.com"
+  ],
+  "confidence": "high",
+  "source": "https://docs.railway.com/guides/public-api",
+  "status": {
+   "backboard.railway.com": 200
+  }
+ },
+ {
+  "id": "rapidapi",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "status": {}
+ },
+ {
+  "id": "readme",
+  "hosts": [
+   "dash.readme.com"
+  ],
+  "confidence": "high",
+  "source": "https://registry.terraform.io/providers/LiveOakLabs/readme/latest/docs",
+  "basic": "key:",
+  "note": "api key as username",
+  "status": {
+   "dash.readme.com": 401
+  }
+ },
+ {
+  "id": "recharge",
+  "hosts": [
+   "api.rechargeapps.com"
+  ],
+  "confidence": "high",
+  "source": "https://developer.rechargepayments.com/",
+  "status": {
+   "api.rechargeapps.com": 401
+  }
+ },
+ {
+  "id": "redhat",
+  "hosts": [
+   "console.redhat.com"
+  ],
+  "confidence": "low",
+  "source": "",
+  "basic": "",
+  "status": {
+   "console.redhat.com": 200
+  }
+ },
+ {
+  "id": "redhat-local",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "note": "local service, no public host found",
+  "status": {}
+ },
+ {
+  "id": "refiner",
+  "hosts": [
+   "api.refiner.io"
+  ],
+  "confidence": "high",
+  "source": "https://refiner.io/docs/api/",
+  "status": {
+   "api.refiner.io": 302
+  }
+ },
+ {
+  "id": "remote",
+  "hosts": [
+   "gateway.remote.com",
+   "gateway.remote-sandbox.com"
+  ],
+  "confidence": "high",
+  "source": "https://developer.remote.com/docs/authentication",
+  "note": "sandbox host included",
+  "status": {
+   "gateway.remote.com": 404,
+   "gateway.remote-sandbox.com": 404
+  }
+ },
+ {
+  "id": "render",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "note": "base URL not shown in fetched docs",
+  "status": {}
+ },
+ {
+  "id": "replicate",
+  "hosts": [
+   "api.replicate.com"
+  ],
+  "confidence": "high",
+  "source": "https://replicate.com/docs/reference/http",
+  "status": {
+   "api.replicate.com": 200
+  }
+ },
+ {
+  "id": "resend",
+  "hosts": [
+   "api.resend.com"
+  ],
+  "confidence": "high",
+  "source": "https://resend.com/docs/api-reference/introduction",
+  "status": {
+   "api.resend.com": 200
+  }
+ },
+ {
+  "id": "revenuecat",
+  "hosts": [
+   "api.revenuecat.com"
+  ],
+  "confidence": "high",
+  "source": "https://www.revenuecat.com/docs/api-v2.md",
+  "status": {
+   "api.revenuecat.com": 302
+  }
+ },
+ {
+  "id": "rhombus",
+  "hosts": [
+   "api2.rhombussystems.com",
+   "api2.eu.rhombussystems.com"
+  ],
+  "confidence": "high",
+  "source": "https://developer.rhombus.com/",
+  "note": "keys region-bound",
+  "status": {
+   "api2.rhombussystems.com": 401,
+   "api2.eu.rhombussystems.com": 401
+  }
+ },
+ {
+  "id": "richpanel",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "note": "base URL not found in docs",
+  "status": {}
+ },
+ {
+  "id": "rinkel",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "note": "base URL not found in docs",
+  "status": {}
+ },
+ {
+  "id": "roblox",
+  "hosts": [
+   "apis.roblox.com"
+  ],
+  "confidence": "high",
+  "source": "https://create.roblox.com/docs/cloud/auth/api-keys",
+  "status": {
+   "apis.roblox.com": 404
+  }
+ },
+ {
+  "id": "rocket-chat",
+  "hosts": [],
+  "confidence": "high",
+  "source": "https://developer.rocket.chat/apidocs/generate-personal-access-token",
+  "note": "per-tenant: self-hosted {server}/api/v1",
+  "status": {}
+ },
+ {
+  "id": "rottentomatoes",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "note": "not found",
+  "status": {}
+ },
+ {
+  "id": "royalmail",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "note": "not found in official docs",
+  "status": {}
+ },
+ {
+  "id": "runware",
+  "hosts": [
+   "api.runware.ai",
+   "ws-api.runware.ai"
+  ],
+  "confidence": "high",
+  "source": "https://runware.ai/docs/en/getting-started/how-to-connect",
+  "status": {
+   "api.runware.ai": 404,
+   "ws-api.runware.ai": 200
+  }
+ },
+ {
+  "id": "salesflare",
+  "hosts": [
+   "api.salesflare.com"
+  ],
+  "confidence": "medium",
+  "source": "https://api.salesflare.com/docs",
+  "note": "seen in third-party integration docs",
+  "status": {
+   "api.salesflare.com": 404
+  }
+ },
+ {
+  "id": "salesforce-local",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "note": "not found",
+  "status": {}
+ },
+ {
+  "id": "sanity",
+  "hosts": [
+   "api.sanity.io"
+  ],
+  "confidence": "high",
+  "source": "https://www.sanity.io/docs/http-reference/projects-api",
+  "note": "project APIs also use {projectId}.api.sanity.io (not verified)",
+  "status": {
+   "api.sanity.io": 200
+  }
+ },
+ {
+  "id": "segment",
+  "hosts": [
+   "api.segmentapis.com"
+  ],
+  "confidence": "medium",
+  "source": "https://www.twilio.com/docs/segment/api/public-api",
+  "note": "EU host eu1.api.segmentapis.com only from third-party docs",
+  "status": {
+   "api.segmentapis.com": 401
+  }
+ },
+ {
+  "id": "sendcloud",
+  "hosts": [
+   "panel.sendcloud.sc"
+  ],
+  "confidence": "high",
+  "source": "https://sendcloud.dev/docs/getting-started/authentication",
+  "basic": "account:key",
+  "note": "public key username + secret password",
+  "status": {
+   "panel.sendcloud.sc": 302
+  }
+ },
+ {
+  "id": "sendgrid",
+  "hosts": [
+   "api.sendgrid.com",
+   "api.eu.sendgrid.com"
+  ],
+  "confidence": "high",
+  "source": "https://www.twilio.com/docs/sendgrid/api-reference/api-keys/create-api-keys",
+  "status": {
+   "api.sendgrid.com": 404,
+   "api.eu.sendgrid.com": 404
+  }
+ },
+ {
+  "id": "sentry",
+  "hosts": [
+   "sentry.io",
+   "us.sentry.io",
+   "de.sentry.io"
+  ],
+  "confidence": "high",
+  "source": "https://docs.sentry.io/api/",
+  "status": {
+   "sentry.io": 302,
+   "us.sentry.io": 404,
+   "de.sentry.io": 404
+  }
+ },
+ {
+  "id": "sevdesk",
+  "hosts": [
+   "my.sevdesk.de"
+  ],
+  "confidence": "medium",
+  "source": "https://api.sevdesk.de",
+  "note": "token raw in Authorization header",
+  "status": {
+   "my.sevdesk.de": 200
+  }
+ },
+ {
+  "id": "shift4",
+  "hosts": [
+   "api.shift4.com"
+  ],
+  "confidence": "high",
+  "source": "https://dev.shift4.com/docs/api",
+  "basic": "key:",
+  "status": {
+   "api.shift4.com": 401
+  }
+ },
+ {
+  "id": "shipstation",
+  "hosts": [
+   "ssapi.shipstation.com"
+  ],
+  "confidence": "high",
+  "source": "https://www.shipstation.com/docs/api/requirements/",
+  "basic": "account:key",
+  "note": "API key username + secret password",
+  "status": {
+   "ssapi.shipstation.com": 401
+  }
+ },
+ {
+  "id": "short",
+  "hosts": [
+   "api.short.io"
+  ],
+  "confidence": "high",
+  "source": "https://developers.short.io/reference/post_links",
+  "status": {
+   "api.short.io": 200
+  }
+ },
+ {
+  "id": "shortcut",
+  "hosts": [
+   "api.app.shortcut.com"
+  ],
+  "confidence": "high",
+  "source": "https://developer.shortcut.com/api/rest/v3",
+  "status": {
+   "api.app.shortcut.com": 200
+  }
+ },
+ {
+  "id": "shotstack",
+  "hosts": [
+   "api.shotstack.io"
+  ],
+  "confidence": "high",
+  "source": "https://shotstack.io/docs/api/",
+  "status": {
+   "api.shotstack.io": 200
+  }
+ },
+ {
+  "id": "shutterstock",
+  "hosts": [
+   "api.shutterstock.com"
+  ],
+  "confidence": "high",
+  "source": "https://api-reference.shutterstock.com/",
+  "basic": "account:key",
+  "note": "consumer key + secret",
+  "status": {
+   "api.shutterstock.com": 404
+  }
+ },
+ {
+  "id": "simplivpn",
+  "hosts": [],
+  "confidence": "low",
+  "source": "https://jentic.com/apis/simplivpn.net/simplivpn",
+  "note": "host not confirmed (simplivpn.net implied)",
+  "status": {}
+ },
+ {
+  "id": "simplyrets",
+  "hosts": [
+   "api.simplyrets.com"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.simplyrets.com/api/index.html",
+  "basic": "key:",
+  "note": "key:secret pair; key as username",
+  "status": {
+   "api.simplyrets.com": 403
+  }
+ },
+ {
+  "id": "smart-me",
+  "hosts": [
+   "api.smart-me.com"
+  ],
+  "confidence": "high",
+  "source": "https://doc.smart-me.com/interfaces/api",
+  "basic": "key:",
+  "note": "basic is username:password; ApiKey scheme preferred",
+  "status": {
+   "api.smart-me.com": 404
+  }
+ },
+ {
+  "id": "snipe-it",
+  "hosts": [],
+  "confidence": "high",
+  "source": "https://snipe-it.readme.io/reference/generating-api-tokens",
+  "note": "per-tenant: self-hosted or {subdomain}.snipe-it.io",
+  "status": {}
+ },
+ {
+  "id": "softr",
+  "hosts": [
+   "studio-api.softr.io"
+  ],
+  "confidence": "high",
+  "source": "https://docs.softr.io/softr-api/api-setup-and-endpoints",
+  "note": "token validation uses app's own domain",
+  "status": {
+   "studio-api.softr.io": 401
+  }
+ },
+ {
+  "id": "solarvps",
+  "hosts": [],
+  "confidence": "low",
+  "source": "https://www.npmjs.com/package/@datafire/solarvps",
+  "note": "no official docs found",
+  "status": {}
+ },
+ {
+  "id": "sonix",
+  "hosts": [
+   "api.sonix.ai"
+  ],
+  "confidence": "medium",
+  "source": "https://sonix.ai/docs/api",
+  "status": {
+   "api.sonix.ai": 404
+  }
+ },
+ {
+  "id": "sportsdata",
+  "hosts": [
+   "api.sportsdata.io"
+  ],
+  "confidence": "medium",
+  "source": "https://sportsdata.io/developers/api-documentation/ncaa-basketball",
+  "status": {
+   "api.sportsdata.io": 401
+  }
+ },
+ {
+  "id": "stannp",
+  "hosts": [
+   "api-us1.stannp.com"
+  ],
+  "confidence": "high",
+  "source": "https://www.stannp.com/us/direct-mail-api/guide",
+  "basic": "key:",
+  "note": "US host only; UK/EU host not confirmed",
+  "status": {
+   "api-us1.stannp.com": 200
+  }
+ },
+ {
+  "id": "statsocial",
+  "hosts": [
+   "api.statsocial.com"
+  ],
+  "confidence": "medium",
+  "source": "https://platform.statsocial.com/documentation/docs/ping",
+  "note": "bearer in v0 docs",
+  "status": {
+   "api.statsocial.com": 404
+  }
+ },
+ {
+  "id": "stellastra",
+  "hosts": [
+   "stellastra.com"
+  ],
+  "confidence": "low",
+  "source": "",
+  "basic": "key:",
+  "status": {
+   "stellastra.com": 200
+  }
+ },
+ {
+  "id": "stoplight",
+  "hosts": [
+   "api.stoplight.io"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.stoplight.io/docs/platform/",
+  "status": {
+   "api.stoplight.io": 404
+  }
+ },
+ {
+  "id": "stormglass",
+  "hosts": [
+   "api.stormglass.io"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.stormglass.io/",
+  "status": {
+   "api.stormglass.io": 404
+  }
+ },
+ {
+  "id": "streak",
+  "hosts": [
+   "api.streak.com"
+  ],
+  "confidence": "medium",
+  "source": "https://streak.readme.io/docs/authentication",
+  "basic": "key:",
+  "status": {
+   "api.streak.com": 200
+  }
+ },
+ {
+  "id": "stytch",
+  "hosts": [
+   "api.stytch.com",
+   "test.stytch.com"
+  ],
+  "confidence": "medium",
+  "source": "https://stytch.com/docs/workspace-management/pwa/create-secret",
+  "basic": "account:key",
+  "note": "project_id:secret",
+  "status": {
+   "api.stytch.com": 404,
+   "test.stytch.com": 404
+  }
+ },
+ {
+  "id": "sunshine-conversations",
+  "hosts": [
+   "api.smooch.io"
+  ],
+  "confidence": "medium",
+  "source": "https://developer.zendesk.com/documentation/conversations/getting-started/api-authentication/",
+  "basic": "account:key",
+  "note": "key id:secret; regional hosts api.{region}.smooch.io exist",
+  "status": {
+   "api.smooch.io": 200
+  }
+ },
+ {
+  "id": "supabase",
+  "hosts": [
+   "api.supabase.com"
+  ],
+  "confidence": "medium",
+  "source": "https://supabase.com/docs/reference/api/introduction",
+  "note": "management API; project APIs are per-project {ref}.supabase.co",
+  "status": {
+   "api.supabase.com": 404
+  }
+ },
+ {
+  "id": "superset-apache-local",
+  "hosts": [],
+  "confidence": "high",
+  "source": "",
+  "note": "per-tenant: self-hosted",
+  "status": {}
+ },
+ {
+  "id": "supportbee",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://supportbee.com/docs/api/reference",
+  "note": "per-tenant: {company}.supportbee.com",
+  "status": {}
+ },
+ {
+  "id": "surevoip-co",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "basic": "account:key",
+  "status": {}
+ },
+ {
+  "id": "survicate",
+  "hosts": [
+   "data-api.survicate.com"
+  ],
+  "confidence": "high",
+  "source": "https://developers.survicate.com/data-export/setup/",
+  "basic": "key:",
+  "note": "header is 'Basic {apiKey}' literal",
+  "status": {
+   "data-api.survicate.com": 404
+  }
+ },
+ {
+  "id": "svix",
+  "hosts": [
+   "api.svix.com",
+   "api.eu.svix.com",
+   "api.us.svix.com",
+   "api.ca.svix.com",
+   "api.au.svix.com"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.svix.com/api-keys",
+  "status": {
+   "api.svix.com": 307,
+   "api.eu.svix.com": 307,
+   "api.us.svix.com": 307,
+   "api.ca.svix.com": 307,
+   "api.au.svix.com": 307
+  }
+ },
+ {
+  "id": "tapfiliate",
+  "hosts": [
+   "api.tapfiliate.com"
+  ],
+  "confidence": "medium",
+  "source": "https://tapfiliate.com/docs/integrations/rest-api/",
+  "status": {
+   "api.tapfiliate.com": 404
+  }
+ },
+ {
+  "id": "tavily",
+  "hosts": [
+   "api.tavily.com"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.tavily.com/",
+  "status": {
+   "api.tavily.com": 200
+  }
+ },
+ {
+  "id": "temporal-cloud",
+  "hosts": [
+   "saas-api.tmprl.cloud"
+  ],
+  "confidence": "high",
+  "source": "https://docs.temporal.io/ops",
+  "status": {
+   "saas-api.tmprl.cloud": 404
+  }
+ },
+ {
+  "id": "text2data",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://text2data.com/Integration",
+  "status": {}
+ },
+ {
+  "id": "textlocal",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://api.textlocal.in/docs",
+  "status": {}
+ },
+ {
+  "id": "thetvdb",
+  "hosts": [
+   "api4.thetvdb.com"
+  ],
+  "confidence": "medium",
+  "source": "https://thetvdb.github.io/v4-api/",
+  "status": {
+   "api4.thetvdb.com": 404
+  }
+ },
+ {
+  "id": "thinkific",
+  "hosts": [
+   "api.thinkific.com"
+  ],
+  "confidence": "medium",
+  "source": "https://developers.thinkific.com/api/api-documentation/",
+  "status": {
+   "api.thinkific.com": 200
+  }
+ },
+ {
+  "id": "threatjammer",
+  "hosts": [],
+  "confidence": "low",
+  "source": "https://api.apis.guru/v2/specs/threatjammer.com/1.2.20.json",
+  "note": "region-specific hosts",
+  "status": {}
+ },
+ {
+  "id": "tick",
+  "hosts": [],
+  "confidence": "high",
+  "source": "https://github.com/tick/tick-api",
+  "note": "per-tenant: {subdomain}.tickspot.com",
+  "status": {}
+ },
+ {
+  "id": "timescale",
+  "hosts": [
+   "console.cloud.tigerdata.com"
+  ],
+  "confidence": "high",
+  "source": "https://www.tigerdata.com/docs/get-started/quickstart/rest-api",
+  "basic": "account:key",
+  "note": "access key as username, secret key as password",
+  "status": {
+   "console.cloud.tigerdata.com": 200
+  }
+ },
+ {
+  "id": "together",
+  "hosts": [
+   "api.together.xyz",
+   "api.together.ai"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.together.ai/reference/createendpoint",
+  "status": {
+   "api.together.xyz": 200,
+   "api.together.ai": 200
+  }
+ },
+ {
+  "id": "toggl-track",
+  "hosts": [
+   "api.track.toggl.com"
+  ],
+  "confidence": "medium",
+  "source": "https://engineering.toggl.com/docs/track/authentication/",
+  "basic": "key:",
+  "note": "username=api_token, password literally 'api_token'",
+  "status": {
+   "api.track.toggl.com": 404
+  }
+ },
+ {
+  "id": "tomba",
+  "hosts": [
+   "api.tomba.io"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.tomba.io/authentication",
+  "status": {
+   "api.tomba.io": 301
+  }
+ },
+ {
+  "id": "tomtom",
+  "hosts": [
+   "api.tomtom.com"
+  ],
+  "confidence": "medium",
+  "source": "https://developer.tomtom.com/",
+  "status": {
+   "api.tomtom.com": 308
+  }
+ },
+ {
+  "id": "traccar",
+  "hosts": [
+   "demo.traccar.org"
+  ],
+  "confidence": "medium",
+  "source": "https://www.traccar.org/api-reference/",
+  "basic": "email:key",
+  "note": "self-hosted server in practice: per-tenant",
+  "status": {
+   "demo.traccar.org": 200
+  }
+ },
+ {
+  "id": "trengo",
+  "hosts": [
+   "app.trengo.com"
+  ],
+  "confidence": "high",
+  "source": "https://developers.trengo.com/docs/rate-limiting",
+  "status": {
+   "app.trengo.com": 200
+  }
+ },
+ {
+  "id": "trigger-dev",
+  "hosts": [
+   "api.trigger.dev"
+  ],
+  "confidence": "medium",
+  "source": "https://trigger.dev/docs/management/authentication",
+  "note": "self-hosted possible",
+  "status": {
+   "api.trigger.dev": 302
+  }
+ },
+ {
+  "id": "trint",
+  "hosts": [
+   "api.trint.com"
+  ],
+  "confidence": "high",
+  "source": "https://developer.trint.com/docs/api-keys/",
+  "basic": "account:key",
+  "note": "key ID username, key secret password; EU tenant host may differ",
+  "status": {
+   "api.trint.com": 404
+  }
+ },
+ {
+  "id": "truesight-local",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "note": "per-tenant: self-hosted TrueSight Presentation Server",
+  "status": {}
+ },
+ {
+  "id": "tsapi",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "note": "unidentified service",
+  "status": {}
+ },
+ {
+  "id": "turbopuffer",
+  "hosts": [
+   "api.turbopuffer.com"
+  ],
+  "confidence": "medium",
+  "source": "https://turbopuffer.com/docs/quickstart",
+  "note": "regional hosts like gcp-us-central1.turbopuffer.com exist, not verified",
+  "status": {
+   "api.turbopuffer.com": 200
+  }
+ },
+ {
+  "id": "turso",
+  "hosts": [
+   "api.turso.tech"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.turso.tech/api-reference/authentication",
+  "status": {
+   "api.turso.tech": 302
+  }
+ },
+ {
+  "id": "tvmaze",
+  "hosts": [
+   "api.tvmaze.com"
+  ],
+  "confidence": "medium",
+  "source": "https://www.tvmaze.com/api",
+  "basic": "account:key",
+  "note": "username + premium apikey as password",
+  "status": {
+   "api.tvmaze.com": 302
+  }
+ },
+ {
+  "id": "twilio",
+  "hosts": [
+   "api.twilio.com"
+  ],
+  "confidence": "high",
+  "source": "https://www.twilio.com/docs/iam/api-keys/key-resource-v1",
+  "basic": "account:key",
+  "note": "API key SID as username, secret as password",
+  "status": {
+   "api.twilio.com": 200
+  }
+ },
+ {
+  "id": "ultramsg",
+  "hosts": [
+   "api.ultramsg.com"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.ultramsg.com",
+  "status": {
+   "api.ultramsg.com": 404
+  }
+ },
+ {
+  "id": "unirateapi",
+  "hosts": [
+   "api.unirateapi.com"
+  ],
+  "confidence": "medium",
+  "source": "https://unirateapi.com",
+  "status": {
+   "api.unirateapi.com": 301
+  }
+ },
+ {
+  "id": "unleashed-software",
+  "hosts": [
+   "api.unleashedsoftware.com"
+  ],
+  "confidence": "medium",
+  "source": "https://apidocs.unleashedsoftware.com/AuthenticationHelp",
+  "note": "signing: HMAC-SHA256 of query string in api-auth-signature",
+  "status": {
+   "api.unleashedsoftware.com": 301
+  }
+ },
+ {
+  "id": "upsales",
+  "hosts": [
+   "power.upsales.com"
+  ],
+  "confidence": "medium",
+  "source": "https://api.upsales.com",
+  "status": {
+   "power.upsales.com": 200
+  }
+ },
+ {
+  "id": "upstash",
+  "hosts": [
+   "api.upstash.com"
+  ],
+  "confidence": "medium",
+  "source": "https://upstash.com/docs/devops/developer-api/introduction",
+  "basic": "email:key",
+  "status": {
+   "api.upstash.com": 404
+  }
+ },
+ {
+  "id": "urlbox",
+  "hosts": [
+   "api.urlbox.com",
+   "api.urlbox.io"
+  ],
+  "confidence": "medium",
+  "source": "https://urlbox.com/docs",
+  "status": {
+   "api.urlbox.com": 200,
+   "api.urlbox.io": 200
+  }
+ },
+ {
+  "id": "va",
+  "hosts": [
+   "api.va.gov",
+   "sandbox-api.va.gov"
+  ],
+  "confidence": "medium",
+  "source": "https://developer.va.gov/explore/api/benefits-intake/docs",
+  "status": {
+   "api.va.gov": 200,
+   "sandbox-api.va.gov": 200
+  }
+ },
+ {
+  "id": "vapi",
+  "hosts": [
+   "api.vapi.ai"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.vapi.ai/security-and-privacy/api-keys",
+  "status": {
+   "api.vapi.ai": 200
+  }
+ },
+ {
+  "id": "vbout",
+  "hosts": [
+   "api.vbout.com"
+  ],
+  "confidence": "medium",
+  "source": "https://developers.vbout.com/quickstart",
+  "status": {
+   "api.vbout.com": 200
+  }
+ },
+ {
+  "id": "vectara",
+  "hosts": [
+   "api.vectara.io"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.vectara.com",
+  "status": {
+   "api.vectara.io": 404
+  }
+ },
+ {
+  "id": "velopayments",
+  "hosts": [],
+  "confidence": "low",
+  "source": "https://apidocs.velopayments.com",
+  "basic": "account:key",
+  "note": "apiKey:apiSecret to token endpoint; regional hosts exist",
+  "status": {}
+ },
+ {
+  "id": "versioneye",
+  "hosts": [
+   "www.versioneye.com"
+  ],
+  "confidence": "low",
+  "source": "https://www.versioneye.com/api",
+  "status": {
+   "www.versioneye.com": 200
+  }
+ },
+ {
+  "id": "visma-e-conomic",
+  "hosts": [
+   "restapi.e-conomic.com"
+  ],
+  "confidence": "medium",
+  "source": "https://restdocs.e-conomic.com/",
+  "status": {
+   "restapi.e-conomic.com": 200
+  }
+ },
+ {
+  "id": "vmware-local",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "note": "per-tenant: self-hosted vRealize Network Insight",
+  "status": {}
+ },
+ {
+  "id": "vonage",
+  "hosts": [
+   "api.vonage.com"
+  ],
+  "confidence": "medium",
+  "source": "https://developer.vonage.com/en/account/secret-management",
+  "basic": "account:key",
+  "note": "also api.nexmo.com / rest.nexmo.com for legacy",
+  "status": {
+   "api.vonage.com": 404
+  }
+ },
+ {
+  "id": "voodoomfg",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://api.apis.guru/v2/specs/voodoomfg.com/2.0.0.json",
+  "status": {}
+ },
+ {
+  "id": "voyage",
+  "hosts": [
+   "api.voyageai.com"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.voyageai.com/docs/api-key-and-installation",
+  "status": {
+   "api.voyageai.com": 404
+  }
+ },
+ {
+  "id": "waitwhile",
+  "hosts": [
+   "api.waitwhile.com"
+  ],
+  "confidence": "medium",
+  "source": "https://developers.waitwhile.com/docs",
+  "status": {
+   "api.waitwhile.com": 200
+  }
+ },
+ {
+  "id": "warwick-ac",
+  "hosts": [
+   "enterobase.warwick.ac.uk"
+  ],
+  "confidence": "high",
+  "source": "https://enterobase.readthedocs.io/en/latest/api/api-getting-started.html",
+  "basic": "key:",
+  "status": {
+   "enterobase.warwick.ac.uk": 200
+  }
+ },
+ {
+  "id": "wati",
+  "hosts": [
+   "live-mt-server.wati.io"
+  ],
+  "confidence": "high",
+  "source": "https://docs.wati.io/reference/authentication",
+  "note": "legacy V1/V2 use same host with tenantId in path",
+  "status": {
+   "live-mt-server.wati.io": 200
+  }
+ },
+ {
+  "id": "weaviate",
+  "hosts": [],
+  "confidence": "medium",
+  "source": "https://docs.weaviate.io",
+  "note": "per-tenant: {cluster}.weaviate.cloud",
+  "status": {}
+ },
+ {
+  "id": "whatsapp-local",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "note": "per-tenant: self-hosted WhatsApp Business API on-prem",
+  "status": {}
+ },
+ {
+  "id": "wheretocredit",
+  "hosts": [],
+  "confidence": "low",
+  "source": "",
+  "note": "host unverified",
+  "status": {}
+ },
+ {
+  "id": "whoisfreaks",
+  "hosts": [
+   "api.whoisfreaks.com"
+  ],
+  "confidence": "medium",
+  "source": "https://whoisfreaks.com/documentation",
+  "status": {
+   "api.whoisfreaks.com": 404
+  }
+ },
+ {
+  "id": "wise",
+  "hosts": [
+   "api.wise.com"
+  ],
+  "confidence": "high",
+  "source": "https://docs.wise.com/guides/developer/auth-and-security/personal-api-token",
+  "note": "signing: SCA endpoints require request signing; sandbox api.sandbox.transferwise.tech",
+  "status": {
+   "api.wise.com": 307
+  }
+ },
+ {
+  "id": "wistia",
+  "hosts": [
+   "api.wistia.com",
+   "upload.wistia.com"
+  ],
+  "confidence": "high",
+  "source": "https://docs.wistia.com/docs",
+  "status": {
+   "api.wistia.com": 404,
+   "upload.wistia.com": 405
+  }
+ },
+ {
+  "id": "wix",
+  "hosts": [
+   "www.wixapis.com"
+  ],
+  "confidence": "high",
+  "source": "https://dev.wix.com/docs/api-reference",
+  "status": {
+   "www.wixapis.com": 404
+  }
+ },
+ {
+  "id": "wmata",
+  "hosts": [
+   "api.wmata.com"
+  ],
+  "confidence": "high",
+  "source": "https://developer.wmata.com",
+  "status": {
+   "api.wmata.com": 404
+  }
+ },
+ {
+  "id": "woocommerce",
+  "hosts": [],
+  "confidence": "high",
+  "source": "https://woocommerce.github.io/woocommerce-rest-api-docs/#authentication",
+  "basic": "account:key",
+  "note": "per-tenant: {store-domain}/wp-json/wc/v3; consumer key as username, secret as password",
+  "status": {}
+ },
+ {
+  "id": "woodpecker",
+  "hosts": [
+   "api.woodpecker.co"
+  ],
+  "confidence": "medium",
+  "source": "https://developers.woodpecker.co/docs/getting-started/authentication/",
+  "status": {
+   "api.woodpecker.co": 301
+  }
+ },
+ {
+  "id": "wordassociations",
+  "hosts": [
+   "api.wordassociations.net"
+  ],
+  "confidence": "medium",
+  "source": "",
+  "status": {
+   "api.wordassociations.net": 404
+  }
+ },
+ {
+  "id": "wordpressorg",
+  "hosts": [],
+  "confidence": "high",
+  "source": "https://developer.wordpress.org/advanced-administration/security/application-passwords/",
+  "basic": "account:key",
+  "note": "per-tenant: {site}/wp-json; username + application password",
+  "status": {}
+ },
+ {
+  "id": "workos",
+  "hosts": [
+   "api.workos.com"
+  ],
+  "confidence": "high",
+  "source": "https://workos.com/docs/reference/api-authentication",
+  "status": {
+   "api.workos.com": 200
+  }
+ },
+ {
+  "id": "writer",
+  "hosts": [
+   "api.writer.com"
+  ],
+  "confidence": "high",
+  "source": "https://dev.writer.com/api-guides/quickstart",
+  "status": {
+   "api.writer.com": 200
+  }
+ },
+ {
+  "id": "xai",
+  "hosts": [
+   "api.x.ai",
+   "management-api.x.ai"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.x.ai/developers/management-api-guide",
+  "note": "management-api.x.ai seen in docs; api.x.ai inference from prior knowledge",
+  "status": {
+   "api.x.ai": 421,
+   "management-api.x.ai": 404
+  }
+ },
+ {
+  "id": "xata",
+  "hosts": [
+   "api.xata.tech"
+  ],
+  "confidence": "medium",
+  "source": "https://xata.io/docs/api",
+  "note": "legacy api.xata.io / per-workspace hosts for older API",
+  "status": {
+   "api.xata.tech": 404
+  }
+ },
+ {
+  "id": "xero",
+  "hosts": [
+   "api.xero.com"
+  ],
+  "confidence": "medium",
+  "source": "https://developer.xero.com",
+  "basic": "account:key",
+  "note": "identity.xero.com token endpoint uses client_id:secret basic",
+  "status": {
+   "api.xero.com": 401
+  }
+ },
+ {
+  "id": "xola",
+  "hosts": [
+   "xola.com"
+  ],
+  "confidence": "medium",
+  "source": "https://developers.xola.com/docs/authentication",
+  "note": "base xola.com/api; sandbox sandbox.xola.com",
+  "status": {
+   "xola.com": 301
+  }
+ },
+ {
+  "id": "xquik",
+  "hosts": [
+   "xquik.com"
+  ],
+  "confidence": "high",
+  "source": "https://docs.xquik.com",
+  "status": {
+   "xquik.com": 307
+  }
+ },
+ {
+  "id": "yespo",
+  "hosts": [
+   "api.esputnik.com"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.yespo.io/reference/api-keys",
+  "basic": ":key",
+  "note": "api key as password, username arbitrary; host from prior knowledge (eSputnik)",
+  "status": {
+   "api.esputnik.com": 301
+  }
+ },
+ {
+  "id": "zamzar",
+  "hosts": [
+   "api.zamzar.com",
+   "sandbox.zamzar.com"
+  ],
+  "confidence": "medium",
+  "source": "https://developers.zamzar.com/docs",
+  "status": {
+   "api.zamzar.com": 401,
+   "sandbox.zamzar.com": 401
+  }
+ },
+ {
+  "id": "zep",
+  "hosts": [
+   "api.getzep.com"
+  ],
+  "confidence": "medium",
+  "source": "https://help.getzep.com/sdk-reference/user/get",
+  "status": {
+   "api.getzep.com": 404
+  }
+ },
+ {
+  "id": "zilliz",
+  "hosts": [
+   "api.cloud.zilliz.com"
+  ],
+  "confidence": "high",
+  "source": "https://docs.zilliz.com/reference/restful",
+  "note": "control plane; data plane per-cluster: {cluster endpoint}",
+  "status": {
+   "api.cloud.zilliz.com": 404
+  }
+ },
+ {
+  "id": "zixflow",
+  "hosts": [
+   "api.zixflow.com"
+  ],
+  "confidence": "medium",
+  "source": "https://docs.zixflow.com/api-reference/authentication",
+  "status": {
+   "api.zixflow.com": 302
+  }
+ }
+]

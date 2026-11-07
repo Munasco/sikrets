@@ -1,0 +1,3665 @@
+[
+ {
+  "name": "SureCart",
+  "confidence": "low",
+  "website": "https://surecart.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Bitget",
+  "confidence": "high",
+  "website": "https://www.bitget.com",
+  "docs": "https://www.bitget.com/docs/uta/rest-api",
+  "auth": "header",
+  "header": "ACCESS-KEY",
+  "needs": [
+   "api_secret",
+   "passphrase"
+  ]
+ },
+ {
+  "name": "Add to Calendar PRO",
+  "confidence": "low",
+  "website": "https://add-to-calendar-technology.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Bot for Slack",
+  "confidence": "low",
+  "website": "https://botforslack.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Browser Use",
+  "confidence": "high",
+  "website": "https://browser-use.com",
+  "docs": "https://docs.browser-use.com/cloud/api-v2",
+  "auth": "header",
+  "header": "X-Browser-Use-API-Key",
+  "verify": "https://api.browser-use.com/api/v2/billing/account"
+ },
+ {
+  "name": "Nutshell",
+  "confidence": "high",
+  "website": "https://www.nutshell.com",
+  "docs": "https://developers.nutshell.com/docs/api-authentication",
+  "auth": "basic",
+  "needs": [
+   "email"
+  ]
+ },
+ {
+  "name": "Quo",
+  "confidence": "high",
+  "website": "https://www.quo.com",
+  "docs": "https://www.quo.com/docs/mdx/api-reference/authentication",
+  "auth": "header",
+  "header": "Authorization"
+ },
+ {
+  "name": "Hedy",
+  "confidence": "high",
+  "website": "https://www.hedy.ai",
+  "docs": "https://www.hedy.ai/help/hedy-api/",
+  "auth": "bearer"
+ },
+ {
+  "name": "Fireflies",
+  "confidence": "high",
+  "website": "https://fireflies.ai",
+  "docs": "https://docs.fireflies.ai/getting-started/quickstart",
+  "auth": "bearer"
+ },
+ {
+  "name": "Daytona",
+  "confidence": "high",
+  "website": "https://www.daytona.io",
+  "docs": "https://www.daytona.io/docs/en/api-keys",
+  "auth": "bearer",
+  "needs": [
+   "organization_id"
+  ]
+ },
+ {
+  "name": "Visma E-conomic",
+  "confidence": "high",
+  "website": "https://www.e-conomic.com",
+  "docs": "https://restdocs.e-conomic.com/",
+  "auth": "header",
+  "header": "X-AppSecretToken",
+  "needs": [
+   "agreement_grant_token"
+  ]
+ },
+ {
+  "name": "Clientary",
+  "confidence": "medium",
+  "website": "https://www.clientary.com",
+  "docs": "https://www.clientary.com/api",
+  "auth": "basic",
+  "needs": [
+   "subdomain"
+  ]
+ },
+ {
+  "name": "Alegra",
+  "confidence": "high",
+  "website": "https://www.alegra.com",
+  "docs": "https://developer.alegra.com/docs",
+  "auth": "basic",
+  "needs": [
+   "email"
+  ]
+ },
+ {
+  "name": "HelpSpot",
+  "confidence": "high",
+  "website": "https://www.helpspot.com",
+  "docs": "https://support.helpspot.com/index.php?pg=kb.page&id=162",
+  "auth": "bearer",
+  "needs": [
+   "base_url"
+  ]
+ },
+ {
+  "name": "Breathe",
+  "confidence": "high",
+  "website": "https://www.breathehr.com",
+  "docs": "https://developer.breathehr.com/documentation/authenticating",
+  "auth": "header",
+  "header": "X-API-KEY"
+ },
+ {
+  "name": "Neon Postgres",
+  "confidence": "high",
+  "website": "https://neon.com",
+  "docs": "https://neon.com/docs/manage/api-keys",
+  "auth": "bearer"
+ },
+ {
+  "name": "Cal.com",
+  "confidence": "high",
+  "website": "https://cal.com",
+  "docs": "https://cal.com/docs/api-reference/v2/v1-v2-differences",
+  "auth": "bearer"
+ },
+ {
+  "name": "LimoExpress",
+  "confidence": "low",
+  "website": "https://www.limoexpress.me",
+  "auth": "unknown"
+ },
+ {
+  "name": "Chargify",
+  "confidence": "high",
+  "website": "https://www.maxio.com",
+  "docs": "https://developers.maxio.com/http/getting-started/about-the-api/request-and-response-data",
+  "auth": "basic",
+  "needs": [
+   "subdomain"
+  ]
+ },
+ {
+  "name": "CoinCatch",
+  "confidence": "low",
+  "website": "https://www.coincatch.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Kontent.ai",
+  "confidence": "high",
+  "website": "https://kontent.ai",
+  "docs": "https://kontent.ai/learn/docs/apis/management-api-v2/authentication",
+  "auth": "bearer",
+  "needs": [
+   "environment_id"
+  ]
+ },
+ {
+  "name": "OnlineCheckWriter",
+  "confidence": "low",
+  "website": "https://www.onlinecheckwriter.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "ConvertKit",
+  "confidence": "high",
+  "website": "https://kit.com",
+  "docs": "https://developers.kit.com/api-reference/authentication",
+  "auth": "header",
+  "header": "X-Kit-Api-Key",
+  "verify": "https://api.kit.com/v4/account"
+ },
+ {
+  "name": "Dolibarr",
+  "confidence": "high",
+  "website": "https://www.dolibarr.org",
+  "docs": "https://wiki.dolibarr.org/index.php/Module_Web_Services_API_REST_(developer)",
+  "auth": "header",
+  "header": "DOLAPIKEY",
+  "needs": [
+   "base_url"
+  ]
+ },
+ {
+  "name": "nocodb",
+  "confidence": "high",
+  "website": "https://nocodb.com",
+  "docs": "https://nocodb.com/docs/product/account-settings/api-tokens",
+  "auth": "header",
+  "header": "xc-token"
+ },
+ {
+  "name": "Rinkel",
+  "confidence": "high",
+  "website": "https://www.rinkel.com",
+  "docs": "https://developers.rinkel.com/docs/api/rinkel-api",
+  "auth": "header",
+  "header": "x-rinkel-api-key"
+ },
+ {
+  "name": "Survicate",
+  "confidence": "medium",
+  "website": "https://survicate.com",
+  "docs": "https://developers.survicate.com/data-export/setup/",
+  "auth": "basic"
+ },
+ {
+  "name": "Wix",
+  "confidence": "high",
+  "website": "https://www.wix.com",
+  "docs": "https://dev.wix.com/docs/api-reference/articles/authentication/api-keys/about-api-keys",
+  "auth": "header",
+  "header": "Authorization",
+  "needs": [
+   "site_id"
+  ]
+ },
+ {
+  "name": "Beanstalk",
+  "confidence": "high",
+  "website": "https://beanstalkapp.com",
+  "docs": "https://api.beanstalkapp.com/",
+  "auth": "basic",
+  "needs": [
+   "subdomain",
+   "username"
+  ]
+ },
+ {
+  "name": "DigitalOcean Spaces",
+  "confidence": "low",
+  "website": "https://www.digitalocean.com/products/spaces",
+  "auth": "unknown"
+ },
+ {
+  "name": "Explorium",
+  "confidence": "high",
+  "website": "https://www.explorium.ai",
+  "docs": "https://developers.explorium.ai/",
+  "auth": "header",
+  "header": "api_key"
+ },
+ {
+  "name": "Loops.so",
+  "confidence": "high",
+  "website": "https://loops.so",
+  "docs": "https://loops.so/docs/api-reference/intro",
+  "auth": "bearer",
+  "verify": "https://app.loops.so/api/v1/api-key"
+ },
+ {
+  "name": "Ontraport",
+  "confidence": "high",
+  "website": "https://ontraport.com",
+  "docs": "https://api.ontraport.com/doc/",
+  "auth": "header",
+  "header": "Api-Key",
+  "needs": [
+   "app_id"
+  ]
+ },
+ {
+  "name": "Simla.com",
+  "confidence": "low",
+  "website": "https://www.simla.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Infobip",
+  "confidence": "high",
+  "website": "https://www.infobip.com",
+  "docs": "https://www.infobip.com/docs/essentials/api-essentials/api-authentication",
+  "auth": "header",
+  "header": "Authorization",
+  "needs": [
+   "base_url"
+  ]
+ },
+ {
+  "name": "addevent",
+  "confidence": "high",
+  "website": "https://www.addevent.com",
+  "docs": "https://docs.addevent.com/reference/authentication",
+  "auth": "bearer",
+  "verify": "https://api.addevent.com/calevent/v2/events"
+ },
+ {
+  "name": "Billsby",
+  "confidence": "low",
+  "website": "https://www.billsby.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "DataForB2B",
+  "confidence": "medium",
+  "website": "https://www.dataforb2b.ai",
+  "docs": "https://docs.dataforb2b.ai",
+  "auth": "header",
+  "header": "api_key"
+ },
+ {
+  "name": "Helpspace",
+  "confidence": "low",
+  "website": "https://www.helpspace.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Leap",
+  "confidence": "medium",
+  "website": "https://www.tryleap.ai",
+  "docs": "https://docs.tryleap.ai/",
+  "auth": "header",
+  "header": "x-api-key"
+ },
+ {
+  "name": "Order Desk",
+  "confidence": "high",
+  "website": "https://www.orderdesk.com",
+  "docs": "https://help.orderdesk.com/api-documentation/getting-started/introduction",
+  "auth": "header",
+  "header": "ORDERDESK-API-KEY",
+  "needs": [
+   "store_id"
+  ]
+ },
+ {
+  "name": "Richpanel",
+  "confidence": "high",
+  "website": "https://www.richpanel.com",
+  "docs": "https://developer.richpanel.com/reference/authentication",
+  "auth": "header",
+  "header": "x-richpanel-key"
+ },
+ {
+  "name": "Ticket Source",
+  "confidence": "low",
+  "website": "https://www.ticketsource.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "VideoAsk",
+  "confidence": "low",
+  "website": "https://www.videoask.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Zixflow",
+  "confidence": "high",
+  "website": "https://zixflow.com",
+  "docs": "https://docs.zixflow.com/api-reference/authentication",
+  "auth": "bearer"
+ },
+ {
+  "name": "AppsFlyer",
+  "confidence": "medium",
+  "website": "https://www.appsflyer.com",
+  "docs": "https://dev.appsflyer.com/hc/docs/api-auth",
+  "auth": "bearer"
+ },
+ {
+  "name": "Campayn",
+  "confidence": "low",
+  "website": "https://campayn.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Claap",
+  "confidence": "high",
+  "website": "https://www.claap.io",
+  "docs": "https://docs.claap.io/",
+  "auth": "header",
+  "header": "X-Claap-Key",
+  "verify": "https://api.claap.io/v1/workspaces/mine"
+ },
+ {
+  "name": "CustomGPT",
+  "confidence": "high",
+  "website": "https://customgpt.ai",
+  "docs": "https://docs.customgpt.ai/reference/api-keys-and-authentication",
+  "auth": "bearer"
+ },
+ {
+  "name": "EODHD APIs",
+  "confidence": "high",
+  "website": "https://eodhd.com",
+  "docs": "https://eodhd.com/financial-apis/api-for-historical-data-and-volumes",
+  "auth": "query",
+  "query": "api_token"
+ },
+ {
+  "name": "Hamsa",
+  "confidence": "low",
+  "website": "https://tryhamsa.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Intuiface",
+  "confidence": "low",
+  "website": "https://www.intuiface.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Loop Returns",
+  "confidence": "high",
+  "website": "https://www.loopreturns.com",
+  "docs": "https://docs.loopreturns.com/api-reference/authentication",
+  "auth": "header",
+  "header": "X-Authorization"
+ },
+ {
+  "name": "morningmate",
+  "confidence": "low",
+  "website": "https://www.morningmate.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "OPN",
+  "confidence": "low",
+  "website": "https://www.opn.ooo",
+  "auth": "unknown"
+ },
+ {
+  "name": "Pidj",
+  "confidence": "low",
+  "website": "https://www.pidj.co",
+  "auth": "unknown"
+ },
+ {
+  "name": "Runware",
+  "confidence": "high",
+  "website": "https://runware.ai",
+  "docs": "https://runware.ai/docs/en/getting-started/how-to-connect",
+  "auth": "bearer"
+ },
+ {
+  "name": "Stannp",
+  "confidence": "high",
+  "website": "https://www.stannp.com",
+  "docs": "https://www.stannp.com/us/direct-mail-api/guide",
+  "auth": "basic"
+ },
+ {
+  "name": "Testmo",
+  "confidence": "low",
+  "website": "https://www.testmo.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "VC Deal Flow Signal",
+  "confidence": "low",
+  "website": "https://www.vcdealflowsignal.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Yay.com",
+  "confidence": "low",
+  "website": "https://www.yay.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Ortto",
+  "confidence": "low",
+  "website": "https://ortto.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Agentset",
+  "confidence": "high",
+  "website": "https://agentset.ai",
+  "docs": "https://docs.agentset.ai/api-reference/introduction",
+  "auth": "bearer"
+ },
+ {
+  "name": "Freshdesk",
+  "confidence": "high",
+  "website": "https://freshdesk.com",
+  "docs": "https://developer.freshdesk.com/api/",
+  "auth": "basic",
+  "needs": [
+   "subdomain"
+  ]
+ },
+ {
+  "name": "ActiveCampaign",
+  "confidence": "high",
+  "website": "https://www.activecampaign.com",
+  "docs": "https://developers.activecampaign.com/reference/authentication",
+  "auth": "header",
+  "header": "Api-Token",
+  "needs": [
+   "account_url"
+  ]
+ },
+ {
+  "name": "Mews",
+  "confidence": "high",
+  "website": "https://www.mews.com",
+  "docs": "https://docs.mews.com/connector-api/guidelines/authentication",
+  "auth": "unknown",
+  "needs": [
+   "client_token",
+   "access_token"
+  ]
+ },
+ {
+  "name": "Brainbase Labs",
+  "confidence": "medium",
+  "website": "https://usebrainbase.com",
+  "docs": "https://docs.usebrainbase.com/api-reference/introduction",
+  "auth": "header",
+  "header": "x-api-key"
+ },
+ {
+  "name": "Enrich Layer",
+  "confidence": "high",
+  "website": "https://enrichlayer.com",
+  "docs": "https://enrichlayer.com/docs/guides/authentication",
+  "auth": "bearer"
+ },
+ {
+  "name": "Amara",
+  "confidence": "high",
+  "website": "https://amara.org",
+  "docs": "https://apidocs.amara.org/",
+  "auth": "header",
+  "header": "x-api-key"
+ },
+ {
+  "name": "Google Dialogflow",
+  "confidence": "medium",
+  "website": "https://cloud.google.com/dialogflow",
+  "docs": "https://cloud.google.com/dialogflow/cx/docs/quick/setup",
+  "auth": "bearer",
+  "needs": [
+   "service_account_json",
+   "project_id"
+  ]
+ },
+ {
+  "name": "Rhombus",
+  "confidence": "high",
+  "website": "https://rhombus.com",
+  "docs": "https://api-docs.rhombus.community/docs/set-up-key",
+  "auth": "header",
+  "header": "x-auth-apikey"
+ },
+ {
+  "name": "Onfleet",
+  "confidence": "high",
+  "website": "https://onfleet.com",
+  "docs": "https://docs.onfleet.com/reference/authentication",
+  "auth": "basic"
+ },
+ {
+  "name": "lemlist",
+  "confidence": "high",
+  "website": "https://www.lemlist.com",
+  "docs": "https://developer.lemlist.com/api-reference/getting-started/authentication",
+  "auth": "basic"
+ },
+ {
+  "name": "Crove",
+  "confidence": "low",
+  "website": "https://crove.app",
+  "auth": "unknown"
+ },
+ {
+  "name": "Jobnimbus",
+  "confidence": "high",
+  "website": "https://www.jobnimbus.com",
+  "docs": "https://developer.jobnimbus.com/",
+  "auth": "bearer"
+ },
+ {
+  "name": "AmeriCommerce",
+  "confidence": "low",
+  "website": "https://www.cart.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Hunter",
+  "confidence": "high",
+  "website": "https://hunter.io",
+  "docs": "https://hunter.io/api-documentation",
+  "auth": "query",
+  "query": "api_key"
+ },
+ {
+  "name": "CATS",
+  "confidence": "high",
+  "website": "https://www.catsone.com",
+  "docs": "https://docs.catsone.com/api/v3/",
+  "auth": "header",
+  "header": "Authorization"
+ },
+ {
+  "name": "Paymo",
+  "confidence": "medium",
+  "website": "https://www.paymoapp.com",
+  "docs": "https://github.com/paymoapp/api/blob/master/sections/authentication.md",
+  "auth": "basic"
+ },
+ {
+  "name": "Corporate Merch",
+  "confidence": "low",
+  "website": "https://www.corporatemerch.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "LiveAgent",
+  "confidence": "medium",
+  "website": "https://www.liveagent.com",
+  "docs": "https://support.liveagent.com/061754-How-to-make-requests-to-API",
+  "auth": "query",
+  "query": "apikey",
+  "needs": [
+   "subdomain"
+  ]
+ },
+ {
+  "name": "Greenhouse",
+  "confidence": "high",
+  "website": "https://www.greenhouse.com",
+  "docs": "https://docs.greenhouse.io/harvest.html",
+  "auth": "basic"
+ },
+ {
+  "name": "Connecteam",
+  "confidence": "medium",
+  "website": "https://connecteam.com",
+  "docs": "https://developer.connecteam.com/docs/authentication",
+  "auth": "header",
+  "header": "X-API-KEY"
+ },
+ {
+  "name": "KrispCall",
+  "confidence": "low",
+  "website": "https://krispcall.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Samsara",
+  "confidence": "high",
+  "website": "https://www.samsara.com",
+  "docs": "https://developers.samsara.com/docs/authentication",
+  "auth": "bearer",
+  "verify": "https://api.samsara.com/fleet/vehicles"
+ },
+ {
+  "name": "Thinkific",
+  "confidence": "high",
+  "website": "https://www.thinkific.com",
+  "docs": "https://support.thinkific.dev/hc/en-us/articles/4422657425431-Authorization-using-API-Key",
+  "auth": "header",
+  "header": "X-Auth-API-Key",
+  "needs": [
+   "subdomain"
+  ]
+ },
+ {
+  "name": "Element",
+  "confidence": "low",
+  "website": "https://element.io",
+  "auth": "unknown"
+ },
+ {
+  "name": "noCRM.io",
+  "confidence": "high",
+  "website": "https://www.nocrm.io",
+  "docs": "https://www.nocrm.io/api",
+  "auth": "header",
+  "header": "X-API-KEY",
+  "needs": [
+   "subdomain"
+  ]
+ },
+ {
+  "name": "Salespype",
+  "confidence": "low",
+  "website": "https://www.salespipe.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Taleez",
+  "confidence": "low",
+  "website": "https://taleez.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Firebase Admin",
+  "confidence": "medium",
+  "website": "https://firebase.google.com",
+  "docs": "https://firebase.google.com/docs/admin/setup",
+  "auth": "bearer",
+  "needs": [
+   "service_account_json"
+  ]
+ },
+ {
+  "name": "ChargeKeep",
+  "confidence": "low",
+  "website": "https://www.chargekeep.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Docnify",
+  "confidence": "low",
+  "website": "https://docnify.io",
+  "auth": "unknown"
+ },
+ {
+  "name": "Griptape",
+  "confidence": "medium",
+  "website": "https://www.griptape.ai",
+  "docs": "https://help.griptape.ai/en/articles/10509294-api-keys",
+  "auth": "bearer"
+ },
+ {
+  "name": "Luma",
+  "confidence": "high",
+  "website": "https://luma.com",
+  "docs": "https://docs.luma.com/reference",
+  "auth": "header",
+  "header": "x-luma-api-key",
+  "verify": "https://public-api.luma.com/v1/users/get-self"
+ },
+ {
+  "name": "ProAbono",
+  "confidence": "low",
+  "website": "https://www.proabono.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Smoove",
+  "confidence": "medium",
+  "website": "https://smoove.io",
+  "docs": "https://skb.smoove.io/en/creating-api-key/",
+  "auth": "unknown"
+ },
+ {
+  "name": "Discourse",
+  "confidence": "high",
+  "website": "https://www.discourse.org",
+  "docs": "https://meta.discourse.org/t/create-and-configure-an-api-key/230124",
+  "auth": "header",
+  "header": "Api-Key",
+  "needs": [
+   "site_url",
+   "api_username"
+  ]
+ },
+ {
+  "name": "Agiliron",
+  "confidence": "low",
+  "website": "https://www.agiliron.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "BitMEX",
+  "confidence": "low",
+  "website": "https://www.bitmex.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Elevio",
+  "confidence": "low",
+  "website": "https://elev.io",
+  "auth": "unknown"
+ },
+ {
+  "name": "Helpwise",
+  "confidence": "low",
+  "website": "https://helpwise.io",
+  "auth": "unknown"
+ },
+ {
+  "name": "LiveKit",
+  "confidence": "low",
+  "website": "https://livekit.io",
+  "auth": "unknown"
+ },
+ {
+  "name": "PassSlot",
+  "confidence": "low",
+  "website": "https://www.passslot.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Sendloop",
+  "confidence": "low",
+  "website": "https://sendloop.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "timeBuzzer",
+  "confidence": "low",
+  "website": "https://www.timebuzzer.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "WATI",
+  "confidence": "high",
+  "website": "https://www.wati.io",
+  "docs": "https://docs.wati.io/reference/authentication",
+  "auth": "bearer",
+  "needs": [
+   "api_endpoint"
+  ]
+ },
+ {
+  "name": "Jotform",
+  "confidence": "high",
+  "website": "https://www.jotform.com",
+  "docs": "https://api.jotform.com/docs/#authentication",
+  "auth": "header",
+  "header": "APIKEY",
+  "verify": "https://api.jotform.com/user"
+ },
+ {
+  "name": "Asters",
+  "confidence": "low",
+  "website": "https://www.asters.ai",
+  "auth": "unknown"
+ },
+ {
+  "name": "Cardly",
+  "confidence": "low",
+  "website": "https://www.cardly.net",
+  "auth": "unknown"
+ },
+ {
+  "name": "CleverTap",
+  "confidence": "high",
+  "website": "https://clevertap.com",
+  "docs": "https://developer.clevertap.com/docs/authentication",
+  "auth": "header",
+  "header": "X-CleverTap-Passcode",
+  "needs": [
+   "account_id",
+   "region"
+  ]
+ },
+ {
+  "name": "Dappier",
+  "confidence": "high",
+  "website": "https://dappier.com",
+  "docs": "https://docs.dappier.com/",
+  "auth": "bearer"
+ },
+ {
+  "name": "eSputnik",
+  "confidence": "low",
+  "website": "https://esputnik.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Height",
+  "confidence": "low",
+  "website": "https://height.app",
+  "auth": "unknown"
+ },
+ {
+  "name": "JoggAI",
+  "confidence": "low",
+  "website": "https://www.jogg.ai",
+  "auth": "unknown"
+ },
+ {
+  "name": "Lumin PDF",
+  "confidence": "medium",
+  "website": "https://www.luminpdf.com",
+  "docs": "https://developers.luminpdf.com/tabs/guides/authentication/api-key",
+  "auth": "unknown"
+ },
+ {
+  "name": "Moxie",
+  "confidence": "low",
+  "website": "https://withmoxie.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Oracle Cloud Infrastructure",
+  "confidence": "high",
+  "website": "https://www.oracle.com/cloud/",
+  "docs": "https://docs.oracle.com/en-us/iaas/Content/API/Concepts/signingrequests.htm",
+  "auth": "unknown",
+  "needs": [
+   "tenancy_ocid",
+   "user_ocid",
+   "fingerprint",
+   "private_key",
+   "region"
+  ]
+ },
+ {
+  "name": "Pitchlane",
+  "confidence": "low",
+  "website": "https://www.pitchlane.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Sidetracker",
+  "confidence": "low",
+  "website": "https://sidetracker.io",
+  "auth": "unknown"
+ },
+ {
+  "name": "Steady",
+  "confidence": "low",
+  "website": "https://steady.space",
+  "auth": "unknown"
+ },
+ {
+  "name": "The Magic Drip",
+  "confidence": "low",
+  "website": "https://themagicdrip.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "ViewDNS.info",
+  "confidence": "low",
+  "website": "https://viewdns.info",
+  "auth": "unknown"
+ },
+ {
+  "name": "Zamzar",
+  "confidence": "high",
+  "website": "https://www.zamzar.com",
+  "docs": "https://developers.zamzar.com/docs",
+  "auth": "bearer"
+ },
+ {
+  "name": "Shortcut",
+  "confidence": "high",
+  "website": "https://shortcut.com",
+  "docs": "https://developer.shortcut.com/api/rest/v3",
+  "auth": "header",
+  "header": "Shortcut-Token"
+ },
+ {
+  "name": "AITable.ai",
+  "confidence": "high",
+  "website": "https://aitable.ai",
+  "docs": "https://developers.aitable.ai/api/quick-start",
+  "auth": "bearer"
+ },
+ {
+  "name": "DataForSEO",
+  "confidence": "high",
+  "website": "https://dataforseo.com",
+  "docs": "https://docs.dataforseo.com/v3/auth/",
+  "auth": "basic",
+  "needs": [
+   "login"
+  ]
+ },
+ {
+  "name": "Teamgate",
+  "confidence": "low",
+  "website": "https://www.teamgate.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Sendcloud",
+  "confidence": "high",
+  "website": "https://www.sendcloud.com",
+  "docs": "https://sendcloud.dev/docs/getting-started/authentication",
+  "auth": "basic",
+  "needs": [
+   "api_secret"
+  ]
+ },
+ {
+  "name": "Moodle",
+  "confidence": "low",
+  "website": "https://moodle.org",
+  "auth": "unknown"
+ },
+ {
+  "name": "Kanban Tool",
+  "confidence": "high",
+  "website": "https://kanbantool.com",
+  "docs": "https://kanbantool.com/developer/api-v3",
+  "auth": "bearer",
+  "needs": [
+   "subdomain"
+  ]
+ },
+ {
+  "name": "Belco",
+  "confidence": "high",
+  "website": "https://www.belco.io",
+  "docs": "https://developers.belco.io/reference/authentication",
+  "auth": "bearer"
+ },
+ {
+  "name": "DEAR Systems",
+  "confidence": "medium",
+  "website": "https://inventory.dearsystems.com",
+  "docs": "https://help.core.cin7.com/hc/en-us/articles/9982480315407-Connecting-to-the-Cin7-Core-API",
+  "auth": "header",
+  "header": "api-auth-applicationkey",
+  "needs": [
+   "account_id"
+  ]
+ },
+ {
+  "name": "Roblox",
+  "confidence": "high",
+  "website": "https://www.roblox.com",
+  "docs": "https://create.roblox.com/docs/cloud/auth/api-keys",
+  "auth": "header",
+  "header": "x-api-key"
+ },
+ {
+  "name": "PDF.co",
+  "confidence": "high",
+  "website": "https://pdf.co",
+  "docs": "https://developer.pdf.co/api",
+  "auth": "header",
+  "header": "x-api-key"
+ },
+ {
+  "name": "Mode",
+  "confidence": "high",
+  "website": "https://mode.com",
+  "docs": "https://mode.com/developer/api-reference/authentication/",
+  "auth": "basic",
+  "needs": [
+   "api_secret",
+   "workspace"
+  ]
+ },
+ {
+  "name": "LinkupAPI for LinkedIn",
+  "confidence": "low",
+  "website": "https://linkupapi.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Recruiterflow",
+  "confidence": "low",
+  "website": "https://recruiterflow.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Canny",
+  "confidence": "medium",
+  "website": "https://canny.io",
+  "docs": "https://developers.canny.io/api-reference",
+  "auth": "unknown"
+ },
+ {
+  "name": "OnceHub",
+  "confidence": "medium",
+  "website": "https://oncehub.com",
+  "docs": "https://developers.oncehub.com/reference/authentication",
+  "auth": "header",
+  "header": "API-Key"
+ },
+ {
+  "name": "CoinGecko",
+  "confidence": "high",
+  "website": "https://www.coingecko.com",
+  "docs": "https://docs.coingecko.com/reference/authentication",
+  "auth": "header",
+  "header": "x-cg-demo-api-key"
+ },
+ {
+  "name": "Security Reporter",
+  "confidence": "low",
+  "website": "https://security-reporter.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "DocuGenerate",
+  "confidence": "low",
+  "website": "https://www.docugenerate.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "OnePageCRM",
+  "confidence": "medium",
+  "website": "https://www.onepagecrm.com",
+  "docs": "https://developer.onepagecrm.com/api/authentication/",
+  "auth": "basic",
+  "needs": [
+   "user_id"
+  ]
+ },
+ {
+  "name": "Agiled",
+  "confidence": "medium",
+  "website": "https://agiled.app",
+  "docs": "https://docs.agiled.app/docs/developers/authentication",
+  "auth": "bearer"
+ },
+ {
+  "name": "EasyBroker",
+  "confidence": "low",
+  "website": "https://www.easybroker.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Linkly",
+  "confidence": "low",
+  "website": "https://linklyhq.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Selzy",
+  "confidence": "low",
+  "website": "https://selzy.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Fibery",
+  "confidence": "medium",
+  "website": "https://fibery.io",
+  "docs": "https://developers.fibery.com/guides/getting-started/authentication",
+  "auth": "header",
+  "header": "Authorization",
+  "needs": [
+   "workspace"
+  ]
+ },
+ {
+  "name": "Eppo",
+  "confidence": "high",
+  "website": "https://www.geteppo.com",
+  "docs": "https://docs.geteppo.com/reference/api",
+  "auth": "header",
+  "header": "X-Eppo-Token"
+ },
+ {
+  "name": "Omnisend",
+  "confidence": "medium",
+  "website": "https://www.omnisend.com",
+  "docs": "https://api-docs.omnisend.com/reference/authentication",
+  "auth": "header",
+  "header": "X-API-KEY"
+ },
+ {
+  "name": "Short.io",
+  "confidence": "medium",
+  "website": "https://short.io",
+  "docs": "https://developers.short.io/docs/creating-an-api-key",
+  "auth": "header",
+  "header": "Authorization"
+ },
+ {
+  "name": "Tapfiliate",
+  "confidence": "medium",
+  "website": "https://tapfiliate.com",
+  "docs": "https://tapfiliate.com/docs/integrations/rest-api/",
+  "auth": "header",
+  "header": "Api-Key"
+ },
+ {
+  "name": "302.AI",
+  "confidence": "low",
+  "website": "https://302.ai",
+  "auth": "unknown"
+ },
+ {
+  "name": "ChatBotKit",
+  "confidence": "medium",
+  "website": "https://chatbotkit.com",
+  "docs": "https://chatbotkit.com/manuals/authentication",
+  "auth": "bearer"
+ },
+ {
+  "name": "Documenso",
+  "confidence": "low",
+  "website": "https://documenso.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Heartbeat",
+  "confidence": "low",
+  "website": "https://heartbeat.chat",
+  "auth": "unknown"
+ },
+ {
+  "name": "Mailwizz",
+  "confidence": "high",
+  "website": "https://www.mailwizz.com",
+  "docs": "https://api-docs.mailwizz.com/",
+  "auth": "header",
+  "header": "X-Api-Key",
+  "needs": [
+   "site_url"
+  ]
+ },
+ {
+  "name": "QR API",
+  "confidence": "low",
+  "website": "https://qrapi.io",
+  "auth": "unknown"
+ },
+ {
+  "name": "SMSTools",
+  "confidence": "low",
+  "website": "https://www.smstools.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Textlocal",
+  "confidence": "medium",
+  "website": "https://www.textlocal.com",
+  "docs": "https://api.textlocal.in/docs",
+  "auth": "query",
+  "query": "apikey"
+ },
+ {
+  "name": "Airfocus",
+  "confidence": "high",
+  "website": "https://airfocus.com",
+  "docs": "https://developer.airfocus.com/authentication.html",
+  "auth": "bearer"
+ },
+ {
+  "name": "BlueSnap",
+  "confidence": "medium",
+  "website": "https://home.bluesnap.com",
+  "docs": "https://developers.bluesnap.com/docs/authentication",
+  "auth": "basic",
+  "needs": [
+   "api_password"
+  ]
+ },
+ {
+  "name": "ExpoFP",
+  "confidence": "low",
+  "website": "https://expofp.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Humanitix",
+  "confidence": "medium",
+  "website": "https://humanitix.com",
+  "docs": "https://help.humanitix.com/en/articles/8888275-public-api-documentation",
+  "auth": "header",
+  "header": "x-api-key"
+ },
+ {
+  "name": "Mailbluster",
+  "confidence": "low",
+  "website": "https://mailbluster.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Payhip",
+  "confidence": "low",
+  "website": "https://payhip.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Shift4",
+  "confidence": "medium",
+  "website": "https://www.shift4.com",
+  "docs": "https://dev.shift4.com/docs/api",
+  "auth": "basic"
+ },
+ {
+  "name": "Timing",
+  "confidence": "low",
+  "website": "https://timingapp.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "WICS",
+  "confidence": "low",
+  "website": "https://wics.nl",
+  "auth": "unknown"
+ },
+ {
+  "name": "Bannerbear",
+  "confidence": "high",
+  "website": "https://www.bannerbear.com",
+  "docs": "https://developers.bannerbear.com/",
+  "auth": "bearer"
+ },
+ {
+  "name": "Axonaut",
+  "confidence": "low",
+  "website": "https://axonaut.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "changes.page",
+  "confidence": "low",
+  "website": "https://changes.page",
+  "auth": "unknown"
+ },
+ {
+  "name": "ClickFunnels",
+  "confidence": "high",
+  "website": "https://www.clickfunnels.com",
+  "docs": "https://developers.myclickfunnels.com/docs/authentication",
+  "auth": "bearer",
+  "needs": [
+   "subdomain"
+  ]
+ },
+ {
+  "name": "DealMachine",
+  "confidence": "medium",
+  "website": "https://www.dealmachine.com",
+  "docs": "https://api.docs.dealmachine.com/authentication",
+  "auth": "bearer"
+ },
+ {
+  "name": "FlippingBook",
+  "confidence": "low",
+  "website": "https://flippingbook.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "HeroBot Chatbot Marketing",
+  "confidence": "low",
+  "website": "https://herobot.ai",
+  "auth": "unknown"
+ },
+ {
+  "name": "Kizeo Forms",
+  "confidence": "medium",
+  "website": "https://www.kizeo-forms.com",
+  "docs": "https://forms.kizeo.com/rest/v3/doc",
+  "auth": "header",
+  "header": "Authorization"
+ },
+ {
+  "name": "Maestra",
+  "confidence": "low",
+  "website": "https://maestra.io",
+  "auth": "unknown"
+ },
+ {
+  "name": "Navan",
+  "confidence": "low",
+  "website": "https://navan.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Outseta",
+  "confidence": "low",
+  "website": "https://www.outseta.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Pivotal Tracker",
+  "confidence": "low",
+  "website": "https://www.pivotaltracker.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Sign.Plus",
+  "confidence": "low",
+  "website": "https://sign.plus",
+  "auth": "unknown"
+ },
+ {
+  "name": "Storeganise",
+  "confidence": "low",
+  "website": "https://www.storeganise.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "The Official Board",
+  "confidence": "low",
+  "website": "https://www.theofficialboard.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Vivocalendar",
+  "confidence": "low",
+  "website": "https://vivocalendar.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Zenserp",
+  "confidence": "low",
+  "website": "https://zenserp.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "2Captcha",
+  "confidence": "low",
+  "website": "https://2captcha.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "AltTextify",
+  "confidence": "low",
+  "website": "https://alttextify.net",
+  "auth": "unknown"
+ },
+ {
+  "name": "BambooHR",
+  "confidence": "high",
+  "website": "https://www.bamboohr.com",
+  "docs": "https://documentation.bamboohr.com/docs/getting-started",
+  "auth": "basic",
+  "needs": [
+   "subdomain"
+  ]
+ },
+ {
+  "name": "Overloop",
+  "confidence": "high",
+  "website": "https://overloop.com",
+  "docs": "https://apidoc.overloop.com",
+  "auth": "header",
+  "header": "Authorization"
+ },
+ {
+  "name": "TOPdesk",
+  "confidence": "low",
+  "website": "https://www.topdesk.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Picqer",
+  "confidence": "high",
+  "website": "https://picqer.com",
+  "docs": "https://picqer.com/en/api",
+  "auth": "basic",
+  "needs": [
+   "subdomain"
+  ]
+ },
+ {
+  "name": "Token Metrics",
+  "confidence": "low",
+  "website": "https://www.tokenmetrics.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "ChartMogul",
+  "confidence": "high",
+  "website": "https://chartmogul.com",
+  "docs": "https://dev.chartmogul.com/docs/authentication",
+  "auth": "basic"
+ },
+ {
+  "name": "Form.io",
+  "confidence": "low",
+  "website": "https://form.io",
+  "auth": "unknown"
+ },
+ {
+  "name": "Dart",
+  "confidence": "low",
+  "website": "https://www.itsdart.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Roll",
+  "confidence": "low",
+  "website": "https://roll.ai",
+  "auth": "unknown"
+ },
+ {
+  "name": "OneDesk",
+  "confidence": "low",
+  "website": "https://www.onedesk.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Offorte",
+  "confidence": "medium",
+  "website": "https://www.offorte.com",
+  "docs": "https://www.offorte.com/api-docs",
+  "auth": "header",
+  "header": "Authorization",
+  "needs": [
+   "account_name"
+  ]
+ },
+ {
+  "name": "Rendex",
+  "confidence": "low",
+  "website": "https://rendex.dev",
+  "auth": "unknown"
+ },
+ {
+  "name": "Clockwork Recruiting",
+  "confidence": "low",
+  "website": "https://www.clockworkrecruiting.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Tick",
+  "confidence": "high",
+  "website": "https://www.tickspot.com",
+  "docs": "https://github.com/tick/tick-api",
+  "auth": "header",
+  "header": "Authorization",
+  "needs": [
+   "subscription_id"
+  ]
+ },
+ {
+  "name": "Donately",
+  "confidence": "medium",
+  "website": "https://www.donately.com",
+  "docs": "https://docs-api-v20190315.donately.com",
+  "auth": "basic"
+ },
+ {
+  "name": "Zenler",
+  "confidence": "low",
+  "website": "https://www.newzenler.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Elastic Security",
+  "confidence": "medium",
+  "website": "https://www.elastic.co/security",
+  "docs": "https://www.elastic.co/docs/api/doc/elasticsearch/authentication",
+  "auth": "header",
+  "header": "Authorization",
+  "needs": [
+   "kibana_url"
+  ]
+ },
+ {
+  "name": "Productive.io",
+  "confidence": "high",
+  "website": "https://productive.io",
+  "docs": "https://developer.productive.io",
+  "auth": "header",
+  "header": "X-Auth-Token",
+  "needs": [
+   "organization_id"
+  ]
+ },
+ {
+  "name": "APIVerve",
+  "confidence": "high",
+  "website": "https://apiverve.com",
+  "docs": "https://docs.apiverve.com",
+  "auth": "header",
+  "header": "x-api-key"
+ },
+ {
+  "name": "Everstox",
+  "confidence": "low",
+  "website": "https://www.everstox.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Little Green Light",
+  "confidence": "high",
+  "website": "https://www.littlegreenlight.com",
+  "docs": "https://api.littlegreenlight.com/api-docs/static.html",
+  "auth": "bearer"
+ },
+ {
+  "name": "SendIt",
+  "confidence": "low",
+  "website": "https://sendit.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Apify",
+  "confidence": "medium",
+  "website": "https://apify.com",
+  "docs": "https://docs.apify.com/platform/integrations/api",
+  "auth": "bearer"
+ },
+ {
+  "name": "Firmao",
+  "confidence": "low",
+  "website": "https://firmao.net",
+  "auth": "unknown"
+ },
+ {
+  "name": "Papersign",
+  "confidence": "low",
+  "website": "https://paperform.co/papersign",
+  "auth": "unknown"
+ },
+ {
+  "name": "SmashSend",
+  "confidence": "low",
+  "website": "https://smashsend.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Teamioo",
+  "confidence": "low",
+  "website": "https://teamioo.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "AcyMailing",
+  "confidence": "medium",
+  "website": "https://www.acymailing.com",
+  "docs": "https://docs.acymailing.com/rest-api/overview/authentication",
+  "auth": "basic"
+ },
+ {
+  "name": "CompanyHub",
+  "confidence": "medium",
+  "website": "https://www.companyhub.com",
+  "docs": "https://companyhub.com/docs/api-documentation",
+  "auth": "header",
+  "header": "Authorization",
+  "needs": [
+   "subdomain"
+  ]
+ },
+ {
+  "name": "Document360",
+  "confidence": "high",
+  "website": "https://document360.com",
+  "docs": "https://apidocs.document360.com",
+  "auth": "header",
+  "header": "X-API-Key"
+ },
+ {
+  "name": "iContact",
+  "confidence": "low",
+  "website": "https://www.icontact.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Missive",
+  "confidence": "high",
+  "website": "https://missiveapp.com",
+  "docs": "https://missiveapp.com/docs/developers/rest-api",
+  "auth": "bearer"
+ },
+ {
+  "name": "QStash",
+  "confidence": "high",
+  "website": "https://upstash.com/qstash",
+  "docs": "https://upstash.com/docs/qstash/overall/getstarted",
+  "auth": "bearer"
+ },
+ {
+  "name": "Tellent HR",
+  "confidence": "low",
+  "website": "https://www.tellent.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Printful",
+  "confidence": "high",
+  "website": "https://www.printful.com",
+  "docs": "https://developers.printful.com/docs/",
+  "auth": "bearer"
+ },
+ {
+  "name": "Airweave",
+  "confidence": "low",
+  "website": "https://airweave.ai",
+  "auth": "unknown"
+ },
+ {
+  "name": "Breeze",
+  "confidence": "low",
+  "website": "https://www.breeze.pm",
+  "auth": "unknown"
+ },
+ {
+  "name": "Findymail",
+  "confidence": "low",
+  "website": "https://www.findymail.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Insighto.ai",
+  "confidence": "low",
+  "website": "https://insighto.ai",
+  "auth": "unknown"
+ },
+ {
+  "name": "Microsoft SQL Server",
+  "confidence": "low",
+  "website": "https://www.microsoft.com/sql-server",
+  "auth": "unknown"
+ },
+ {
+  "name": "Payrexx",
+  "confidence": "medium",
+  "website": "https://payrexx.com",
+  "docs": "https://developers.payrexx.com",
+  "auth": "header",
+  "header": "X-API-KEY",
+  "needs": [
+   "instance"
+  ]
+ },
+ {
+  "name": "Signaturit",
+  "confidence": "low",
+  "website": "https://www.signaturit.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Trint",
+  "confidence": "medium",
+  "website": "https://trint.com",
+  "docs": "https://developer.trint.com/docs/api-keys/",
+  "auth": "basic",
+  "needs": [
+   "key_id"
+  ]
+ },
+ {
+  "name": "Workamajig",
+  "confidence": "low",
+  "website": "https://www.workamajig.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "actiTIME",
+  "confidence": "low",
+  "website": "https://www.actitime.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Baserow",
+  "confidence": "high",
+  "website": "https://baserow.io",
+  "docs": "https://baserow.io/user-docs/personal-api-tokens",
+  "auth": "header",
+  "header": "Authorization"
+ },
+ {
+  "name": "ChartHop",
+  "confidence": "low",
+  "website": "https://www.charthop.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Cloudpress",
+  "confidence": "low",
+  "website": "https://cloudpress.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "DocuMerge",
+  "confidence": "low",
+  "website": "https://www.documerge.ai",
+  "auth": "unknown"
+ },
+ {
+  "name": "Freedcamp",
+  "confidence": "medium",
+  "website": "https://freedcamp.com",
+  "docs": "https://freedcamp.com/help_/tutorials/wiki/wiki_public/view/DFaab",
+  "auth": "query",
+  "query": "api_key",
+  "needs": [
+   "api_secret"
+  ]
+ },
+ {
+  "name": "Heyy",
+  "confidence": "low",
+  "website": "https://www.heyy.io",
+  "auth": "unknown"
+ },
+ {
+  "name": "Klipy",
+  "confidence": "low",
+  "website": "https://klipy.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Mailmodo",
+  "confidence": "low",
+  "website": "https://www.mailmodo.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "NewsCatcher",
+  "confidence": "low",
+  "website": "https://www.newscatcherapi.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Oxylabs",
+  "confidence": "low",
+  "website": "https://oxylabs.io",
+  "auth": "unknown"
+ },
+ {
+  "name": "Pumble",
+  "confidence": "low",
+  "website": "https://pumble.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Siteleaf",
+  "confidence": "low",
+  "website": "https://www.siteleaf.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "SuiteDash",
+  "confidence": "low",
+  "website": "https://suitedash.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Tidy",
+  "confidence": "low",
+  "website": "https://tidy.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "White Swan",
+  "confidence": "low",
+  "website": "https://whiteswan.io",
+  "auth": "unknown"
+ },
+ {
+  "name": "Zenventory",
+  "confidence": "low",
+  "website": "https://zenventory.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "AccuWeather",
+  "confidence": "low",
+  "website": "https://www.accuweather.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Ambivo",
+  "confidence": "low",
+  "website": "https://www.ambivo.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Pubrio",
+  "confidence": "high",
+  "website": "https://pubrio.com",
+  "docs": "https://docs.pubrio.com/en/api-reference/introduction",
+  "auth": "header",
+  "header": "pubrio-api-key"
+ },
+ {
+  "name": "ProdPad",
+  "confidence": "high",
+  "website": "https://www.prodpad.com",
+  "docs": "https://help.prodpad.com/hc/en-us/articles/204634298",
+  "auth": "bearer"
+ },
+ {
+  "name": "monday",
+  "confidence": "high",
+  "website": "https://monday.com",
+  "docs": "https://developer.monday.com/api-reference/docs/authentication",
+  "auth": "header",
+  "header": "Authorization"
+ },
+ {
+  "name": "WooCommerce",
+  "confidence": "high",
+  "website": "https://woocommerce.com",
+  "docs": "https://woocommerce.github.io/woocommerce-rest-api-docs/#authentication",
+  "auth": "basic",
+  "needs": [
+   "store_url",
+   "consumer_secret"
+  ]
+ },
+ {
+  "name": "Chargebee",
+  "confidence": "high",
+  "website": "https://www.chargebee.com",
+  "docs": "https://apidocs.chargebee.com/docs/api/auth",
+  "auth": "basic",
+  "needs": [
+   "site"
+  ]
+ },
+ {
+  "name": "Connectwise PSA",
+  "confidence": "low",
+  "website": "https://www.connectwise.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Kustomer",
+  "confidence": "high",
+  "website": "https://www.kustomer.com",
+  "docs": "https://developer.kustomer.com/kustomer-api-docs/reference/authentication",
+  "auth": "bearer"
+ },
+ {
+  "name": "Streak",
+  "confidence": "high",
+  "website": "https://www.streak.com",
+  "docs": "https://streak.readme.io/docs/authentication",
+  "auth": "basic"
+ },
+ {
+  "name": "Snipe-IT",
+  "confidence": "medium",
+  "website": "https://snipeitapp.com",
+  "docs": "https://snipe-it.readme.io/reference/generating-api-tokens",
+  "auth": "bearer",
+  "needs": [
+   "base_url"
+  ]
+ },
+ {
+  "name": "ProWorkflow",
+  "confidence": "high",
+  "website": "https://www.proworkflow.com",
+  "docs": "https://api.proworkflow.com/api/v4/docs/",
+  "auth": "header",
+  "header": "apikey"
+ },
+ {
+  "name": "Plain",
+  "confidence": "high",
+  "website": "https://www.plain.com",
+  "docs": "https://www.plain.com/docs/graphql/authentication",
+  "auth": "bearer"
+ },
+ {
+  "name": "Reply.io",
+  "confidence": "high",
+  "website": "https://reply.io",
+  "docs": "https://docs.reply.io/",
+  "auth": "bearer",
+  "verify": "https://api.reply.io/v3/whoami"
+ },
+ {
+  "name": "Float",
+  "confidence": "medium",
+  "website": "https://www.float.com",
+  "docs": "https://developer.float.com/",
+  "auth": "bearer"
+ },
+ {
+  "name": "WhoisFreaks",
+  "confidence": "medium",
+  "website": "https://whoisfreaks.com",
+  "docs": "https://whoisfreaks.com/documentation",
+  "auth": "query",
+  "query": "apiKey"
+ },
+ {
+  "name": "Edusign",
+  "confidence": "high",
+  "website": "https://edusign.com",
+  "docs": "https://developers.edusign.com/docs/api-reference",
+  "auth": "bearer"
+ },
+ {
+  "name": "Zep",
+  "confidence": "high",
+  "website": "https://www.getzep.com",
+  "docs": "https://help.getzep.com/sdk-reference/user/get",
+  "auth": "header",
+  "header": "Authorization"
+ },
+ {
+  "name": "HR Cloud",
+  "confidence": "medium",
+  "website": "https://www.hrcloud.com",
+  "docs": "https://support.hrcloud.com/en/help-center/authentication",
+  "auth": "unknown",
+  "needs": [
+   "customer_key",
+   "customer_secret"
+  ]
+ },
+ {
+  "name": "Recharge",
+  "confidence": "high",
+  "website": "https://rechargepayments.com",
+  "docs": "https://developer.rechargepayments.com/",
+  "auth": "header",
+  "header": "X-Recharge-Access-Token"
+ },
+ {
+  "name": "Arlo",
+  "confidence": "medium",
+  "website": "https://www.arlo.co",
+  "docs": "https://developer.arlo.co/doc/api/2012-02-01/auth/",
+  "auth": "basic",
+  "needs": [
+   "platform_name"
+  ]
+ },
+ {
+  "name": "Flexmail",
+  "confidence": "low",
+  "website": "https://flexmail.eu",
+  "auth": "unknown"
+ },
+ {
+  "name": "Lucca",
+  "confidence": "medium",
+  "website": "https://www.lucca-hr.com",
+  "docs": "https://developers.lucca.fr/api-reference/legacy/authentication",
+  "auth": "header",
+  "header": "Authorization",
+  "needs": [
+   "subdomain"
+  ]
+ },
+ {
+  "name": "Slab",
+  "confidence": "low",
+  "website": "https://slab.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "BaseLinker",
+  "confidence": "high",
+  "website": "https://baselinker.com",
+  "docs": "https://api.baselinker.com/",
+  "auth": "header",
+  "header": "X-BLToken"
+ },
+ {
+  "name": "Freshmarketer",
+  "confidence": "medium",
+  "website": "https://www.freshworks.com/marketing-automation/",
+  "docs": "https://developers.freshworks.com/crm/api/",
+  "auth": "header",
+  "header": "Authorization",
+  "needs": [
+   "bundle_alias"
+  ]
+ },
+ {
+  "name": "Peerdom",
+  "confidence": "low",
+  "website": "https://peerdom.org",
+  "auth": "unknown"
+ },
+ {
+  "name": "Softr",
+  "confidence": "high",
+  "website": "https://www.softr.io",
+  "docs": "https://docs.softr.io/softr-api/api-setup-and-endpoints",
+  "auth": "header",
+  "header": "Softr-Api-Key",
+  "needs": [
+   "softr_domain"
+  ]
+ },
+ {
+  "name": "TimeTonic",
+  "confidence": "low",
+  "website": "https://timetonic.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Agendor",
+  "confidence": "low",
+  "website": "https://www.agendor.com.br",
+  "auth": "unknown"
+ },
+ {
+  "name": "Coupontools",
+  "confidence": "low",
+  "website": "https://www.coupontools.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "DotSimple",
+  "confidence": "low",
+  "website": "https://dotsimple.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "IntelliHR",
+  "confidence": "low",
+  "website": "https://www.intellihr.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "MixMax",
+  "confidence": "medium",
+  "website": "https://mixmax.com",
+  "docs": "https://www.mixmax.com/engineering/automate-onboarding-emails-via-mixmax-api",
+  "auth": "header",
+  "header": "X-API-Token"
+ },
+ {
+  "name": "Recreation.gov",
+  "confidence": "low",
+  "website": "https://www.recreation.gov",
+  "auth": "unknown"
+ },
+ {
+  "name": "VectorShift",
+  "confidence": "low",
+  "website": "https://vectorshift.ai",
+  "auth": "unknown"
+ },
+ {
+  "name": "15Five",
+  "confidence": "low",
+  "website": "https://www.15five.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Amilia",
+  "confidence": "low",
+  "website": "https://www.amilia.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "BugHerd",
+  "confidence": "low",
+  "website": "https://bugherd.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Flowla",
+  "confidence": "low",
+  "website": "https://www.flowla.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Klazify",
+  "confidence": "low",
+  "website": "https://www.klazify.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "MOCO",
+  "confidence": "low",
+  "website": "https://www.mocoapp.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Productboard",
+  "confidence": "high",
+  "website": "https://www.productboard.com",
+  "docs": "https://developer.productboard.com/docs/authentication",
+  "auth": "bearer"
+ },
+ {
+  "name": "Simplero",
+  "confidence": "low",
+  "website": "https://simplero.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Typefully",
+  "confidence": "high",
+  "website": "https://typefully.com",
+  "docs": "https://typefully.com/docs/api",
+  "auth": "bearer",
+  "verify": "https://api.typefully.com/v2/me"
+ },
+ {
+  "name": "Writer",
+  "confidence": "high",
+  "website": "https://writer.com",
+  "docs": "https://dev.writer.com/api-guides/quickstart",
+  "auth": "bearer"
+ },
+ {
+  "name": "AlgoDocs",
+  "confidence": "low",
+  "website": "https://www.algodocs.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Boloforms",
+  "confidence": "low",
+  "website": "https://boloforms.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Chattermill",
+  "confidence": "low",
+  "website": "https://chattermill.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Concord",
+  "confidence": "low",
+  "website": "https://www.concord.app",
+  "auth": "unknown"
+ },
+ {
+  "name": "DocuWriter.ai",
+  "confidence": "medium",
+  "website": "https://www.docuwriter.ai",
+  "docs": "https://docs.docuwriter.ai",
+  "auth": "bearer"
+ },
+ {
+  "name": "FTrack",
+  "confidence": "low",
+  "website": "https://www.ftrack.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Holded",
+  "confidence": "low",
+  "website": "https://www.holded.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "LaunchNotes",
+  "confidence": "low",
+  "website": "https://www.launchnotes.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Memento Database",
+  "confidence": "low",
+  "website": "https://mementodatabase.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Nexweave",
+  "confidence": "low",
+  "website": "https://www.nexweave.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "ParseHub",
+  "confidence": "high",
+  "website": "https://www.parsehub.com",
+  "docs": "https://www.parsehub.com/docs/ref/api/v2/",
+  "auth": "query",
+  "query": "api_key"
+ },
+ {
+  "name": "Quaderno",
+  "confidence": "high",
+  "website": "https://quaderno.io",
+  "docs": "https://developers.quaderno.io/api/",
+  "auth": "basic",
+  "needs": [
+   "account_name"
+  ]
+ },
+ {
+  "name": "SmartSuite",
+  "confidence": "low",
+  "website": "https://www.smartsuite.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "SupportBee",
+  "confidence": "high",
+  "website": "https://supportbee.com",
+  "docs": "https://supportbee.com/docs/api/reference",
+  "auth": "query",
+  "query": "auth_token",
+  "needs": [
+   "subdomain"
+  ]
+ },
+ {
+  "name": "Trust",
+  "confidence": "low",
+  "website": "https://trust.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Wistia",
+  "confidence": "medium",
+  "website": "https://wistia.com",
+  "docs": "https://docs.wistia.com/docs",
+  "auth": "bearer"
+ },
+ {
+  "name": "Amazon SES",
+  "confidence": "medium",
+  "website": "https://aws.amazon.com/ses/",
+  "docs": "https://docs.aws.amazon.com/ses/latest/dg/send-email-api.html",
+  "auth": "unknown",
+  "needs": [
+   "access_key_id",
+   "secret_access_key",
+   "region"
+  ]
+ },
+ {
+  "name": "Acelle Mail",
+  "confidence": "high",
+  "website": "https://acellemail.com",
+  "docs": "https://api.acellemail.com/",
+  "auth": "bearer",
+  "needs": [
+   "base_url"
+  ]
+ },
+ {
+  "name": "Mboum",
+  "confidence": "low",
+  "website": "https://mboum.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Planview Leankit",
+  "confidence": "high",
+  "website": "https://planview.com",
+  "docs": "https://success.planview.com/Planview_LeanKit/LeanKit_API/01_v2/token-auth/create",
+  "auth": "bearer",
+  "needs": [
+   "subdomain"
+  ]
+ },
+ {
+  "name": "Booking Experts",
+  "confidence": "medium",
+  "website": "https://www.bookingexperts.com",
+  "docs": "https://developers.bookingexperts.com/reference",
+  "auth": "header",
+  "header": "Authorization"
+ },
+ {
+  "name": "BingX",
+  "confidence": "medium",
+  "website": "https://bingx.com",
+  "docs": "https://bingx-api.github.io/docs/",
+  "auth": "header",
+  "header": "X-BX-APIKEY",
+  "needs": [
+   "api_secret"
+  ]
+ },
+ {
+  "name": "Clockify",
+  "confidence": "high",
+  "website": "https://clockify.me",
+  "docs": "https://docs.clockify.me",
+  "auth": "header",
+  "header": "X-Api-Key",
+  "verify": "https://api.clockify.me/api/v1/user"
+ },
+ {
+  "name": "Drata",
+  "confidence": "high",
+  "website": "https://drata.com",
+  "docs": "https://help.drata.com/en/articles/6695964-drata-public-api",
+  "auth": "bearer"
+ },
+ {
+  "name": "Returnless",
+  "confidence": "low",
+  "website": "https://returnless.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Waitwhile",
+  "confidence": "high",
+  "website": "https://waitwhile.com",
+  "docs": "https://developers.waitwhile.com/docs",
+  "auth": "header",
+  "header": "apikey"
+ },
+ {
+  "name": "Woodpecker.co",
+  "confidence": "high",
+  "website": "https://woodpecker.co",
+  "docs": "https://developers.woodpecker.co/docs/getting-started/authentication/",
+  "auth": "header",
+  "header": "x-api-key"
+ },
+ {
+  "name": "Renderio",
+  "confidence": "low",
+  "website": "https://renderio.dev",
+  "auth": "unknown"
+ },
+ {
+  "name": "TalentHR",
+  "confidence": "low",
+  "website": "https://www.talenthr.io",
+  "auth": "unknown"
+ },
+ {
+  "name": "sevDesk",
+  "confidence": "medium",
+  "website": "https://sevdesk.com",
+  "docs": "https://api.sevdesk.de",
+  "auth": "header",
+  "header": "Authorization"
+ },
+ {
+  "name": "FogBugz",
+  "confidence": "medium",
+  "website": "https://www.fogbugz.com",
+  "docs": "https://fogbugz.kayako.com/article/52425-create-api-token-using-the-fogbugz-ui",
+  "auth": "query",
+  "query": "token",
+  "needs": [
+   "subdomain"
+  ]
+ },
+ {
+  "name": "Wise",
+  "confidence": "high",
+  "website": "https://wise.com",
+  "docs": "https://docs.wise.com/guides/developer/auth-and-security/personal-api-token",
+  "auth": "bearer"
+ },
+ {
+  "name": "Evernote",
+  "confidence": "low",
+  "website": "https://evernote.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Ashby",
+  "confidence": "high",
+  "website": "https://www.ashbyhq.com",
+  "docs": "https://developers.ashbyhq.com/docs/authentication",
+  "auth": "basic"
+ },
+ {
+  "name": "iAuditor by SafetyCulture",
+  "confidence": "low",
+  "website": "https://safetyculture.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Roam Research",
+  "confidence": "low",
+  "website": "https://roamresearch.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Bloomerang",
+  "confidence": "low",
+  "website": "https://bloomerang.co",
+  "auth": "unknown"
+ },
+ {
+  "name": "GetResponse",
+  "confidence": "high",
+  "website": "https://www.getresponse.com",
+  "docs": "https://apidocs.getresponse.com/v3",
+  "auth": "header",
+  "header": "X-Auth-Token"
+ },
+ {
+  "name": "Magnetic",
+  "confidence": "low",
+  "website": "https://www.magnetic.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Super Carl",
+  "confidence": "low",
+  "website": "https://supercarl.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Beekeeper",
+  "confidence": "low",
+  "website": "https://www.beekeeper.io",
+  "auth": "unknown"
+ },
+ {
+  "name": "Guru",
+  "confidence": "high",
+  "website": "https://www.getguru.com",
+  "docs": "https://developer.getguru.com/docs/getting-started",
+  "auth": "basic",
+  "needs": [
+   "username"
+  ]
+ },
+ {
+  "name": "Plainly",
+  "confidence": "low",
+  "website": "https://www.plainlyvideos.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Sperse",
+  "confidence": "low",
+  "website": "https://sperse.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "VirtualSMS",
+  "confidence": "low",
+  "website": "https://virtualsms.io",
+  "auth": "unknown"
+ },
+ {
+  "name": "Airtop",
+  "confidence": "high",
+  "website": "https://www.airtop.ai",
+  "docs": "https://docs.airtop.ai",
+  "auth": "bearer"
+ },
+ {
+  "name": "Crisp",
+  "confidence": "low",
+  "website": "https://crisp.chat",
+  "auth": "unknown"
+ },
+ {
+  "name": "Everhour",
+  "confidence": "low",
+  "website": "https://everhour.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "IONOS Hosting Services",
+  "confidence": "low",
+  "website": "https://www.ionos.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Mojo Helpdesk",
+  "confidence": "high",
+  "website": "https://www.mojohelpdesk.com",
+  "docs": "https://developer.mojohelpdesk.com",
+  "auth": "header",
+  "header": "X-API-KEY"
+ },
+ {
+  "name": "RepairShopr",
+  "confidence": "low",
+  "website": "https://www.repairshopr.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Xquik",
+  "confidence": "high",
+  "website": "https://xquik.com",
+  "docs": "https://docs.xquik.com",
+  "auth": "header",
+  "header": "x-api-key"
+ },
+ {
+  "name": "2Chat",
+  "confidence": "low",
+  "website": "https://2chat.io",
+  "auth": "unknown"
+ },
+ {
+  "name": "api4ai",
+  "confidence": "low",
+  "website": "https://api4.ai",
+  "auth": "unknown"
+ },
+ {
+  "name": "ClickHelp",
+  "confidence": "low",
+  "website": "https://clickhelp.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Flutterwave",
+  "confidence": "high",
+  "website": "https://flutterwave.com",
+  "docs": "https://developer.flutterwave.com/docs/authentication",
+  "auth": "bearer"
+ },
+ {
+  "name": "Klenty",
+  "confidence": "low",
+  "website": "https://www.klenty.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Nextdoor Ads",
+  "confidence": "low",
+  "website": "https://ads.nextdoor.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Pushcut",
+  "confidence": "low",
+  "website": "https://www.pushcut.io",
+  "auth": "unknown"
+ },
+ {
+  "name": "Specific",
+  "confidence": "low",
+  "website": "https://specific.app",
+  "auth": "unknown"
+ },
+ {
+  "name": "UltraMsg",
+  "confidence": "high",
+  "website": "https://ultramsg.com",
+  "docs": "https://docs.ultramsg.com",
+  "auth": "query",
+  "query": "token",
+  "needs": [
+   "instance_id"
+  ]
+ },
+ {
+  "name": "Yespo",
+  "confidence": "medium",
+  "website": "https://yespo.io",
+  "docs": "https://docs.yespo.io/reference/api-keys",
+  "auth": "basic"
+ },
+ {
+  "name": "All-Images.ai",
+  "confidence": "low",
+  "website": "https://all-images.ai",
+  "auth": "unknown"
+ },
+ {
+  "name": "BotPenguin",
+  "confidence": "low",
+  "website": "https://botpenguin.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Checkvist",
+  "confidence": "high",
+  "website": "https://checkvist.com",
+  "docs": "https://checkvist.com/auth/api",
+  "auth": "basic",
+  "needs": [
+   "username"
+  ]
+ },
+ {
+  "name": "Control D",
+  "confidence": "high",
+  "website": "https://controld.com",
+  "docs": "https://docs.controld.com/reference/authentication",
+  "auth": "bearer",
+  "verify": "https://api.controld.com/users"
+ },
+ {
+  "name": "Dreamdata",
+  "confidence": "low",
+  "website": "https://dreamdata.io",
+  "auth": "unknown"
+ },
+ {
+  "name": "Fullstory",
+  "confidence": "high",
+  "website": "https://www.fullstory.com",
+  "docs": "https://developer.fullstory.com/server/authentication/",
+  "auth": "header",
+  "header": "Authorization"
+ },
+ {
+  "name": "Homerun",
+  "confidence": "high",
+  "website": "https://www.homerun.co",
+  "docs": "https://developers.homerun.co",
+  "auth": "bearer",
+  "verify": "https://api.homerun.co/v2/ping"
+ },
+ {
+  "name": "letmepost",
+  "confidence": "low",
+  "website": "https://letmepost.io",
+  "auth": "unknown"
+ },
+ {
+  "name": "Merge",
+  "confidence": "high",
+  "website": "https://www.merge.dev",
+  "docs": "https://docs.merge.dev/basics/authentication/",
+  "auth": "bearer",
+  "needs": [
+   "account_token"
+  ]
+ },
+ {
+  "name": "Niceboard",
+  "confidence": "low",
+  "website": "https://niceboard.co",
+  "auth": "unknown"
+ },
+ {
+  "name": "Parseur",
+  "confidence": "low",
+  "website": "https://parseur.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Raisely",
+  "confidence": "low",
+  "website": "https://www.raisely.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Snappy",
+  "confidence": "low",
+  "website": "https://www.snappy.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "SurveyMethods",
+  "confidence": "low",
+  "website": "https://www.surveymethods.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "UiPath Automation Hub",
+  "confidence": "low",
+  "website": "https://www.uipath.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Woovi",
+  "confidence": "low",
+  "website": "https://woovi.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Azure OpenAI",
+  "confidence": "high",
+  "website": "https://azure.microsoft.com/products/ai-services/openai-service",
+  "docs": "https://learn.microsoft.com/en-us/azure/ai-services/openai/reference",
+  "auth": "header",
+  "header": "api-key",
+  "needs": [
+   "endpoint"
+  ]
+ },
+ {
+  "name": "Adrapid",
+  "confidence": "low",
+  "website": "https://adrapid.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Upsales",
+  "confidence": "medium",
+  "website": "https://www.upsales.com",
+  "docs": "https://api.upsales.com",
+  "auth": "query",
+  "query": "token"
+ },
+ {
+  "name": "Apollo",
+  "confidence": "high",
+  "website": "https://www.apollo.io",
+  "docs": "https://docs.apollo.io/docs/test-api-key",
+  "auth": "header",
+  "header": "x-api-key"
+ },
+ {
+  "name": "Lightspeed eCom",
+  "confidence": "high",
+  "website": "https://www.lightspeedhq.com",
+  "docs": "https://developers.lightspeedhq.com/ecom/introduction/introduction/",
+  "auth": "basic",
+  "needs": [
+   "api_secret",
+   "cluster"
+  ]
+ },
+ {
+  "name": "Salesflare",
+  "confidence": "high",
+  "website": "https://salesflare.com",
+  "docs": "https://api.salesflare.com/docs",
+  "auth": "bearer"
+ },
+ {
+  "name": "Pipefy",
+  "confidence": "high",
+  "website": "https://www.pipefy.com",
+  "docs": "https://developers.pipefy.com/reference/authentication",
+  "auth": "bearer"
+ },
+ {
+  "name": "Returnista",
+  "confidence": "low",
+  "website": "https://www.returnista.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Tomba",
+  "confidence": "high",
+  "website": "https://tomba.io",
+  "docs": "https://docs.tomba.io/authentication",
+  "auth": "header",
+  "header": "X-Tomba-Key",
+  "needs": [
+   "api_secret"
+  ]
+ },
+ {
+  "name": "Toggl Track",
+  "confidence": "high",
+  "website": "https://toggl.com",
+  "docs": "https://engineering.toggl.com/docs/track/authentication/",
+  "auth": "basic"
+ },
+ {
+  "name": "Xola",
+  "confidence": "high",
+  "website": "https://xola.com",
+  "docs": "https://developers.xola.com/docs/authentication",
+  "auth": "header",
+  "header": "X-API-KEY"
+ },
+ {
+  "name": "Sunshine Conversations",
+  "confidence": "high",
+  "website": "https://www.zendesk.com",
+  "docs": "https://developer.zendesk.com/documentation/conversations/getting-started/api-authentication/",
+  "auth": "basic",
+  "needs": [
+   "api_secret"
+  ]
+ },
+ {
+  "name": "VBOUT",
+  "confidence": "medium",
+  "website": "https://www.vbout.com",
+  "docs": "https://developers.vbout.com/quickstart",
+  "auth": "query",
+  "query": "api_key"
+ },
+ {
+  "name": "Vision6",
+  "confidence": "medium",
+  "website": "https://www.vision6.com.au",
+  "docs": "https://support.vision6.com.au/hc/en-us/articles/201971540-Create-an-API-Key-for-Integrations",
+  "auth": "unknown"
+ },
+ {
+  "name": "Freshchat",
+  "confidence": "high",
+  "website": "https://www.freshworks.com",
+  "docs": "https://developers.freshchat.com/api/",
+  "auth": "bearer",
+  "needs": [
+   "domain"
+  ]
+ },
+ {
+  "name": "Aidbase",
+  "confidence": "high",
+  "website": "https://www.aidbase.ai",
+  "docs": "https://docs.aidbase.ai/apis/get-started/",
+  "auth": "bearer"
+ },
+ {
+  "name": "INDIEFUNNELS",
+  "confidence": "low",
+  "website": "https://indiefunnels.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Bitdefender GravityZone",
+  "confidence": "high",
+  "website": "https://www.bitdefender.com",
+  "docs": "https://www.bitdefender.com/business/support/en/77211-1658556-service-api-keys.html",
+  "auth": "basic",
+  "needs": [
+   "api_url"
+  ]
+ },
+ {
+  "name": "Invoiced",
+  "confidence": "high",
+  "website": "https://invoiced.com",
+  "docs": "https://developer.invoiced.com/api",
+  "auth": "basic"
+ },
+ {
+  "name": "Trunkrs",
+  "confidence": "low",
+  "website": "https://trunkrs.nl",
+  "auth": "unknown"
+ },
+ {
+  "name": "Close",
+  "confidence": "high",
+  "website": "https://www.close.com",
+  "docs": "https://developer.close.com/topics/authentication/",
+  "auth": "basic"
+ },
+ {
+  "name": "Hana",
+  "confidence": "low",
+  "website": "https://hana.ai",
+  "auth": "unknown"
+ },
+ {
+  "name": "NetHunt CRM",
+  "confidence": "high",
+  "website": "https://nethunt.com",
+  "docs": "https://nethunt.com/integration-api",
+  "auth": "basic",
+  "needs": [
+   "email"
+  ]
+ },
+ {
+  "name": "Whop",
+  "confidence": "high",
+  "website": "https://whop.com",
+  "docs": "https://dev.whop.com/api-reference/v2/authentication",
+  "auth": "bearer",
+  "verify": "https://api.whop.com/api/v1/accounts/me"
+ },
+ {
+  "name": "Bonusly",
+  "confidence": "low",
+  "website": "https://bonus.ly",
+  "auth": "unknown"
+ },
+ {
+  "name": "HeyGen",
+  "confidence": "high",
+  "website": "https://www.heygen.com",
+  "docs": "https://developers.heygen.com/docs/api-key",
+  "auth": "header",
+  "header": "X-Api-Key",
+  "verify": "https://api.heygen.com/v3/users/me"
+ },
+ {
+  "name": "PredictLeads",
+  "confidence": "high",
+  "website": "https://predictleads.com",
+  "docs": "https://docs.predictleads.com/api_endpoints/introduction/authentication/with_http_headers",
+  "auth": "header",
+  "header": "X-Api-Key",
+  "needs": [
+   "api_token"
+  ]
+ },
+ {
+  "name": "Streamtime",
+  "confidence": "low",
+  "website": "https://streamtime.net",
+  "auth": "unknown"
+ },
+ {
+  "name": "WaiverFile",
+  "confidence": "low",
+  "website": "https://www.waiverfile.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Altoviz",
+  "confidence": "high",
+  "website": "https://www.altoviz.com",
+  "docs": "https://api.altoviz.com/",
+  "auth": "header",
+  "header": "X-API-KEY",
+  "verify": "https://api.altoviz.com/v1/customers"
+ },
+ {
+  "name": "Dataiku",
+  "confidence": "medium",
+  "website": "https://www.dataiku.com",
+  "docs": "https://doc.dataiku.com/dss/latest/publicapi/keys.html",
+  "auth": "unknown",
+  "needs": [
+   "base_url"
+  ]
+ },
+ {
+  "name": "Excalidraw",
+  "confidence": "low",
+  "website": "https://excalidraw.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Lighthouse",
+  "confidence": "low",
+  "website": "https://www.mylighthouse.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Motion",
+  "confidence": "high",
+  "website": "https://www.usemotion.com",
+  "docs": "https://docs.usemotion.com/cookbooks/getting-started/",
+  "auth": "header",
+  "header": "X-API-Key",
+  "verify": "https://api.usemotion.com/v1/workspaces"
+ },
+ {
+  "name": "Rocket Chat",
+  "confidence": "high",
+  "website": "https://www.rocket.chat",
+  "docs": "https://docs.rocket.chat/docs/manage-personal-access-tokens",
+  "auth": "header",
+  "header": "X-Auth-Token",
+  "needs": [
+   "user_id",
+   "server_url"
+  ]
+ },
+ {
+  "name": "ShipStation",
+  "confidence": "high",
+  "website": "https://www.shipstation.com",
+  "docs": "https://www.shipstation.com/docs/api/requirements/",
+  "auth": "basic",
+  "needs": [
+   "api_secret"
+  ]
+ },
+ {
+  "name": "Accredible",
+  "confidence": "low",
+  "website": "https://www.accredible.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Ascora",
+  "confidence": "low",
+  "website": "https://www.ascora.com.au",
+  "auth": "unknown"
+ },
+ {
+  "name": "Clientify",
+  "confidence": "low",
+  "website": "https://clientify.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "fynk",
+  "confidence": "low",
+  "website": "https://fynk.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Knorish",
+  "confidence": "low",
+  "website": "https://knorish.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Nicereply",
+  "confidence": "low",
+  "website": "https://www.nicereply.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Referrizer",
+  "confidence": "low",
+  "website": "https://referrizer.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Talend",
+  "confidence": "low",
+  "website": "https://www.talend.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "UniRateAPI",
+  "confidence": "high",
+  "website": "https://unirateapi.com",
+  "docs": "https://unirateapi.com",
+  "auth": "query",
+  "query": "api_key"
+ },
+ {
+  "name": "YoPlanning",
+  "confidence": "low",
+  "website": "https://www.yoplanning.pro",
+  "auth": "unknown"
+ },
+ {
+  "name": "Anchor Browser",
+  "confidence": "high",
+  "website": "https://anchorbrowser.io",
+  "docs": "https://docs.anchorbrowser.io/quickstart/agent-access",
+  "auth": "header",
+  "header": "anchor-api-key"
+ },
+ {
+  "name": "Bugsnag",
+  "confidence": "low",
+  "website": "https://www.bugsnag.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Cincopa",
+  "confidence": "low",
+  "website": "https://www.cincopa.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Convenia",
+  "confidence": "low",
+  "website": "https://convenia.com.br",
+  "auth": "unknown"
+ },
+ {
+  "name": "Easyship",
+  "confidence": "high",
+  "website": "https://www.easyship.com",
+  "docs": "https://developers.easyship.com/reference/authentication",
+  "auth": "bearer"
+ },
+ {
+  "name": "GoSquared",
+  "confidence": "medium",
+  "website": "https://www.gosquared.com",
+  "docs": "https://www.gosquared.com/docs/api/",
+  "auth": "unknown",
+  "needs": [
+   "site_token"
+  ]
+ },
+ {
+  "name": "Insightly",
+  "confidence": "high",
+  "website": "https://www.insightly.com",
+  "docs": "https://api.insightly.com/v3.1/Help",
+  "auth": "basic",
+  "needs": [
+   "pod"
+  ]
+ },
+ {
+  "name": "LightSpeed VT",
+  "confidence": "low",
+  "website": "https://www.lightspeedvt.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Metatext.AI Pre-build AI models API",
+  "confidence": "low",
+  "website": "https://metatext.ai",
+  "auth": "unknown"
+ },
+ {
+  "name": "Nuclino",
+  "confidence": "high",
+  "website": "https://www.nuclino.com",
+  "docs": "https://help.nuclino.com/8090bb76-authentication",
+  "auth": "header",
+  "header": "Authorization"
+ },
+ {
+  "name": "PDFMonkey",
+  "confidence": "high",
+  "website": "https://www.pdfmonkey.io",
+  "docs": "https://pdfmonkey.io/docs/api/authentication/",
+  "auth": "bearer",
+  "verify": "https://api.pdfmonkey.io/api/v1/current_user"
+ },
+ {
+  "name": "Refiner",
+  "confidence": "high",
+  "website": "https://refiner.io",
+  "docs": "https://refiner.io/docs/api/",
+  "auth": "bearer"
+ },
+ {
+  "name": "Solve CRM",
+  "confidence": "low",
+  "website": "https://www.solvecrm.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Teamup",
+  "confidence": "high",
+  "website": "https://teamup.com",
+  "docs": "https://apidocs.teamup.com/docs/api/e60b71a05cf57-authentication",
+  "auth": "header",
+  "header": "Teamup-Token",
+  "verify": "https://api.teamup.com/check-access"
+ },
+ {
+  "name": "Unisender",
+  "confidence": "low",
+  "website": "https://www.unisender.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Xperiencify",
+  "confidence": "low",
+  "website": "https://xperiencify.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "LINE Messaging",
+  "confidence": "high",
+  "website": "https://developers.line.biz",
+  "docs": "https://developers.line.biz/en/docs/messaging-api/channel-access-tokens",
+  "auth": "bearer"
+ },
+ {
+  "name": "Afosto",
+  "confidence": "low",
+  "website": "https://afosto.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Trengo",
+  "confidence": "high",
+  "website": "https://trengo.com",
+  "docs": "https://developers.trengo.com/docs/rate-limiting",
+  "auth": "bearer"
+ },
+ {
+  "name": "Paystack",
+  "confidence": "high",
+  "website": "https://paystack.com",
+  "docs": "https://paystack.com/docs/api/authentication/",
+  "auth": "bearer"
+ },
+ {
+  "name": "Discord Bot",
+  "confidence": "high",
+  "website": "https://discord.com",
+  "docs": "https://docs.discord.com/developers/reference",
+  "auth": "header",
+  "header": "Authorization"
+ },
+ {
+  "name": "Social Fetch",
+  "confidence": "low",
+  "website": "https://socialfetch.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Lusha",
+  "confidence": "high",
+  "website": "https://www.lusha.com",
+  "docs": "https://docs.lusha.com/api-reference/overview",
+  "auth": "header",
+  "header": "api_key"
+ },
+ {
+  "name": "Dixa",
+  "confidence": "high",
+  "website": "https://www.dixa.com",
+  "docs": "https://docs.dixa.io/docs/tutorial-create-an-api-token",
+  "auth": "bearer"
+ },
+ {
+  "name": "Elastic Email",
+  "confidence": "medium",
+  "website": "https://elasticemail.com",
+  "docs": "https://elasticemail.com/developers/api-documentation/rest-api",
+  "auth": "header",
+  "header": "X-ElasticEmail-ApiKey"
+ },
+ {
+  "name": "Agile CRM",
+  "confidence": "high",
+  "website": "https://www.agilecrm.com",
+  "docs": "https://github.com/agilecrm/rest-api",
+  "auth": "basic",
+  "needs": [
+   "domain",
+   "email"
+  ]
+ },
+ {
+  "name": "Coda",
+  "confidence": "high",
+  "website": "https://coda.io",
+  "docs": "https://coda.io/developers/apis/v1",
+  "auth": "bearer"
+ },
+ {
+  "name": "Unleashed Software",
+  "confidence": "high",
+  "website": "https://www.unleashedsoftware.com",
+  "docs": "https://apidocs.unleashedsoftware.com/AuthenticationHelp",
+  "auth": "header",
+  "header": "api-auth-id",
+  "needs": [
+   "api_id"
+  ]
+ },
+ {
+  "name": "WordPressOrg",
+  "confidence": "high",
+  "website": "https://wordpress.org",
+  "docs": "https://developer.wordpress.org/advanced-administration/security/application-passwords/",
+  "auth": "basic",
+  "needs": [
+   "site_url",
+   "username"
+  ]
+ },
+ {
+  "name": "Aero Workflow",
+  "confidence": "low",
+  "website": "https://www.aeroworkflow.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "HelpDocs",
+  "confidence": "high",
+  "website": "https://www.helpdocs.io",
+  "docs": "https://apidocs.helpdocs.io/article/caacxCUso6-authenticating-api-requests",
+  "auth": "bearer"
+ },
+ {
+  "name": "Beehiiv",
+  "confidence": "high",
+  "website": "https://www.beehiiv.com",
+  "docs": "https://developers.beehiiv.com/welcome/create-an-api-key",
+  "auth": "bearer"
+ },
+ {
+  "name": "IPGeolocation",
+  "confidence": "high",
+  "website": "https://ipgeolocation.io",
+  "docs": "https://ipgeolocation.io/documentation/ip-location-api.html",
+  "auth": "query",
+  "query": "apiKey"
+ },
+ {
+  "name": "Brillium",
+  "confidence": "low",
+  "website": "https://www.brillium.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "LeadDyno",
+  "confidence": "high",
+  "website": "https://www.leaddyno.com",
+  "docs": "https://help.leaddyno.com/article/3664-rest-api-introduction",
+  "auth": "query",
+  "query": "key"
+ },
+ {
+  "name": "Ghost.org",
+  "confidence": "high",
+  "website": "https://ghost.org",
+  "docs": "https://docs.ghost.org/content-api",
+  "auth": "query",
+  "query": "key",
+  "needs": [
+   "site_url"
+  ]
+ },
+ {
+  "name": "Codex",
+  "confidence": "low",
+  "website": "https://openai.com/codex",
+  "auth": "unknown"
+ },
+ {
+  "name": "Invision Community",
+  "confidence": "high",
+  "website": "https://invisioncommunity.com",
+  "docs": "https://invisioncommunity.com/developers/rest-api",
+  "auth": "basic",
+  "needs": [
+   "site_url"
+  ]
+ },
+ {
+  "name": "Noticeable",
+  "confidence": "high",
+  "website": "https://noticeable.io",
+  "docs": "https://help.noticeable.io/en-us/article/how-to-use-the-noticeable-api-1bssj1n/",
+  "auth": "header",
+  "header": "Authorization"
+ },
+ {
+  "name": "MailerLite",
+  "confidence": "high",
+  "website": "https://www.mailerlite.com",
+  "docs": "https://developers.mailerlite.com/docs/",
+  "auth": "bearer",
+  "verify": "https://connect.mailerlite.com/api/subscribers"
+ },
+ {
+  "name": "ContactOut",
+  "confidence": "high",
+  "website": "https://contactout.com",
+  "docs": "https://api.contactout.com/",
+  "auth": "header",
+  "header": "token"
+ },
+ {
+  "name": "Megaventory",
+  "confidence": "high",
+  "website": "https://www.megaventory.com",
+  "docs": "https://help.megaventory.com/en/articles/74873-how-do-i-get-started-with-the-api",
+  "auth": "query",
+  "query": "APIKEY"
+ },
+ {
+  "name": "Qualiobee",
+  "confidence": "low",
+  "website": "https://www.qualiobee.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Superdocu",
+  "confidence": "low",
+  "website": "https://superdocu.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Whautomate",
+  "confidence": "low",
+  "website": "https://whautomate.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Badger Maps",
+  "confidence": "low",
+  "website": "https://www.badgermapping.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "DevRev",
+  "confidence": "low",
+  "website": "https://devrev.ai",
+  "auth": "unknown"
+ },
+ {
+  "name": "ExhibitDay",
+  "confidence": "low",
+  "website": "https://www.exhibitday.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "LoopMessage",
+  "confidence": "low",
+  "website": "https://loopmessage.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Odoo",
+  "confidence": "medium",
+  "website": "https://www.odoo.com",
+  "docs": "https://www.odoo.com/documentation/master/developer/reference/external_api.html",
+  "auth": "bearer",
+  "needs": [
+   "url",
+   "database"
+  ]
+ },
+ {
+  "name": "Sender",
+  "confidence": "low",
+  "website": "https://www.sender.net",
+  "auth": "unknown"
+ },
+ {
+  "name": "Memberstack",
+  "confidence": "high",
+  "website": "https://www.memberstack.com",
+  "docs": "https://developers.memberstack.com/admin-rest-api",
+  "auth": "header",
+  "header": "X-API-KEY"
+ },
+ {
+  "name": "Acumbamail",
+  "confidence": "low",
+  "website": "https://acumbamail.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "BenchmarkONE",
+  "confidence": "low",
+  "website": "https://www.benchmarkone.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "DailyBot",
+  "confidence": "low",
+  "website": "https://www.dailybot.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Goody",
+  "confidence": "high",
+  "website": "https://www.ongoody.com",
+  "docs": "https://developer.ongoody.com/",
+  "auth": "bearer"
+ },
+ {
+  "name": "Laposta",
+  "confidence": "high",
+  "website": "https://laposta.nl",
+  "docs": "https://api.laposta.nl/doc/",
+  "auth": "basic"
+ },
+ {
+  "name": "OptimoRoute",
+  "confidence": "low",
+  "website": "https://optimoroute.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Remote",
+  "confidence": "high",
+  "website": "https://remote.com",
+  "docs": "https://developer.remote.com/docs/authentication",
+  "auth": "bearer"
+ },
+ {
+  "name": "TestMonitor",
+  "confidence": "low",
+  "website": "https://www.testmonitor.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "V7 Go",
+  "confidence": "low",
+  "website": "https://www.v7labs.com/go",
+  "auth": "unknown"
+ },
+ {
+  "name": "Yutori",
+  "confidence": "low",
+  "website": "https://yutori.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "AnnounceKit",
+  "confidence": "low",
+  "website": "https://announcekit.app",
+  "auth": "unknown"
+ },
+ {
+  "name": "Callingly",
+  "confidence": "low",
+  "website": "https://www.callingly.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Circle",
+  "confidence": "low",
+  "website": "https://circle.so",
+  "auth": "unknown"
+ },
+ {
+  "name": "Curated",
+  "confidence": "low",
+  "website": "https://curated.co",
+  "auth": "unknown"
+ },
+ {
+  "name": "Emailoctopus",
+  "confidence": "low",
+  "website": "https://emailoctopus.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "GTmetrix",
+  "confidence": "high",
+  "website": "https://gtmetrix.com",
+  "docs": "https://gtmetrix.com/api/docs/2.0/",
+  "auth": "basic"
+ },
+ {
+  "name": "Instantly",
+  "confidence": "low",
+  "website": "https://instantly.ai",
+  "auth": "unknown"
+ },
+ {
+  "name": "listmonk",
+  "confidence": "high",
+  "website": "https://listmonk.app",
+  "docs": "https://listmonk.app/docs/apis/apis/",
+  "auth": "header",
+  "header": "Authorization",
+  "needs": [
+   "base_url",
+   "api_user"
+  ]
+ },
+ {
+  "name": "Miestro",
+  "confidence": "low",
+  "website": "https://miestro.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "OpenSRS",
+  "confidence": "high",
+  "website": "https://opensrs.com",
+  "docs": "https://domains.opensrs.guide/docs/quickstart",
+  "auth": "header",
+  "header": "X-Signature",
+  "needs": [
+   "username"
+  ]
+ },
+ {
+  "name": "PicDefense",
+  "confidence": "low",
+  "website": "https://picdefense.io",
+  "auth": "unknown"
+ },
+ {
+  "name": "robly",
+  "confidence": "low",
+  "website": "https://www.robly.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Sonix",
+  "confidence": "high",
+  "website": "https://sonix.ai",
+  "docs": "https://sonix.ai/docs/api",
+  "auth": "bearer"
+ },
+ {
+  "name": "TestLocally",
+  "confidence": "low",
+  "website": "https://testlocally.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Utopian Labs",
+  "confidence": "low",
+  "website": "https://www.utopianlabs.ai",
+  "auth": "unknown"
+ },
+ {
+  "name": "Yanado",
+  "confidence": "low",
+  "website": "https://www.yanado.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "Clearbit",
+  "confidence": "low",
+  "website": "https://clearbit.com",
+  "auth": "unknown"
+ },
+ {
+  "name": "AfterShip",
+  "confidence": "low",
+  "website": "https://www.aftership.com",
+  "auth": "unknown"
+ }
+]

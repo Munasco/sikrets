@@ -44,6 +44,10 @@ beforeEach(async () => {
       const key = new Headers(init?.headers).get("x-api-key");
       return key === GOOD_ANTHROPIC_KEY ? json({ data: [] }) : json({ error: { type: "authentication_error" } }, 401);
     }
+    if (url.hostname === "api.stripe.com") {
+      const auth = new Headers(init?.headers).get("authorization");
+      return auth === `Bearer ${GOOD_STRIPE_KEY}` ? json({ id: "acct_1" }) : json({ error: { type: "invalid_request_error" } }, 401);
+    }
     if (method === "GET" && url.pathname === "/v2/redis/databases") return json(Object.values(databases));
     if (method === "POST" && url.pathname === "/v2/redis/database") {
       if (failCreate) return json({ error: "boom" }, 500);
@@ -68,6 +72,7 @@ beforeEach(async () => {
 afterEach(() => rm(root, { recursive: true, force: true }));
 
 const GOOD_ANTHROPIC_KEY = "sk-ant-api03-goodkeygoodkeygoodkey1234";
+const GOOD_STRIPE_KEY = "sk_test_goodkeygoodkeygoodkey1234";
 const exists = (rel: string) => Bun.file(path.join(root, rel)).exists();
 const request = (over: Partial<AddRequest>): AddRequest => ({
   recipe: "upstash/redis",
@@ -354,5 +359,33 @@ describe("rotate", () => {
     for (const bad of ["30", "1 day", "0d", "-2h"]) expect(() => parseDuration(bad)).toThrow();
     expect(until(new Date(Date.now() + 6 * 86_400_000 + 1000).toISOString())).toBe("in 6d");
     expect(until(new Date(Date.now() - 2 * 86_400_000).toISOString())).toBe("overdue by 2d");
+  });
+});
+
+describe("service catalog", () => {
+  test("every catalog service has a valid generic recipe", async () => {
+    const { SERVICES, serviceRecipe } = await import("./catalog/services.ts");
+    const { RESOURCE_NAME } = await import("./recipes/types.ts");
+    expect(SERVICES.length).toBeGreaterThan(2000);
+    expect(new Set(SERVICES.map((s) => s.id)).size).toBe(SERVICES.length);
+    for (const s of SERVICES) {
+      const r = serviceRecipe(`${s.id}/api-key`)!;
+      expect(RESOURCE_NAME.test(r.defaultName!)).toBe(true);
+      expect(r.instructions.url).toStartWith("https://");
+      if (s.verify) expect(new URL(s.verify).protocol).toBe("https:");
+    }
+  });
+
+  test("hand-written recipes win over the generic one", () => {
+    expect(recipe("anthropic/api-key").summary).toContain("Claude Console");
+    expect(recipe("stripe/api-key").provider).toBe("stripe");
+    expect(() => recipe("not-a-real-service/api-key")).toThrow("sikrets catalog");
+  });
+
+  test("a pasted key is checked against the service's own API and stored", async () => {
+    await applyPlan("add", (await planAdd(request({ recipe: "stripe/api-key", name: "stripe", secret: async () => Secret.of(GOOD_STRIPE_KEY) }), ctx)).changes, ctx);
+    await expect((await openVault("demo", "keychain")).get("STRIPE_API_KEY").then((v) => v?.reveal())).resolves.toBe(GOOD_STRIPE_KEY);
+    const wrong = await planAdd(request({ recipe: "stripe/api-key", name: "stripe2", secret: async () => Secret.of("sk_test_wrongwrongwrongwrong") }), ctx);
+    await expect(applyPlan("add", wrong.changes, ctx)).rejects.toThrow("rejected this key (401)");
   });
 });
