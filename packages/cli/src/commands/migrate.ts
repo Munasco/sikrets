@@ -21,7 +21,7 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   const purgeHistory = Boolean(opts["purge-history"]);
   const { config, ctx } = await projectContext(root, { dryRun, log: say });
   if (ctx.vault !== "ssm") {
-    if (opts.json) return console.log(JSON.stringify({ vault: ctx.vault, sealed: [], already: [], unreadable: [], purged: [] }));
+    if (opts.json) return console.log(JSON.stringify({ vault: ctx.vault, sealed: [], already: [], unreadable: [], purged: [], changed: [] }));
     return say(`Nothing to migrate: the ${ctx.vault} vault never leaves this machine.`);
   }
 
@@ -37,7 +37,7 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   const result = await migrateEncrypt(params, key, { dryRun, purgeHistory });
 
   // Only a project with a sikrets.json can record the requirement; others are told how to add one.
-  const marked = !dryRun && result.unreadable.length === 0 && config.encryption !== ENCRYPTION_REQUIRED && (await hasConfig(root));
+  const marked = !dryRun && result.unreadable.length === 0 && result.changed.length === 0 && config.encryption !== ENCRYPTION_REQUIRED && (await hasConfig(root));
   if (marked) await writeConfig(root, { ...config, encryption: ENCRYPTION_REQUIRED });
   const required = marked || config.encryption === ENCRYPTION_REQUIRED;
   if (!dryRun) await record(root, { kind: "migrate", detail: `encrypt: ${result.sealed.length} sealed, ${result.already.length} already, ${result.unreadable.length} unreadable`, keys: result.sealed });
@@ -47,7 +47,8 @@ export async function run(args: string[], opts: Record<string, unknown>) {
   if (result.already.length) say(`Already encrypted: ${result.already.length} value(s).`);
   if (result.purged.length) say(`Recreated ${result.purged.length} parameter(s) without their old versions.`);
   if (result.unreadable.length) say(`Not under this device's data key, left untouched: ${result.unreadable.join(", ")}. Restore the right key (sikrets recovery restore) or re-add them.`);
-  if (!result.sealed.length && !result.unreadable.length) say("Nothing to do: every value is already encrypted.");
+  if (result.changed.length) say(`Changed by someone else while this ran, left as they are: ${result.changed.join(", ")}. Run it again to include them.`);
+  if (!result.sealed.length && !result.unreadable.length && !result.changed.length) say("Nothing to do: every value is already encrypted.");
   if (marked) say(`Plaintext values are now refused for "${ctx.project}" (sikrets.json "encryption": "${ENCRYPTION_REQUIRED}"). Commit sikrets.json.`);
   else if (!dryRun && !required && !result.unreadable.length) say(`To refuse plaintext from now on, run sikrets init and keep "encryption": "${ENCRYPTION_REQUIRED}".`);
   if (!dryRun && result.sealed.length && !purgeHistory) say("SSM still holds the old plaintext in each parameter's version history. Re-run with --purge-history to drop it, and rotate keys you can't vouch for.");

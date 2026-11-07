@@ -136,4 +136,19 @@ describe("encrypted values", () => {
     expect(await createSikrets({ env: {}, project: "shop", fetch: v.fetch }).get("ANTHROPIC_API_KEY")).toBe("sk-ant-legacy");
     expect(await codeOf(createSikrets({ env: {}, project: "shop", fetch: v.fetch, requireEncrypted: true }).get("ANTHROPIC_API_KEY"))).toBe("decrypt");
   });
+
+  test("follows sikrets.json: a project the CLI marked \"encryption\": \"required\" refuses plaintext here too", async () => {
+    const { mkdtemp, rm, writeFile } = await import("node:fs/promises");
+    const root = await mkdtemp(`${(await import("node:os")).tmpdir()}/sikrets-sdk-`);
+    try {
+      const v = fakeVault({ ANTHROPIC_API_KEY: "sk-ant-planted" });
+      expect(await createSikrets({ env: {}, project: "shop", fetch: v.fetch, root }).get("ANTHROPIC_API_KEY")).toBe("sk-ant-planted");
+      await writeFile(`${root}/sikrets.json`, JSON.stringify({ project: "shop", encryption: "required" }));
+      expect(await codeOf(createSikrets({ env: {}, project: "shop", fetch: v.fetch, root }).get("ANTHROPIC_API_KEY"))).toBe("decrypt");
+      // An explicit option still wins.
+      expect(await createSikrets({ env: {}, project: "shop", fetch: v.fetch, root, requireEncrypted: false }).get("ANTHROPIC_API_KEY")).toBe("sk-ant-planted");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });

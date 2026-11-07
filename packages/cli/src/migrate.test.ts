@@ -1,5 +1,8 @@
-import { beforeEach, describe, expect, spyOn, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { randomBytes } from "node:crypto";
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { ensureDataKey } from "./core/datakey.ts";
 import { envelopeKind, projectKey, sealValue } from "./core/envelope.ts";
 import { migrateEncrypt } from "./core/migrate.ts";
@@ -11,8 +14,12 @@ const keychain = new Map<string, string>();
 let ssm: ReturnType<typeof fakeSsm>;
 const LEGACY = { CACHE_REDIS_REST_TOKEN: "tok_live_secret_value", CACHE_REDIS_REST_URL: "https://happy-fox-123.upstash.io", ANTHROPIC_API_KEY: "sk-ant-real" };
 
-beforeEach(() => {
+let dir: string;
+
+beforeEach(async () => {
   keychain.clear();
+  dir = await mkdtemp(path.join(os.tmpdir(), "sikrets-migrate-"));
+  process.env.SIKRETS_CONFIG_DIR = dir;
   spyOn(Bun.secrets, "set").mockImplementation(async ({ service, name, value }) => void keychain.set(`${service}/${name}`, value));
   spyOn(Bun.secrets, "get").mockImplementation(async ({ service, name }) => keychain.get(`${service}/${name}`) ?? null);
   ssm = fakeSsm();
@@ -21,6 +28,11 @@ beforeEach(() => {
     ssm.history.set(`/sikrets/shop/${k}`, [v]);
   }
   ssm.params.set("/sikrets/blog/OTHER_PROJECT", "left alone");
+});
+
+afterEach(async () => {
+  delete process.env.SIKRETS_CONFIG_DIR;
+  await rm(dir, { recursive: true, force: true });
 });
 
 const setup = async () => {
@@ -32,7 +44,7 @@ describe("migrate encrypt", () => {
   test("seals every plaintext value in place, and they still read back", async () => {
     const { params, key } = await setup();
     const result = await migrateEncrypt(params, key);
-    expect(result).toEqual({ sealed: ["ANTHROPIC_API_KEY", "CACHE_REDIS_REST_TOKEN", "CACHE_REDIS_REST_URL"], already: [], unreadable: [], purged: [] });
+    expect(result).toEqual({ sealed: ["ANTHROPIC_API_KEY", "CACHE_REDIS_REST_TOKEN", "CACHE_REDIS_REST_URL"], already: [], unreadable: [], purged: [], changed: [] });
     for (const [k, v] of Object.entries(LEGACY)) {
       const stored = ssm.params.get(`/sikrets/shop/${k}`)!;
       expect(envelopeKind(stored)).toBe("sealed");
@@ -87,5 +99,39 @@ describe("migrate encrypt", () => {
     expect(ssm.history.get(name)).toHaveLength(1);
     expect(ssm.history.get(name)![0]).not.toContain(LEGACY.CACHE_REDIS_REST_TOKEN);
     expect((await (await ssmVault("shop", { client: ssm.client })).get("CACHE_REDIS_REST_TOKEN"))!.reveal()).toBe(LEGACY.CACHE_REDIS_REST_TOKEN);
+  });
+
+  test("--purge-history interrupted after the delete loses nothing, and the next run finishes", async () => {
+    const { params, key } = await setup();
+    const name = "/sikrets/shop/CACHE_REDIS_REST_TOKEN";
+    // The put that recreates the parameter fails (a throttle, an IAM denial, a crash).
+    ssm.failPutWhen((n) => {
+      if (n === name) throw new Error("ThrottlingException");
+    });
+    await expect(migrateEncrypt(params, key, { purgeHistory: true })).rejects.toThrow("Throttling");
+    expect(ssm.params.has(name)).toBe(false); // deleted...
+    expect(envelopeKind(ssm.params.get(`${name}.sikrets-staged`)!)).toBe("sealed"); // ...but kept, sealed
+    expect([...(await params.list()).keys()]).not.toContain("CACHE_REDIS_REST_TOKEN.sikrets-staged");
+
+    ssm.failPutWhen(undefined);
+    const result = await migrateEncrypt(params, key, { purgeHistory: true });
+    expect(result.changed).toEqual([]);
+    expect([...ssm.params.keys()].filter((n) => n.endsWith(".sikrets-staged"))).toEqual([]);
+    expect((await (await ssmVault("shop", { client: ssm.client })).get("CACHE_REDIS_REST_TOKEN"))!.reveal()).toBe(LEGACY.CACHE_REDIS_REST_TOKEN);
+  });
+
+  test("a value rotated while the migration runs is kept, not overwritten with the old one", async () => {
+    const { params, key } = await setup();
+    const name = "/sikrets/shop/CACHE_REDIS_REST_TOKEN";
+    const rotated = sealValue(key, name, "tok_rotated");
+    // Someone rotates the key right after the migration listed the project.
+    const racing = { ...params, list: async () => { const all = await params.list(); ssm.params.set(name, rotated); return all; } };
+    for (const purgeHistory of [false, true]) {
+      ssm.params.set(name, LEGACY.CACHE_REDIS_REST_TOKEN);
+      const result = await migrateEncrypt(racing, key, { purgeHistory });
+      expect(result.changed).toEqual(["CACHE_REDIS_REST_TOKEN"]);
+      expect(result.sealed).not.toContain("CACHE_REDIS_REST_TOKEN");
+      expect(ssm.params.get(name)).toBe(rotated);
+    }
   });
 });

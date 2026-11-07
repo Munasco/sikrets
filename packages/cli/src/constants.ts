@@ -123,6 +123,13 @@ export const ENVELOPE = {
 } as const;
 /** sikrets.json "encryption" value that refuses legacy plaintext once a project is migrated. */
 export const ENCRYPTION_REQUIRED = "required";
+/** SSM names beside a project's values. Lowercase with a dot, so they never parse as a vault key. */
+export const SSM_META = {
+  /** Fingerprint of the data key this project's values are sealed with, created once (Overwrite: false). */
+  dataKeyMarker: "sikrets.datakey",
+  /** Suffix of the copy `migrate encrypt --purge-history` keeps while it recreates a parameter. */
+  stagedSuffix: ".sikrets-staged",
+} as const;
 
 // ── Backups ───────────────────────────────────────────────────────────────
 export const BACKUP = {

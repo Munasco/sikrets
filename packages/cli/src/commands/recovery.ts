@@ -1,6 +1,9 @@
 import path from "node:path";
 import { ensureDataKey, fingerprint, loadDataKey, saveDataKey } from "../core/datakey.ts";
 import { createRecord, isShare, markUsed, newCode, readRecord, recordState, recoveryFile, replaceRecord, secretFrom, unwrap, wrap, writeRecord, type RecoveryRecord } from "../core/recovery.ts";
+import { effectiveVault, hasConfig, loadConfig } from "../core/config.ts";
+import { envelopeKind } from "../core/envelope.ts";
+import { ssmParams } from "../core/vault.ts";
 import { log, promptHidden, promptLine } from "../ui.ts";
 import { RECOVERY } from "../constants.ts";
 
@@ -62,6 +65,9 @@ async function issue(action: "setup" | "rotate", opts: Record<string, unknown>, 
   if (!process.stdin.isTTY || !process.stderr.isTTY) throw new Error(`Run this in a terminal: the recovery code is shown once, to a person`);
   if (action === "rotate" && !(await loadDataKey())) throw new Error("This device has no data key to protect. Run: sikrets recovery restore");
 
+  if (!(await loadDataKey()) && (await sealedUnderAnotherKey(process.cwd()))) {
+    throw new Error("This project's values are sealed under a data key this device doesn't have. Bring it here first: sikrets recovery restore");
+  }
   const dataKey = await ensureDataKey();
   const split = Boolean(opts.split);
   const { secret, shown } = newCode({ split });
@@ -116,4 +122,17 @@ async function readCodes(opts: Record<string, unknown>, record: RecoveryRecord):
   const inputs = [first];
   while (inputs.length < RECOVERY.threshold) inputs.push(await promptHidden(`Another share (${inputs.length + 1} of ${RECOVERY.threshold}): `));
   return inputs;
+}
+
+/**
+ * Whether the project here already has a data key elsewhere (claimed marker or sealed values). Setup
+ * on a device without a key would otherwise mint a new one and protect the wrong key.
+ */
+async function sealedUnderAnotherKey(root: string): Promise<boolean> {
+  if (!(await hasConfig(root))) return false;
+  const config = await loadConfig(root);
+  if (effectiveVault(config) !== "ssm") return false;
+  const params = await ssmParams(config.project);
+  if (await params.marker()) return true;
+  return [...(await params.list()).values()].some((v) => envelopeKind(v) !== "plain");
 }

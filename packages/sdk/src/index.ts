@@ -14,7 +14,7 @@
 // The SDK opens them with the project key: SIKRETS_PROJECT_KEY in a deployment, or, under Bun on a
 // developer machine, one derived from the data key in the OS keychain. Legacy plaintext passes through.
 
-import { DEFAULT_TTL_MS, DEFAULT_VAULT, ENV, KEY_PATTERN, keychainVaultService, SSM_PREFIX, STAND_IN_PATTERN } from "./constants.ts";
+import { CONFIG_FILE, DEFAULT_TTL_MS, DEFAULT_VAULT, ENCRYPTION_REQUIRED, ENV, KEY_PATTERN, keychainVaultService, SSM_PREFIX, STAND_IN_PATTERN } from "./constants.ts";
 import { deriveProjectKey, importProjectKey, isSealed, keychainDataKey, openSealed } from "./envelope.ts";
 
 export type VaultName = "ssm" | "keychain";
@@ -32,8 +32,14 @@ export interface SikretsOptions {
   readonly fetch?: (project: string, key: string) => Promise<string | undefined>;
   /** Base64 project key (or its 32 raw bytes) for sealed values; defaults to SIKRETS_PROJECT_KEY, then the Bun keychain. */
   readonly projectKey?: string | Uint8Array;
-  /** Refuse legacy plaintext from the vault, once the project is migrated, so a planted value is never used. */
+  /**
+   * Refuse legacy plaintext from the vault, so a planted value is never used. Defaults to what the
+   * project's sikrets.json says ("encryption": "required", set by `sikrets migrate encrypt`), so the
+   * SDK and the CLI enforce the same thing.
+   */
   readonly requireEncrypted?: boolean;
+  /** Folder holding sikrets.json; defaults to the working directory. */
+  readonly root?: string;
   readonly now?: () => number;
 }
 
@@ -98,6 +104,19 @@ function vaultFetch(name: VaultName): (project: string, key: string) => Promise<
   return async (project, key) => (await ssm()).get(`${SSM_PREFIX}/${project}/${key}`);
 }
 
+/** Whether sikrets.json in `root` (default: the working directory) says encryption is required. */
+async function configRequiresEncryption(root?: string): Promise<boolean> {
+  if (typeof process === "undefined") return false;
+  try {
+    const { readFile } = await import("node:fs/promises");
+    const { join } = await import("node:path");
+    const config = JSON.parse(await readFile(join(root ?? process.cwd(), CONFIG_FILE), "utf8")) as { encryption?: unknown };
+    return config.encryption === ENCRYPTION_REQUIRED;
+  } catch {
+    return false; // no sikrets.json (e.g. a deployed bundle): fall back to the explicit option
+  }
+}
+
 export function createSikrets(opts: SikretsOptions = {}): Sikrets {
   const env = opts.env ?? (typeof process !== "undefined" ? process.env : {});
   const ttl = opts.ttlMs ?? DEFAULT_TTL_MS;
@@ -108,6 +127,8 @@ export function createSikrets(opts: SikretsOptions = {}): Sikrets {
   const cache = new Map<string, { value: string; until: number }>();
   const inflight = new Map<string, Promise<string>>();
   let sealKey: Promise<CryptoKey> | undefined;
+  let strict: Promise<boolean> | undefined;
+  const requireEncrypted = () => (strict ??= opts.requireEncrypted !== undefined ? Promise.resolve(opts.requireEncrypted) : configRequiresEncryption(opts.root));
 
   const keyFor = (project: string) =>
     (sealKey ??= (async () => {
@@ -142,7 +163,7 @@ export function createSikrets(opts: SikretsOptions = {}): Sikrets {
       } catch (error) {
         throw new SikretsError("decrypt", key, error instanceof Error ? error.message : "can't decrypt");
       }
-    } else if (opts.requireEncrypted) {
+    } else if (await requireEncrypted()) {
       throw new SikretsError("decrypt", key, "the vault holds it unencrypted, and this app requires encryption; run sikrets migrate encrypt");
     }
     if (isStandIn(value)) throw new SikretsError("vault", key, "the vault returned a stand-in instead of a real value");

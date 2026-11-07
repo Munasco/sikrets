@@ -6,6 +6,9 @@ export const DEFAULT_TTL_MS = 5 * 60_000;
 export const STAND_IN_PATTERN = /^sk-sikrets-[A-Za-z0-9]{32}$/;
 export const KEY_PATTERN = /^[A-Z][A-Z0-9_]{0,127}$/;
 export const SSM_PREFIX = "/sikrets";
+/** The committed project file, and its "encryption" value that refuses legacy plaintext. */
+export const CONFIG_FILE = "sikrets.json";
+export const ENCRYPTION_REQUIRED = "required";
 export const keychainVaultService = (project: string) => `dev.sikrets.vault.${project}`;
 
 // Client-side encryption: must match packages/cli/src/constants.ts ENVELOPE byte for byte.
