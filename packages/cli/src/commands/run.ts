@@ -4,15 +4,11 @@ import { state } from "../core/state.ts";
 import { record } from "../core/activity.ts";
 import { openVault } from "../core/vault.ts";
 
-// Runs a command with this project's values injected as environment variables. Nothing is written
-// to disk and nothing is printed; the child process is the only thing that sees the raw values.
-export async function run(args: string[], opts: Record<string, unknown>) {
-  if (!args.length) throw new Error("Usage: sikrets run [--providers] -- <command> [args...]");
-  const root = process.cwd();
+/** This project's values from the vault, still wrapped in Secret. Shared with `sikrets mcp`. */
+export async function projectEnv(root: string): Promise<Env> {
   const { resources } = await state.load(root);
   const { ctx } = await projectContext(root, { log: () => {} });
   const vault = await openVault(ctx.project, ctx.vault);
-
   const env: Env = {};
   for (const r of resources.filter((x) => x.applied)) {
     for (const key of r.envKeys) {
@@ -21,8 +17,17 @@ export async function run(args: string[], opts: Record<string, unknown>) {
       env[key] = value;
     }
   }
+  return env;
+}
+
+// Runs a command with this project's values injected as environment variables. Nothing is written
+// to disk and nothing is printed; the child process is the only thing that sees the raw values.
+export async function run(args: string[], opts: Record<string, unknown>) {
+  if (!args.length) throw new Error("Usage: sikrets run [--providers] -- <command> [args...]");
+  const root = process.cwd();
+  const env = await projectEnv(root);
   // Provider admin credentials only on request, e.g. `sikrets run --providers -- terraform plan`.
-  if (opts.providers) Object.assign(env, await providerEnv(resources.map((r) => r.provider)));
+  if (opts.providers) Object.assign(env, await providerEnv((await state.load(root)).resources.map((r) => r.provider)));
 
   const started = Date.now();
   const proc = Bun.spawn(args, { env: { ...Bun.env, ...toProcessEnv(env) }, stdio: ["inherit", "inherit", "inherit"] });
