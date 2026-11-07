@@ -42,7 +42,7 @@ export const LOCK = {
   /** How long to wait for another sikrets process before giving up. */
   waitMs: 15_000,
   retryMs: 50,
-  /** A lock older than this whose owner can't be confirmed alive is treated as left by a crash. */
+  /** A lock file with no owner written in it, older than this, is treated as left by a crash. */
   staleMs: 60_000,
   /** A rotation holds its lock through a provider call (or a person pasting a key); wait longer. */
   rotationWaitMs: 10 * 60_000,

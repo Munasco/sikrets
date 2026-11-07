@@ -57,10 +57,14 @@ const alive = (pid: number) => {
   }
 };
 
-/** A lock is stale when its owner on this machine is gone, or it is older than LOCK.staleMs. */
+/**
+ * A lock is stale when its owner process is gone. One with no readable owner (a crash between
+ * creating and writing it) is stale once older than LOCK.staleMs. A live owner is waited for,
+ * however long it holds the lock.
+ */
 async function stale(lock: string, seen: string): Promise<boolean> {
   const owner = /^(\d+)\b/.exec(seen)?.[1];
-  if (owner && !alive(Number(owner))) return true;
+  if (owner) return !alive(Number(owner));
   const info = await stat(lock).catch(() => undefined);
   return info !== undefined && Date.now() - info.mtimeMs > LOCK.staleMs;
 }
