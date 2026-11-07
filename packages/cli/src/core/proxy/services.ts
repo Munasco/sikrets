@@ -84,6 +84,16 @@ const curatedIds = new Set(CURATED.map((s) => s.id));
 export const SERVICES: readonly Service[] = [...CURATED, ...CATALOG.filter((s) => !curatedIds.has(s.id)).flatMap((s) => fromCatalog(s) ?? [])];
 const byId = new Map(SERVICES.map((s) => [s.id, s]));
 
+// The proxy picks the service (and so the real key) by host, and every service gets the same
+// stand-in token. Two services on one host would make that choice ambiguous: refuse to load.
+const hostOwner = new Map<string, string>();
+for (const s of SERVICES)
+  for (const host of Object.keys(s.hosts)) {
+    const other = hostOwner.get(host);
+    if (other && other !== s.id) throw new Error(`Proxy catalog: ${host} belongs to both ${other} and ${s.id}`);
+    hostOwner.set(host, s.id);
+  }
+
 export function service(id: string): Service {
   const s = byId.get(id);
   if (s) return s;
