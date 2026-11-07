@@ -4,6 +4,7 @@ import { state } from "../core/state.ts";
 import { envValues, outputKeys } from "../core/standin.ts";
 import { record } from "../core/activity.ts";
 import { openVault } from "../core/vault.ts";
+import { recordUse } from "../core/usage.ts";
 
 // `sikrets env` lists which values exist (names only, never values).
 // `sikrets env pull` writes them into a git-ignored, owner-only env file: stand-ins for secrets by
@@ -21,7 +22,10 @@ export async function run(args: string[], opts: Record<string, unknown>) {
     const values = await envValues(vault, applied, real);
     await upsertEnv(root, file, values);
     await record(root, { kind: "env.pull", detail: `${values.size} value(s) to ${file}`, keys: [...values.keys()], real });
-    const secrets = applied.flatMap(outputKeys).filter((k) => k.sensitive && values.has(k.key)).length;
+    const sensitive = applied.flatMap(outputKeys).filter((k) => k.sensitive && values.has(k.key)).map((k) => k.key);
+    // Stand-ins aren't keys; only a --real pull hands keys out.
+    if (real) await recordUse(ctx.project, { keys: sensitive, via: "env.pull", app: file });
+    const secrets = sensitive.length;
     const what = real ? `${secrets} real secret(s)` : `${secrets} stand-in(s)`;
     return console.log(opts.json ? JSON.stringify({ file, keys: values.size, real }) : `Wrote ${values.size} value(s) to ${file}: ${what} (mode 600, git-ignored).`);
   }
