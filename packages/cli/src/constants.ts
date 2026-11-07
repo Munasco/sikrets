@@ -140,6 +140,8 @@ export const RECOVERY = {
   /** Keychain slot for this device's copy of the data key. */
   dataKeyProvider: "datakey",
   dataKeyAccount: "default",
+  /** Lock file (under the user folder) held while creating the data key. */
+  dataKeyLock: "datakey",
   dataKeyBytes: 32,
   /** Random bytes in a recovery code (160 bits), before the checksum group. */
   codeBytes: 20,
@@ -162,8 +164,10 @@ export const RECOVERY = {
 
 // ── Doorman (human approval before rotating) ──────────────────────────────
 export const APPROVALS_FILE = "approvals.json";
-/** Pending requests lapse after this long without a decision. */
+/** Pending requests lapse after this long without a decision; a failed rotation gets a fresh window to retry. */
 export const APPROVAL_TTL = "24h";
+/** A rotation still marked running after this long, or whose process is gone, is recorded as failed. */
+export const APPROVAL_ROTATING_MAX_MS = 60 * 60_000;
 /** What a person is told. Generic on purpose: never the detection source. */
 export const APPROVAL_REASONS = {
   exposed: "We think this key may be exposed",
@@ -259,4 +263,13 @@ export const IMPORT = {
   /** 1Password's .1pux export is a zip; its items are in this file inside it. */
   onePuxData: "export.data",
   unzip: "unzip",
+} as const;
+
+// ── Local state-file locks ────────────────────────────────────────────────
+export const LOCK = {
+  /** How long to wait for another sikrets process to finish with a file. */
+  waitMs: 10_000,
+  retryMs: 25,
+  /** A lock older than this is assumed abandoned even if its pid looks alive. */
+  staleMs: 30_000,
 } as const;

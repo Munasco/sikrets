@@ -1,5 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { keychain } from "../store.ts";
+import path from "node:path";
+import { configDir, keychain } from "../store.ts";
+import { withLock } from "./lock.ts";
 import { RECOVERY } from "../constants.ts";
 
 // The vault data key: one random 256-bit key per user, kept in the OS keychain. It is the single
@@ -24,13 +26,18 @@ export async function loadDataKey(): Promise<Buffer | undefined> {
 
 export const saveDataKey = (key: Uint8Array) => keychain.set(PROVIDER, ACCOUNT, b64(key));
 
-/** Creates this device's data key on first use. */
+/**
+ * Creates this device's data key on first use. Under a lock, so two first runs at once can't each
+ * make a key and leave values sealed under the one that lost.
+ */
 export async function ensureDataKey(): Promise<Buffer> {
-  const existing = await loadDataKey();
-  if (existing) return existing;
-  const key = randomBytes(RECOVERY.dataKeyBytes);
-  await saveDataKey(key);
-  return key;
+  return withLock(path.join(configDir(), RECOVERY.dataKeyLock), async () => {
+    const existing = await loadDataKey();
+    if (existing) return existing;
+    const key = randomBytes(RECOVERY.dataKeyBytes);
+    await saveDataKey(key);
+    return key;
+  });
 }
 
 /** Identifies a data key without revealing it, so restore can tell whether two devices share one. */
