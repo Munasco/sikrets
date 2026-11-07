@@ -4,7 +4,7 @@ import { readActivity, record } from "../core/activity.ts";
 import { outputKeys } from "../core/standin.ts";
 import { state } from "../core/state.ts";
 import { Secret } from "../core/secret.ts";
-import { MCP } from "../constants.ts";
+import { MCP, MCP_HTTP } from "../constants.ts";
 import { projectEnv } from "./run.ts";
 import { createLoginTool, LOGIN_TOOL, type LoginToolOptions } from "./mcp-login.ts";
 import { LOGINS } from "../constants.ts";
@@ -334,12 +334,19 @@ export function createServer(opts: ServerOptions) {
   return { handle, close };
 }
 
-export async function run(_args: string[], opts: Record<string, unknown>) {
+export async function run(args: string[], opts: Record<string, unknown>) {
+  const [sub, name] = args;
+  if (sub === "config") return (await import("./mcp-config.ts")).config(name, opts);
+  if (sub === "install") return (await import("./mcp-config.ts")).install(name, opts);
+  if (sub === "clients") return (await import("./mcp-clients.ts")).run(args.slice(1), opts);
+  if (sub) throw new Error(`Unknown mcp subcommand "${sub}". Usage: sikrets mcp [--http] | config <app> | install <app> | clients [add|rm|token] [name]`);
+
   const root = typeof opts.root === "string" ? opts.root : process.cwd();
   const allow = Array.isArray(opts.allow) ? (opts.allow as string[]) : [];
   const { version } = (await import("../../package.json")).default;
   const agent = typeof opts.agent === "string" ? opts.agent : undefined;
   const browser = typeof opts.browser === "string" ? opts.browser : undefined;
+  if (opts.http) return serveOverHttp(path.resolve(root), allow, version, browser, opts);
   const server = createServer({ root, allow, version, agent, logins: { browser } });
   const write = (reply: Reply) => process.stdout.write(JSON.stringify(reply) + "\n");
 
@@ -373,4 +380,25 @@ export async function run(_args: string[], opts: Record<string, unknown>) {
     }
   }
   await shutdown();
+}
+
+async function serveOverHttp(root: string, allow: string[], version: string, browser: string | undefined, opts: Record<string, unknown>) {
+  const { serveHttp } = await import("./mcp-http.ts");
+  const host = typeof opts.host === "string" ? opts.host : MCP_HTTP.defaultHost;
+  const port = opts.port === undefined ? MCP_HTTP.defaultPort : Number(opts.port);
+  if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error(`--port must be a port number, not "${String(opts.port)}"`);
+  const publicUrl = typeof opts["public-url"] === "string" ? opts["public-url"] : undefined;
+  if (publicUrl && !/^https:\/\/[^/]+\/?$/.test(publicUrl)) throw new Error("--public-url must be an https origin, e.g. https://name.trycloudflare.com");
+  if (typeof opts.agent === "string") throw new Error("--agent doesn't apply over HTTP: each client's name is its agent identity (sikrets mcp clients)");
+  const exposed = Boolean(publicUrl) || !(MCP_HTTP.loopbackHosts as readonly string[]).includes(host);
+  // Reachable from outside this machine: running any program with your secrets is too much to hand out by default.
+  if (exposed && !allow.length && !opts["allow-any"])
+    throw new Error("This server is reachable from outside this machine. Say which programs agents may run with --allow <program> (or --allow-any if you really mean any).");
+
+  const { url, server } = serveHttp({ root, allow, version, logins: { browser }, host, port, publicUrl, oauth: Boolean(opts.oauth) });
+  const local = `http://${host.includes(":") ? `[${host}]` : host}:${server.port}${MCP_HTTP.path}`;
+  console.error(`sikrets mcp: serving ${root} over HTTP at ${local}${publicUrl ? ` (public: ${url})` : ""}${allow.length ? ` (allowed: ${allow.join(", ")})` : ""}`);
+  console.error(`  auth: bearer tokens from \`sikrets mcp clients add <name>\`${opts.oauth ? ", and OAuth apps you approve on this Mac" : ""}. Stop with Ctrl-C.`);
+  if (!(MCP_HTTP.loopbackHosts as readonly string[]).includes(host)) console.error(`  warning: listening on ${host}, not just this machine.`);
+  await new Promise(() => undefined); // serve until killed
 }
